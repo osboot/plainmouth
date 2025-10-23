@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+PACKAGE_NAME    := @PACKAGE_NAME@
+PACKAGE_VERSION := @PACKAGE_VERSION@
+
+VERBOSE ?= $(V)
+Q = $(if $(VERBOSE),,@)
+
+PROGS =
+PLUGINS =
+GARBAGE =
+
+PTHREAD_CFLAGS = @PTHREAD_CFLAGS@
+PTHREAD_LIBS   = @PTHREAD_LIBS@
+
+NCURSES_CFLAGS := @NCURSES_CFLAGS@
+NCURSES_LIBS := @NCURSES_LIBS@
+
+PANEL_CFLAGS := @PANEL_CFLAGS@
+PANEL_LIBS := @PANEL_LIBS@
+
+PLUGINSDIR := $(CURDIR)/plugins
+
+WARNINGS = \
+	-Wall -W -Waggregate-return -Wconversion -Wdisabled-optimization \
+	-Wmissing-declarations -Wmissing-format-attribute -Wmissing-noreturn \
+	-Wmissing-prototypes -Wpointer-arith -Wredundant-decls -Wshadow \
+	-Wstrict-prototypes -Wwrite-strings \
+	#
+
+CPPFLAGS = \
+	-std=gnu99 -D_GNU_SOURCE -I$(CURDIR)/src \
+	-DPACKAGE_NAME=\"$(PACKAGE_NAME)\" \
+	-DPACKAGE_VERSION=\"$(PACKAGE_VERSION)\" \
+	-DPLUGINSDIR=\"$(PLUGINSDIR)\" \
+	#
+
+CFLAGS = -g -O0 -fPIC $(if $(DEBUG),-DDEBUG)
+CFLAGS += $(PTHREAD_CFLAGS) $(NCURSES_CFLAGS) $(PANEL_CFLAGS)
+
+override CFLAGS := $(WARNINGS) $(CFLAGS)
+LDLIBS =
+
+PROGS += plainmouthd
+SRC_plainmouthd = $(addprefix src/,plainmouthd.c ipc.c plugin.c)
+OBJ_plainmouthd = $(SRC_plainmouthd:.c=.o)
+LIB_plainmouthd = $(PTHREAD_LIBS) $(NCURSES_LIBS) $(PANEL_LIBS)
+GARBAGE += plainmouthd $(OBJ_plainmouthd)
+
+PROGS += plainmouth
+SRC_plainmouth = $(addprefix src/,plainmouth.c ipc.c)
+OBJ_plainmouth = $(SRC_plainmouth:.c=.o)
+GARBAGE += plainmouth $(OBJ_plainmouth)
+
+SRC_COMMON = $(addprefix src/,ipc.c widget.c)
+
+PLUGINS += splash
+SRC_plugin_splash = $(SRC_COMMON) $(addprefix src/plugins/splash/,splash.c)
+OBJ_plugin_splash = $(SRC_plugin_splash:.c=.o)
+LIB_plugin_splash = $(NCURSES_LIBS) $(PANEL_LIBS)
+GARBAGE += $(OBJ_plugin_splash)
+
+PLUGINS += askpass
+SRC_plugin_askpass = $(SRC_COMMON) $(addprefix src/plugins/askpass/,askpass.c)
+OBJ_plugin_askpass = $(SRC_plugin_askpass:.c=.o)
+LIB_plugin_askpass = $(NCURSES_LIBS) $(PANEL_LIBS)
+GARBAGE += $(OBJ_plugin_askpass)
+
+GARBAGE += $(PLUGINSDIR)
+
+quiet_cmd = $(if $(VERBOSE),$(3),$(Q)printf "  %-08s%s\n" "$(1)" $(2); $(3))
+
+cmd_MKDIR = $(call quiet_cmd,MKDIR,$(patsubst $(CURDIR)/%,%,$(1))/,mkdir -p) -- $(1)
+cmd_LINK  = $(call quiet_cmd,LD,$(patsubst $(CURDIR)/%,%,$@),$(LINK.o)) $(1) $(LOADLIBES) $(LDLIBS) -o $@
+
+.PHONY: all clean
+
+TARGETS = \
+	$(PROGS) \
+	$(patsubst %,$(PLUGINSDIR)/%.so,$(PLUGINS)) \
+	#
+
+all: $(TARGETS)
+
+clean:
+	$(Q)$(RM) -r -- $(GARBAGE)
+
+%.o: %.c
+	$(call quiet_cmd,CC,$<,$(COMPILE.c)) $(CFLAGS) $(OUTPUT_OPTION) $<
+
+plainmouthd: Makefile $(OBJ_plainmouthd)
+	$(call cmd_LINK,$(OBJ_plainmouthd)) $(LIB_plainmouthd)
+
+plainmouth: Makefile $(OBJ_plainmouth)
+	$(call cmd_LINK,$(OBJ_plainmouth))
+
+### Widgets
+
+.PHONY: bin_plugins
+
+bin_plugins: Makefile
+	$(call cmd_MKDIR,$(PLUGINSDIR))
+
+$(PLUGINSDIR)/splash.so: Makefile bin_plugins $(OBJ_plugin_splash)
+	$(call cmd_LINK,$(OBJ_plugin_splash)) -shared -ldl $(LIB_plugin_splash)
+
+$(PLUGINSDIR)/askpass.so: Makefile bin_plugins $(OBJ_plugin_askpass)
+	$(call cmd_LINK,$(OBJ_plugin_askpass)) -shared -ldl $(LIB_plugin_askpass)
+
+### Tests
+
+.PHONY: check build-checks
+
+VALGRIND = valgrind --error-exitcode=1 \
+	--leak-check=full --time-stamp=yes --trace-children=yes \
+	--track-fds=yes --track-origins=yes \
+	#
+
+TESTS := $(sort $(basename \
+	$(wildcard tests/ipc/ipc_*.c)))
+
+GARBAGE += $(TESTS) $(addsuffix .chk,$(TESTS)) $(addsuffix .log,$(TESTS))
+
+.NOTINTERMEDIATE: $(TESTS)
+
+build-checks: $(TESTS)
+
+tests/ipc/%: tests/ipc/%.o src/ipc.o
+	$(call cmd_LINK,$^)
+
+tests/%.chk: tests/%
+	@timeout -s KILL 5s $(VALGRIND) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \
+	flock -x $(CURDIR)/tests printf '%4s %s\n' "$$status" "$<"; \
+	echo $$status > $@
+
+check: $(addsuffix .chk,$(TESTS))
+	@ret=0; ! grep -qsx fail -- $^ || ret=1; $(RM) -- $^; exit $$ret;
