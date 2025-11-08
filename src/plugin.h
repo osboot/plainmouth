@@ -36,14 +36,4 @@ void unload_plugins(void);
 
 struct plugin *find_plugin(const char *name);
 
-struct widget {
-	LIST_ENTRY(widget) entries;
-
-	char *w_id;
-	struct plugin *w_plugin;
-
-	PANEL *w_panel;
-	bool w_finished;
-};
-
 #endif /* _PLAINMOUTH_PLUGIN_H_ */

@@ -45,15 +45,24 @@ struct ui_task {
 	struct request req;
 	int rc;
 };
+TAILQ_HEAD(uitasks, ui_task);
 
 struct worker {
 	LIST_ENTRY(worker) entries;
 	pthread_t thread_id;
 };
-
 LIST_HEAD(workers, worker);
-LIST_HEAD(widgets, widget);
-TAILQ_HEAD(uitasks, ui_task);
+
+struct widget {
+	TAILQ_ENTRY(widget) entries;
+
+	char *w_id;
+	struct plugin *w_plugin;
+
+	PANEL *w_panel;
+	bool w_finished;
+};
+TAILQ_HEAD(widgets, widget);
 
 static struct workers workers;
 static struct widgets widgets;
@@ -120,7 +129,7 @@ print_version(const char *progname)
 static struct widget *find_widget(const char *w_id)
 {
 	struct widget *widget;
-	LIST_FOREACH(widget, &widgets, entries) {
+	TAILQ_FOREACH(widget, &widgets, entries) {
 		if (streq(w_id, widget->w_id))
 			return widget;
 	}
@@ -131,7 +140,7 @@ static void free_widgets(void)
 {
 	struct widget *w1, *w2;
 
-	LIST_FOREACH(w1, &widgets, entries) {
+	TAILQ_FOREACH(w1, &widgets, entries) {
 		if (IS_DEBUG())
 			warnx("release widget '%s'", w1->w_id);
 
@@ -139,9 +148,9 @@ static void free_widgets(void)
 			warnx("destructor failed for widget '%s'", w1->w_id);
 	}
 
-	w1 = LIST_FIRST(&widgets);
+	w1 = TAILQ_FIRST(&widgets);
 	while (w1) {
-		w2 = LIST_NEXT(w1, entries);
+		w2 = TAILQ_NEXT(w1, entries);
 		free(w1->w_id);
 		free(w1);
 		w1 = w2;
@@ -294,7 +303,7 @@ static void ui_process_tasks(void)
 							}
 						}
 
-						LIST_INSERT_HEAD(&widgets, wnew, entries);
+						TAILQ_INSERT_HEAD(&widgets, wnew, entries);
 						rc = 0;
 
 					} else if (streq(action, "update")) {
@@ -330,7 +339,7 @@ static void ui_process_tasks(void)
 							break;
 						}
 
-						LIST_REMOVE(widget, entries);
+						TAILQ_REMOVE(&widgets, widget, entries);
 						free(widget->w_id);
 						free(widget);
 						rc = 0;
@@ -344,8 +353,10 @@ static void ui_process_tasks(void)
 						}
 
 						top_panel(widget->w_panel);
-						LIST_REMOVE(widget, entries);
-						LIST_INSERT_HEAD(&widgets, widget, entries);
+
+						TAILQ_REMOVE(&widgets, widget, entries);
+						TAILQ_INSERT_HEAD(&widgets, widget, entries);
+
 						rc = 0;
 
 					} else if (streq(action, "result")) {
@@ -480,6 +491,69 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 	return ui_enqueue_and_wait(t);
 }
 
+static void handle_input(void)
+{
+	wint_t code;
+	int ret = get_wch(&code);
+
+	if (ret == ERR)
+		return;
+
+	/* KEYCODE (F1..F12, arrows, HOME, END, PAGEUP etc, including WINCH) */
+	if (ret == KEY_CODE_YES) {
+		if (code == KEY_RESIZE) {
+			int rows, cols;
+
+			getmaxyx(stdscr, rows, cols);
+			resize_term(rows, cols);
+
+			if (use_terminal) {
+				update_panels();
+				doupdate();
+			}
+			return;
+		}
+	}
+
+	if (ret == OK) {
+		if (code == L'\t') {
+			struct widget *w = TAILQ_FIRST(&widgets);
+
+			if (w && TAILQ_NEXT(w, entries)) {
+				TAILQ_REMOVE(&widgets, w, entries);
+				TAILQ_INSERT_TAIL(&widgets, w, entries);
+
+				top_panel(w->w_panel);
+
+				if (use_terminal) {
+					update_panels();
+					doupdate();
+				}
+			}
+			return;
+		}
+
+		struct widget *focused = TAILQ_FIRST(&widgets);
+
+		if (focused && focused->w_plugin->p_input) {
+			focused->w_plugin->p_input(focused->w_panel, (wchar_t)code);
+
+			if (use_terminal) {
+				update_panels();
+				doupdate();
+			}
+		}
+	}
+}
+
+static void handle_tasks(void)
+{
+	uint64_t val;
+	while (read(ui_eventfd, &val, sizeof(val)) > 0);
+
+	ui_process_tasks();
+}
+
 static void curses_init(void)
 {
 	initscr();
@@ -551,8 +625,8 @@ int main(int argc, char **argv)
 	setlocale(LC_ALL, "");
 	setlocale(LC_CTYPE, "");
 
-	LIST_INIT(&widgets);
 	LIST_INIT(&workers);
+	TAILQ_INIT(&widgets);
 	TAILQ_INIT(&uitasks);
 
 	retcode = EXIT_SUCCESS;
@@ -635,27 +709,10 @@ int main(int argc, char **argv)
 			}
 		}
 		if (pfd[POLL_STDIN].revents & POLLIN) {
-			wint_t code;
-			int ret = get_wch(&code);
-
-			if (ret != ERR) {
-				struct widget *focused = LIST_FIRST(&widgets);
-
-				if (focused && focused->w_plugin->p_input) {
-					focused->w_plugin->p_input(focused->w_panel, (wchar_t) code);
-
-					if (use_terminal) {
-						update_panels();
-						doupdate();
-					}
-				}
-			}
+			handle_input();
 		}
 		if (pfd[POLL_EVENTFD].revents & POLLIN) {
-			uint64_t val;
-			while (read(ui_eventfd, &val, sizeof(val)) > 0);
-
-			ui_process_tasks();
+			handle_tasks();
 		}
 
 		fflush(stderr);
