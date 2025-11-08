@@ -72,6 +72,8 @@ static _Atomic int do_quit = 0;
 static bool use_terminal = true;
 static char *debug_file = NULL;
 
+static pthread_t ui_thread;
+
 static const char cmdopts_s[] = "S:Vh";
 static const struct option cmdopts[] = {
 	{ "debug-file",  required_argument, 0, 1   },
@@ -155,6 +157,9 @@ static inline void ui_wakeup(void)
 
 static struct ui_task *ui_task_create(enum ui_task_type type, struct request *req)
 {
+	if (pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_task_create called from UI thread");
+
 	struct ui_task *t = calloc(1, sizeof(*t));
 	if (!t) {
 		warn("calloc(ui_task)");
@@ -169,17 +174,15 @@ static struct ui_task *ui_task_create(enum ui_task_type type, struct request *re
 	return t;
 }
 
-static void ui_task_destroy(struct ui_task *t)
-{
-	free(t);
-}
-
 /*
  * Queue the task and wait for it to be completed.
  * Returns the field t->rc (0 = ok, < 0 = error).
  */
 static int ui_enqueue_and_wait(struct ui_task *t)
 {
+	if (pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_enqueue_and_wait called from UI thread");
+
 	pthread_mutex_lock(&ui_mutex);
 	TAILQ_INSERT_TAIL(&uitasks, t, entries);
 	ui_wakeup();
@@ -192,13 +195,17 @@ static int ui_enqueue_and_wait(struct ui_task *t)
 	pthread_mutex_unlock(&ui_mutex);
 
 	int rc = t->rc;
-	ui_task_destroy(t);
+	free(t);
+
 	return rc;
 }
 
 static void ui_process_tasks(void)
 {
 	struct ui_task *t = NULL;
+
+	if (!pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_process_tasks called not from UI thread");
 
 	pthread_mutex_lock(&ui_mutex);
 
@@ -561,6 +568,8 @@ int main(int argc, char **argv)
 	ui_eventfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK | EFD_SEMAPHORE);
 	if (ui_eventfd == -1)
 		err(EXIT_FAILURE, "eventfd");
+
+	ui_thread = pthread_self();
 
 	struct ipc_ctx ctx;
 	ipc_init(&ctx);
