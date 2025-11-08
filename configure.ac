@@ -2,7 +2,7 @@
 #
 # Process this file with autoconf to produce a configure script.
 #
-AC_PREREQ([2.72])
+AC_PREREQ([2.71])
 
 AC_INIT([plainmouth],[0.1],[legion@kernel.org])
 
