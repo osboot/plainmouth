@@ -8,13 +8,12 @@ static void test_ipc_init_and_free(void)
 	struct ipc_ctx ctx;
 	ipc_init(&ctx);
 
-	assert(ctx.sockfd == -1);
 	assert(ctx.fd == -1);
 	assert(ctx.inbuf.data == NULL);
 	assert(ctx.inbuf.len == 0);
 
 	ipc_free(&ctx);
-	assert(ctx.sockfd == -1);
+	assert(ctx.fd == -1);
 	assert(ctx.fd == -1);
 }
 

@@ -13,7 +13,7 @@ static void test_ipc_recv_timeout(void)
 	const char *socket_path = "/tmp/test_ipc_socket1";
 
 	assert(ipc_listen(&ctx, socket_path, 5, 0) == true);
-	assert(ipc_recv_timeout(&ctx, 1, IPC_SOCK_SERVER) == true);
+	assert(ipc_recv_timeout(&ctx, 1) == true);
 
 	char message[BUFSIZ];
 	assert(ipc_recv_data(ctx.fd, message, sizeof(message)) == -1);
