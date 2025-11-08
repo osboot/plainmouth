@@ -1,0 +1,74 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+      - for-master
+      - github-ci
+    tags:
+      - v*
+  pull_request:
+    branches:
+      - master
+      - for-master
+jobs:
+  check_commits_job:
+    name: "Check commits"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: "Developer's Certificate of Origin"
+        run: |
+          [ "${{ github.event_name }}" = "push" ] &&
+             from="refs/remotes/origin/${{ github.event.repository.default_branch }}" ||
+             from="${{ github.event.pull_request.base.sha }}"
+          tests/ci/check-dco.sh "$from..HEAD"
+
+  local_build_job:
+    name: "Check with ${{ matrix.compiler }} / ${{ matrix.libc }} on x86_64"
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cflags:
+            compiler: gcc
+            libc: glibc
+          - os: ubuntu-latest
+            cflags:
+            compiler: clang
+            libc: glibc
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    needs: [ check_commits_job ]
+    steps:
+    - name: "Check out repository"
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - run: sudo apt-get update  -y -qq
+    - run: sudo apt-get install -y -qq autoconf valgrind libncurses-dev
+    - run: sudo apt-get install -y -qq gcc clang
+    - name: "Configure"
+      run: |
+        ./autogen.sh
+        ./configure
+    - name: "Build"
+      run: |
+        make V=1
+        make build-checks V=1
+    - name: "Check"
+      run: |
+        make check
+    - name: "Upload artifacts"
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: artifact-${{ matrix.compiler }}-${{ matrix.libc }}
+        path: |
+          config.log
+          tests/testsuite.dir
+          tests/testsuite.log
+        if-no-files-found: ignore
+        retention-days: 1
