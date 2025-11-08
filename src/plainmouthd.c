@@ -41,12 +41,9 @@ struct ui_task {
 	TAILQ_ENTRY(ui_task) entries;
 
 	enum ui_task_type type;
+	uint64_t id;
 	struct request req;
 	int rc;
-
-	pthread_mutex_t done_mutex;
-	pthread_cond_t done_cond;
-	bool done;
 };
 
 struct worker {
@@ -62,8 +59,11 @@ static struct workers workers;
 static struct widgets widgets;
 static struct uitasks uitasks;
 
-/* queue synchronization */
 static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  ui_cond  = PTHREAD_COND_INITIALIZER;
+
+static _Atomic uint64_t done_task_id = 0;
+static _Atomic uint64_t next_task_id = 1;
 
 static int ui_eventfd = -1;
 
@@ -163,20 +163,14 @@ static struct ui_task *ui_task_create(enum ui_task_type type, struct request *re
 
 	t->type = type;
 	t->req = *req;
-
-	pthread_mutex_init(&t->done_mutex, NULL);
-	pthread_cond_init(&t->done_cond, NULL);
-
-	t->done = false;
 	t->rc = 0;
+	t->id = next_task_id++;
 
 	return t;
 }
 
 static void ui_task_destroy(struct ui_task *t)
 {
-	pthread_mutex_destroy(&t->done_mutex);
-	pthread_cond_destroy(&t->done_cond);
 	free(t);
 }
 
@@ -187,22 +181,17 @@ static void ui_task_destroy(struct ui_task *t)
 static int ui_enqueue_and_wait(struct ui_task *t)
 {
 	pthread_mutex_lock(&ui_mutex);
-
 	TAILQ_INSERT_TAIL(&uitasks, t, entries);
-
-	/* notify the main thread that tasks have appeared */
 	ui_wakeup();
-
-	/* now we are waiting for the completion of a specific task */
 	pthread_mutex_unlock(&ui_mutex);
 
-	pthread_mutex_lock(&t->done_mutex);
-	while (!t->done) {
-		pthread_cond_wait(&t->done_cond, &t->done_mutex);
+	pthread_mutex_lock(&ui_mutex);
+	while (done_task_id < t->id) {
+		pthread_cond_wait(&ui_cond, &ui_mutex);
 	}
-	int rc = t->rc;
-	pthread_mutex_unlock(&t->done_mutex);
+	pthread_mutex_unlock(&ui_mutex);
 
+	int rc = t->rc;
 	ui_task_destroy(t);
 	return rc;
 }
@@ -407,11 +396,11 @@ static void ui_process_tasks(void)
 				break;
 		}
 
-		pthread_mutex_lock(&t->done_mutex);
+		pthread_mutex_lock(&ui_mutex);
 		t->rc = rc;
-		t->done = true;
-		pthread_cond_signal(&t->done_cond);
-		pthread_mutex_unlock(&t->done_mutex);
+		done_task_id = t->id;
+		pthread_cond_broadcast(&ui_cond);
+		pthread_mutex_unlock(&ui_mutex);
 
 		t = next;
 	}
@@ -686,6 +675,8 @@ int main(int argc, char **argv)
 	ipc_free(&ctx);
 
 	close(ui_eventfd);
+	pthread_mutex_destroy(&ui_mutex);
+	pthread_cond_destroy(&ui_cond);
 
 	curses_finish();
 
