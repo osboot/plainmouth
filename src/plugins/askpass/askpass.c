@@ -99,7 +99,7 @@ static bool pass_unchr(struct askpass *p)
 
 static bool pass_chr(struct askpass *p, wchar_t key)
 {
-	int len = p->passlen ? p->passlen + 1 : 2;
+	int len = p->passlen + 2;
 
 	if (p->passcap < len) {
 		wchar_t *data = realloc(p->password, (size_t) len * sizeof(wchar_t));
