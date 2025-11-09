@@ -209,209 +209,238 @@ static int ui_enqueue_and_wait(struct ui_task *t)
 	return rc;
 }
 
+static int ui_process_task_create(struct ui_task *t)
+{
+	if (!pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
+
+	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
+	struct widget *widget = find_widget(widget_id);
+
+	if (widget) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=widget with '%s' already exists",
+				req_id(&t->req), widget_id);
+		return -1;
+	}
+
+	const char *plugin_name = ipc_get_val(req_data(&t->req), "plugin");
+	if (!plugin_name) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=field is missing: plugin",
+				req_id(&t->req));
+		return -1;
+	}
+
+	struct plugin *plugin = find_plugin(plugin_name);
+	if (!plugin) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=plugin not found",
+				req_id(&t->req));
+		return -1;
+	}
+
+	struct widget *wnew = calloc(1, sizeof(*wnew));
+	if (!wnew) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no memory",
+				req_id(&t->req));
+		return -1;
+	}
+
+	wnew->w_id = strdup(widget_id);
+	wnew->w_plugin = plugin;
+
+	if (!wnew->w_id) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no memory",
+				req_id(&t->req));
+		free(wnew);
+		return -1;
+	}
+
+	if (plugin->p_create_widget) {
+		wnew->w_panel = plugin->p_create_widget(&t->req);
+		if (!wnew->w_panel) {
+			ipc_send_string(req_fd(&t->req),
+					"RESPDATA %s ERR=unable to create widget",
+					req_id(&t->req));
+			free(wnew->w_id);
+			free(wnew);
+			return -1;
+		}
+	}
+
+	TAILQ_INSERT_HEAD(&widgets, wnew, entries);
+
+	if (use_terminal) {
+		update_panels();
+		doupdate();
+	}
+
+	return 0;
+}
+
+static int ui_process_task_update(struct ui_task *t)
+{
+	if (!pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
+
+	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
+	struct widget *widget = find_widget(widget_id);
+
+	if (!widget) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
+				req_id(&t->req), widget_id);
+		return -1;
+	}
+
+	if (widget->w_plugin->p_update_widget &&
+			widget->w_plugin->p_update_widget(&t->req, widget->w_panel) != P_RET_OK) {
+		return -1;
+	}
+
+	if (!widget->w_finished && widget->w_plugin->p_finished)
+		widget->w_finished = widget->w_plugin->p_finished(widget->w_panel);
+
+	if (use_terminal) {
+		update_panels();
+		doupdate();
+	}
+
+	return 0;
+}
+
+static int ui_process_task_delete(struct ui_task *t)
+{
+	if (!pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
+
+	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
+	struct widget *widget = find_widget(widget_id);
+
+	if (!widget) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
+				req_id(&t->req), widget_id);
+		return -1;
+	}
+
+	if (widget->w_plugin->p_delete_widget &&
+			widget->w_plugin->p_delete_widget(widget->w_panel) != P_RET_OK) {
+		return -1;
+	}
+
+	TAILQ_REMOVE(&widgets, widget, entries);
+	free(widget->w_id);
+	free(widget);
+
+	if (use_terminal) {
+		update_panels();
+		doupdate();
+	}
+
+	return 0;
+}
+
+static int ui_process_task_focus(struct ui_task *t)
+{
+	if (!pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
+
+	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
+	struct widget *widget = find_widget(widget_id);
+
+	if (!widget) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
+				req_id(&t->req), widget_id);
+		return -1;
+	}
+
+	top_panel(widget->w_panel);
+
+	TAILQ_REMOVE(&widgets, widget, entries);
+	TAILQ_INSERT_HEAD(&widgets, widget, entries);
+
+	if (use_terminal) {
+		update_panels();
+		doupdate();
+	}
+
+	return 0;
+}
+
+static int ui_process_task_result(struct ui_task *t)
+{
+	if (!pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
+
+	struct ipc_pair *data = req_data(&t->req);
+
+	for (size_t i = 0; i < data->num_kv; i++) {
+		if (!streq(data->kv[i].key, "widget"))
+			continue;
+
+		struct widget *w = find_widget(data->kv[i].val);
+		if (!w)
+			continue;
+
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s WIDGET=%s",
+				req_id(&t->req), w->w_id);
+
+		if (w->w_plugin->p_result)
+			w->w_plugin->p_result(&t->req, w->w_panel);
+	}
+
+	return 0;
+}
+
+static int ui_process_task_show_splash(struct ui_task *t _UNUSED)
+{
+	if (!use_terminal) {
+		refresh();
+		doupdate();
+		use_terminal = !use_terminal;
+	}
+	return 0;
+}
+
+static int ui_process_task_hide_splash(struct ui_task *t _UNUSED)
+{
+	if (use_terminal) {
+		endwin();
+		use_terminal = !use_terminal;
+	}
+	return 0;
+}
+
+static int ui_process_task_unknown(struct ui_task *t)
+{
+	ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unknown action",
+			req_id(&t->req));
+	return -1;
+}
+
+
 static void ui_process_tasks(void)
 {
-	struct ui_task *t = NULL;
+	struct ui_task *t;
 
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_process_tasks called not from UI thread");
 
 	pthread_mutex_lock(&ui_mutex);
-
 	t = TAILQ_FIRST(&uitasks);
 	TAILQ_INIT(&uitasks);
-
 	pthread_mutex_unlock(&ui_mutex);
 
 	while (t) {
+		int rc;
 		struct ui_task *next = TAILQ_NEXT(t, entries);
-		int rc = 0;
 
 		switch (t->type) {
-			case UI_TASK_CREATE:
-			case UI_TASK_UPDATE:
-			case UI_TASK_DELETE:
-			case UI_TASK_FOCUS:
-			case UI_TASK_RESULT:
-				{
-					const char *action = ipc_get_val(req_data(&t->req), "action");
-					const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
-
-					if (!action || !widget_id) {
-						ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=field is missing",
-								req_id(&t->req));
-						rc = -1;
-						break;
-					}
-
-					struct widget *widget = find_widget(widget_id);
-
-					if (streq(action, "create")) {
-						if (widget) {
-							ipc_send_string(req_fd(&t->req),
-									"RESPDATA %s ERR=widget with '%s' already exists",
-									req_id(&t->req), widget_id);
-							rc = -1;
-							break;
-						}
-
-						const char *plugin_name = ipc_get_val(req_data(&t->req), "plugin");
-						if (!plugin_name) {
-							ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=field is missing: plugin",
-									req_id(&t->req));
-							rc = -1;
-							break;
-						}
-
-						struct plugin *plugin = find_plugin(plugin_name);
-						if (!plugin) {
-							ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=plugin not found",
-									req_id(&t->req));
-							rc = -1;
-							break;
-						}
-
-						struct widget *wnew = calloc(1, sizeof(*wnew));
-						if (!wnew) {
-							ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no memory",
-									req_id(&t->req));
-							rc = -1;
-							break;
-						}
-
-						wnew->w_id = strdup(widget_id);
-						wnew->w_plugin = plugin;
-
-						if (!wnew->w_id) {
-							ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no memory",
-									req_id(&t->req));
-							free(wnew);
-							rc = -1;
-							break;
-						}
-
-						if (plugin->p_create_widget) {
-							wnew->w_panel = plugin->p_create_widget(&t->req);
-							if (!wnew->w_panel) {
-								ipc_send_string(req_fd(&t->req),
-										"RESPDATA %s ERR=unable to create widget",
-										req_id(&t->req));
-								free(wnew->w_id);
-								free(wnew);
-								rc = -1;
-								break;
-							}
-						}
-
-						TAILQ_INSERT_HEAD(&widgets, wnew, entries);
-						rc = 0;
-
-					} else if (streq(action, "update")) {
-						if (!widget) {
-							ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
-									req_id(&t->req), widget_id);
-							rc = -1;
-							break;
-						}
-
-						if (widget->w_plugin->p_update_widget &&
-								widget->w_plugin->p_update_widget(&t->req, widget->w_panel) != P_RET_OK) {
-							rc = -1;
-							break;
-						}
-
-						if (!widget->w_finished && widget->w_plugin->p_finished)
-							widget->w_finished = widget->w_plugin->p_finished(widget->w_panel);
-
-						rc = 0;
-
-					} else if (streq(action, "delete")) {
-						if (!widget) {
-							ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
-									req_id(&t->req), widget_id);
-							rc = -1;
-							break;
-						}
-
-						if (widget->w_plugin->p_delete_widget &&
-								widget->w_plugin->p_delete_widget(widget->w_panel) != P_RET_OK) {
-							rc = -1;
-							break;
-						}
-
-						TAILQ_REMOVE(&widgets, widget, entries);
-						free(widget->w_id);
-						free(widget);
-						rc = 0;
-
-					} else if (streq(action, "focus")) {
-						if (!widget) {
-							ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
-									req_id(&t->req), widget_id);
-							rc = -1;
-							break;
-						}
-
-						top_panel(widget->w_panel);
-
-						TAILQ_REMOVE(&widgets, widget, entries);
-						TAILQ_INSERT_HEAD(&widgets, widget, entries);
-
-						rc = 0;
-
-					} else if (streq(action, "result")) {
-						struct ipc_pair *data = req_data(&t->req);
-
-						for (size_t i = 0; i < data->num_kv; i++) {
-							if (!streq(data->kv[i].key, "widget"))
-								continue;
-							struct widget *w = find_widget(data->kv[i].val);
-							if (!w) continue;
-
-							ipc_send_string(req_fd(&t->req), "RESPDATA %s WIDGET=%s",
-									req_id(&t->req), w->w_id);
-
-							if (w->w_plugin->p_result)
-								w->w_plugin->p_result(&t->req, w->w_panel);
-						}
-						rc = 0;
-
-					} else {
-						ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unknown action",
-								req_id(&t->req));
-						rc = -1;
-					}
-
-					if (use_terminal) {
-						update_panels();
-						doupdate();
-					}
-
-					if (debug_file)
-						fflush(stderr);
-				}
-				break;
-
-			case UI_TASK_SHOW_SPLASH:
-				if (!use_terminal) {
-					refresh();
-					doupdate();
-					use_terminal = !use_terminal;
-				}
-				rc = 0;
-				break;
-
-			case UI_TASK_HIDE_SPLASH:
-				if (use_terminal) {
-					endwin();
-					use_terminal = !use_terminal;
-				}
-				rc = 0;
-				break;
-
-			default:
-				rc = -1;
-				break;
+			case UI_TASK_CREATE:		rc = ui_process_task_create(t);		break;
+			case UI_TASK_UPDATE:		rc = ui_process_task_update(t);		break;
+			case UI_TASK_DELETE:		rc = ui_process_task_delete(t);		break;
+			case UI_TASK_FOCUS:		rc = ui_process_task_focus(t);		break;
+			case UI_TASK_RESULT:		rc = ui_process_task_result(t);		break;
+			case UI_TASK_SHOW_SPLASH:	rc = ui_process_task_show_splash(t);	break;
+			case UI_TASK_HIDE_SPLASH:	rc = ui_process_task_hide_splash(t);	break;
+			case UI_TASK_NONE:		rc = ui_process_task_unknown(t);	break;
 		}
 
 		pthread_mutex_lock(&ui_mutex);
@@ -422,6 +451,9 @@ static void ui_process_tasks(void)
 
 		t = next;
 	}
+
+	if (debug_file)
+		fflush(stderr);
 }
 
 static int event_loop_iter(void *data __attribute__((unused)))
