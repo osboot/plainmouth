@@ -351,10 +351,10 @@ static int ui_process_task_focus(struct ui_task *t)
 		return -1;
 	}
 
-	top_panel(widget->w_panel);
-
 	TAILQ_REMOVE(&widgets, widget, entries);
 	TAILQ_INSERT_HEAD(&widgets, widget, entries);
+
+	top_panel(widget->w_panel);
 
 	if (use_terminal) {
 		update_panels();
@@ -555,6 +555,7 @@ static void handle_input(void)
 				TAILQ_REMOVE(&widgets, w, entries);
 				TAILQ_INSERT_TAIL(&widgets, w, entries);
 
+				w = TAILQ_FIRST(&widgets);
 				top_panel(w->w_panel);
 
 				if (use_terminal) {
