@@ -65,7 +65,7 @@ static bool send_action(struct ipc_ctx *ctx, struct ipc_pair *resp, const char *
 {
 	struct ipc_pair data = { 0 };
 
-	ipc_pair_sprintf(&data, "action", action);
+	ipc_pair_sprintf(&data, "action", "%s", action);
 
 	bool ret = ipc_send_message2(ctx, &data, resp);
 
