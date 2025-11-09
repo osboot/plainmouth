@@ -17,6 +17,7 @@
 
 #include <pthread.h>
 #include <ncurses.h>
+#include <term.h>
 
 #include "helpers.h"
 #include "ipc.h"
@@ -74,6 +75,7 @@ static pthread_cond_t  ui_cond  = PTHREAD_COND_INITIALIZER;
 static _Atomic uint64_t done_task_id = 0;
 static _Atomic uint64_t next_task_id = 1;
 
+static SCREEN *scr = NULL;
 static int ui_eventfd = -1;
 
 static _Atomic int do_quit = 0;
@@ -589,7 +591,12 @@ static void handle_tasks(void)
 
 static void curses_init(void)
 {
-	initscr();
+	scr = newterm(NULL, stdout, stdin);
+	if (!scr)
+		errx(EXIT_FAILURE, "newterm failed");
+
+	set_term(scr);
+
 	nodelay(stdscr, TRUE);
 	cbreak();
 	noecho();
@@ -601,14 +608,16 @@ static void curses_init(void)
 		init_pair(2, COLOR_GREEN, COLOR_BLACK);
 		init_pair(3, COLOR_CYAN, COLOR_BLACK);
 		bkgd((chtype) COLOR_PAIR(1));
-		refresh();
 	}
+
+	refresh();
 }
 
 static void curses_finish(void)
 {
 	reset_color_pairs();
 	endwin();
+	delscreen(scr);
 }
 
 static void *thread_connection(void *arg)
@@ -617,6 +626,7 @@ static void *thread_connection(void *arg)
 
 	ipc_event_loop(ctx);
 	ipc_close(ctx);
+	free(ctx);
 
 	return NULL;
 }
