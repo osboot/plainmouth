@@ -120,6 +120,13 @@ static enum p_retcode p_splash_update(struct request *req, PANEL *panel)
 	return P_RET_OK;
 }
 
+static bool p_splash_finished(PANEL *panel)
+{
+	const struct splash *splash = panel_userptr(panel);
+
+	return splash->value == splash->total;
+}
+
 struct plugin plugin = {
 	.name              = "splash",
 	.p_plugin_init     = NULL,
@@ -127,7 +134,7 @@ struct plugin plugin = {
 	.p_create_widget   = p_splash_create,
 	.p_delete_widget   = p_splash_delete,
 	.p_update_widget   = p_splash_update,
-	.p_finished        = NULL,
+	.p_finished        = p_splash_finished,
 	.p_input           = NULL,
 	.p_result          = NULL,
 };
