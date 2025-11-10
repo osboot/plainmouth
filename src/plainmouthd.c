@@ -72,6 +72,9 @@ static struct uitasks uitasks;
 static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  ui_cond  = PTHREAD_COND_INITIALIZER;
 
+static pthread_mutex_t widgets_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  widget_cond   = PTHREAD_COND_INITIALIZER;
+
 static _Atomic uint64_t done_task_id = 0;
 static _Atomic uint64_t next_task_id = 1;
 
@@ -211,6 +214,19 @@ static int ui_enqueue_and_wait(struct ui_task *t)
 	return rc;
 }
 
+static inline void ui_check_widget_finished(struct widget *w)
+{
+	if (!w->w_finished && w->w_plugin->p_finished) {
+		w->w_finished = w->w_plugin->p_finished(w->w_panel);
+
+		if (w->w_finished) {
+			pthread_mutex_lock(&widgets_mutex);
+			pthread_cond_broadcast(&widget_cond);
+			pthread_mutex_unlock(&widgets_mutex);
+		}
+	}
+}
+
 static int ui_process_task_create(struct ui_task *t)
 {
 	if (!pthread_equal(pthread_self(), ui_thread))
@@ -268,7 +284,12 @@ static int ui_process_task_create(struct ui_task *t)
 		}
 	}
 
+	// A plugin without a callback is always finished.
+	wnew->w_finished = (plugin->p_finished == NULL);
+
+	pthread_mutex_lock(&widgets_mutex);
 	TAILQ_INSERT_HEAD(&widgets, wnew, entries);
+	pthread_mutex_unlock(&widgets_mutex);
 
 	if (use_terminal) {
 		update_panels();
@@ -297,8 +318,7 @@ static int ui_process_task_update(struct ui_task *t)
 		return -1;
 	}
 
-	if (!widget->w_finished && widget->w_plugin->p_finished)
-		widget->w_finished = widget->w_plugin->p_finished(widget->w_panel);
+	ui_check_widget_finished(widget);
 
 	if (use_terminal) {
 		update_panels();
@@ -327,7 +347,10 @@ static int ui_process_task_delete(struct ui_task *t)
 		return -1;
 	}
 
+	pthread_mutex_lock(&widgets_mutex);
 	TAILQ_REMOVE(&widgets, widget, entries);
+	pthread_mutex_unlock(&widgets_mutex);
+
 	free(widget->w_id);
 	free(widget);
 
@@ -353,8 +376,10 @@ static int ui_process_task_focus(struct ui_task *t)
 		return -1;
 	}
 
+	pthread_mutex_lock(&widgets_mutex);
 	TAILQ_REMOVE(&widgets, widget, entries);
 	TAILQ_INSERT_HEAD(&widgets, widget, entries);
+	pthread_mutex_unlock(&widgets_mutex);
 
 	top_panel(widget->w_panel);
 
@@ -493,6 +518,37 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 		ipc_send_string(req_fd(&req), "RESPDATA %s ISTTY=%d", req_id(&req), res);
 		return 0;
 	}
+	else if (streq(action, "wait-result")) {
+		const char *widget_id = ipc_get_val(&m->data, "widget");
+		if (!widget_id) {
+			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: widget", req_id(&req));
+			return -1;
+		}
+
+		struct widget *widget;
+
+		pthread_mutex_lock(&widgets_mutex);
+		while (1) {
+			widget = find_widget(widget_id);
+			if (!widget) {
+				pthread_mutex_unlock(&widgets_mutex);
+				ipc_send_string(req_fd(&req), "RESPDATA %s ERR=no widget", req_id(&req));
+				return -1;
+			}
+			if (widget->w_finished)
+				break;
+
+			pthread_cond_wait(&widget_cond, &widgets_mutex);
+		}
+		pthread_mutex_unlock(&widgets_mutex);
+
+		struct ui_task *t = ui_task_create(UI_TASK_RESULT, &req);
+		if (!t) {
+			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=no memory", req_id(&req));
+			return -1;
+		}
+		return ui_enqueue_and_wait(t);
+	}
 
 	enum ui_task_type ttype = UI_TASK_NONE;
 
@@ -554,8 +610,10 @@ static void handle_input(void)
 			struct widget *w = TAILQ_FIRST(&widgets);
 
 			if (w && TAILQ_NEXT(w, entries)) {
+				pthread_mutex_lock(&widgets_mutex);
 				TAILQ_REMOVE(&widgets, w, entries);
 				TAILQ_INSERT_TAIL(&widgets, w, entries);
+				pthread_mutex_unlock(&widgets_mutex);
 
 				w = TAILQ_FIRST(&widgets);
 				top_panel(w->w_panel);
@@ -572,6 +630,8 @@ static void handle_input(void)
 
 		if (focused && focused->w_plugin->p_input) {
 			focused->w_plugin->p_input(focused->w_panel, (wchar_t)code);
+
+			ui_check_widget_finished(focused);
 
 			if (use_terminal) {
 				update_panels();
