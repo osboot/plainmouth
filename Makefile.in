@@ -42,7 +42,7 @@ override CFLAGS := $(WARNINGS) $(CFLAGS)
 LDLIBS =
 
 PROGS += plainmouthd
-SRC_plainmouthd = $(addprefix src/,plainmouthd.c ipc.c plugin.c)
+SRC_plainmouthd = $(addprefix src/,plainmouthd.c ipc.c request.c plugin.c)
 OBJ_plainmouthd = $(SRC_plainmouthd:.c=.o)
 LIB_plainmouthd = $(PTHREAD_LIBS) $(NCURSES_LIBS) $(PANEL_LIBS)
 GARBAGE += plainmouthd $(OBJ_plainmouthd)
@@ -52,7 +52,7 @@ SRC_plainmouth = $(addprefix src/,plainmouth.c ipc.c)
 OBJ_plainmouth = $(SRC_plainmouth:.c=.o)
 GARBAGE += plainmouth $(OBJ_plainmouth)
 
-SRC_COMMON = $(addprefix src/,ipc.c widget.c)
+SRC_COMMON = $(addprefix src/,ipc.c request.c widget.c)
 
 PLUGINS += splash
 SRC_plugin_splash = $(SRC_COMMON) $(addprefix src/plugins/splash/,splash.c)

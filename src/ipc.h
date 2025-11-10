@@ -60,10 +60,6 @@ bool ipc_pair_sprintf(struct ipc_pair *pairs, const char *key, const char *fmt, 
 			__attribute__((nonnull(1, 2), __format__(printf, 3, 4)));
 void ipc_pair_free(struct ipc_pair *pair) __attribute__((nonnull(1)));
 
-const char *ipc_get_val(const struct ipc_pair *p, const char *key)     __attribute__((nonnull(1, 2)));
-int ipc_get_int(const struct ipc_pair *p, const char *key, int def)    __attribute__((nonnull(1, 2)));
-bool ipc_get_bool(const struct ipc_pair *p, const char *key, bool def) __attribute__((nonnull(1, 2)));
-
 void ipc_init(struct ipc_ctx *ctx) __attribute__((nonnull(1)));
 void ipc_free(struct ipc_ctx *ctx) __attribute__((nonnull(1)));
 

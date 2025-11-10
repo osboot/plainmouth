@@ -35,11 +35,11 @@ static PANEL *p_askpass_create(struct request *req _UNUSED)
 		return NULL;
 	}
 
-	const char *label = ipc_get_val(req_data(req), "label");
-	bool border = ipc_get_bool(req_data(req), "border", false);
-	int begin_x = ipc_get_int(req_data(req), "x", -1);
-	int begin_y = ipc_get_int(req_data(req), "y", -1);
-	int ncols = ipc_get_int(req_data(req), "width", -1);
+	const char *label = req_get_val(req, "label");
+	bool border = req_get_bool(req, "border", false);
+	int begin_x = req_get_int(req, "x", -1);
+	int begin_y = req_get_int(req, "y", -1);
+	int ncols = req_get_int(req, "width", -1);
 
 	int border_cols = (border ? 2 : 0);
 	int nlines  = 1 + border_cols + (label ? 1 : 0);

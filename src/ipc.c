@@ -324,29 +324,6 @@ bool ipc_pair_sprintf(struct ipc_pair *pairs, const char *key, const char *fmt, 
 	return true;
 }
 
-const char *ipc_get_val(const struct ipc_pair *p, const char *key)
-{
-	for (size_t i = 0; i < p->num_kv; i++) {
-		if (streq(p->kv[i].key, key))
-			return p->kv[i].val;
-	}
-	return NULL;
-}
-
-int ipc_get_int(const struct ipc_pair *p, const char *key, int def)
-{
-	const char *v = ipc_get_val(p, key);
-	return v ? atoi(v) : def;
-}
-
-bool ipc_get_bool(const struct ipc_pair *p, const char *key, bool def)
-{
-	const char *v = ipc_get_val(p, key);
-	if (v)
-		return streq(v, "1") || strcaseeq(v, "true") || strcaseeq(v, "yes");
-	return def;
-}
-
 bool handle_hllo(struct ipc_ctx *ctx,
 		struct ipc_token *tok __attribute__((unused)))
 {

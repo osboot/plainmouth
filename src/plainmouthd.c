@@ -229,7 +229,7 @@ static inline void ui_check_widget_finished(struct widget *w)
 
 static struct widget *ui_get_widget_by_id(struct ui_task *t)
 {
-	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
+	const char *widget_id = req_get_val(&t->req, "widget");
 	struct widget *widget = find_widget(widget_id);
 
 	if (!widget) {
@@ -246,7 +246,7 @@ static int ui_process_task_create(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
+	const char *widget_id = req_get_val(&t->req, "widget");
 	struct widget *widget = find_widget(widget_id);
 
 	if (widget) {
@@ -255,7 +255,7 @@ static int ui_process_task_create(struct ui_task *t)
 		return -1;
 	}
 
-	const char *plugin_name = ipc_get_val(req_data(&t->req), "plugin");
+	const char *plugin_name = req_get_val(&t->req, "plugin");
 	if (!plugin_name) {
 		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=field is missing: plugin",
 				req_id(&t->req));
@@ -484,7 +484,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 		.r_msg = m,
 	};
 
-	const char *action = ipc_get_val(&m->data, "action");
+	const char *action = req_get_val(&req, "action");
 	if (!action) {
 		ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: action", req_id(&req));
 		return -1;
@@ -508,7 +508,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 		return 0;
 	}
 	else if (streq(action, "wait-result")) {
-		const char *widget_id = ipc_get_val(&m->data, "widget");
+		const char *widget_id = req_get_val(&req, "widget");
 		if (!widget_id) {
 			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: widget", req_id(&req));
 			return -1;
@@ -554,7 +554,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 	}
 
 	if (ttype != UI_TASK_SHOW_SPLASH && ttype != UI_TASK_HIDE_SPLASH) {
-		const char *widget_id = ipc_get_val(&m->data, "widget");
+		const char *widget_id = req_get_val(&req, "widget");
 		if (!widget_id) {
 			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: widget", req_id(&req));
 			return -1;

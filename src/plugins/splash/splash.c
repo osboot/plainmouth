@@ -46,12 +46,12 @@ static PANEL *p_splash_create(struct request *req)
 		return NULL;
 	}
 
-	int begin_x = ipc_get_int(req_data(req), "x", -1);
-	int begin_y = ipc_get_int(req_data(req), "y", -1);
+	int begin_x = req_get_int(req, "x", -1);
+	int begin_y = req_get_int(req, "y", -1);
 
-	splash->percent = ipc_get_bool(req_data(req), "percent", false);
-	splash->borders = ipc_get_bool(req_data(req), "borders", false);
-	splash->total = ipc_get_int(req_data(req), "total", 0);
+	splash->percent = req_get_bool(req, "percent", false);
+	splash->borders = req_get_bool(req, "borders", false);
+	splash->total = req_get_int(req, "total", 0);
 
 	int border_cols = (splash->borders ? 2 : 0);
 
@@ -92,7 +92,7 @@ static enum p_retcode p_splash_update(struct request *req, PANEL *panel)
 	struct splash *splash = (struct splash *) panel_userptr(panel);
 	WINDOW *win = panel_window(panel);
 
-	int value = ipc_get_int(req_data(req), "value", 0);
+	int value = req_get_int(req, "value", 0);
 
 	if (value < 0)
 		value = 0;
