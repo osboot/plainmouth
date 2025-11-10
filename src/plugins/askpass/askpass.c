@@ -14,19 +14,19 @@
 #include "plugin.h"
 
 struct askpass {
-	char *label;
-
 	wchar_t *password;
 	int passcap;
 	int passlen;
 
-	bool border;
+	int label_nlines;
+	bool borders;
 	bool enter;
 };
 
-static PANEL *p_askpass_create(struct request *req _UNUSED)
+static PANEL *p_askpass_create(struct request *req)
 {
 	PANEL *panel;
+	chtype bdr[BORDER_SIZE];
 	struct askpass *askpass;
 
 	askpass = calloc(1, sizeof(*askpass));
@@ -36,34 +36,48 @@ static PANEL *p_askpass_create(struct request *req _UNUSED)
 	}
 
 	const char *label = req_get_val(req, "label");
-	bool border = req_get_bool(req, "border", false);
 	int begin_x = req_get_int(req, "x", -1);
 	int begin_y = req_get_int(req, "y", -1);
+	int nlines = req_get_int(req, "height", -1);
 	int ncols = req_get_int(req, "width", -1);
+	bool borders = widget_borders(req, bdr);
 
-	int border_cols = (border ? 2 : 0);
-	int nlines  = 1 + border_cols + (label ? 1 : 0);
+	int lbl_nlines, lbl_maxwidth;
 
-	ncols = (ncols > 0 ? ncols : COLS - 4) + border_cols;
+	widget_text_lines(label, &lbl_nlines, &lbl_maxwidth);
 
-	widget_begin_yx(ncols, askpass->border, &begin_y, &begin_x);
+	if (nlines < (1 + lbl_nlines))
+		nlines = 1 + lbl_nlines;
+
+	if (ncols < 0)
+		ncols = lbl_maxwidth;
+	else if (ncols < lbl_maxwidth)
+		ncols = lbl_maxwidth;
+
+	askpass->label_nlines = lbl_nlines;
+	askpass->borders = borders;
+
+	if (borders) {
+		ncols  += 2;
+		nlines += 2;
+	}
+
+	widget_begin_yx(ncols, borders, &begin_y, &begin_x);
 
 	WINDOW *win = newwin(nlines, ncols, begin_y, begin_x);
-
-	if (border)
-		box(win, 0, 0);
-
+	if (borders) {
+		wborder(win,
+			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],
+			bdr[BORDER_TL], bdr[BORDER_TR], bdr[BORDER_BL], bdr[BORDER_BR]);
+	}
 	if (label) {
 		begin_y = begin_x = 0;
 
-		if (border)
+		if (borders)
 			begin_y = begin_x = 1;
 
-		askpass->label = strdup(label);
-		mvwprintw(win, begin_y, begin_x, "%s", label);
+		widget_mvwtext(win, begin_y, begin_x, label);
 	}
-
-	askpass->border = border;
 
 	panel = new_panel(win);
 	set_panel_userptr(panel, askpass);
@@ -78,9 +92,6 @@ static enum p_retcode p_askpass_delete(PANEL *panel)
 
 	del_panel(panel);
 	delwin(win);
-
-	if (askpass->label)
-		free(askpass->label);
 
 	if (askpass->password)
 		free(askpass->password);
@@ -149,15 +160,13 @@ static enum p_retcode p_askpass_input(PANEL *panel, wchar_t code)
 	int width = MIN(askpass->passlen, max_x);
 	int i = 0, begin_x = 0, begin_y = 0;
 
-	if (askpass->border) {
+	if (askpass->borders) {
 		begin_x += 1;
 		begin_y += 1;
 		max_x -= 2;
 	}
 
-	if (askpass->label) {
-		begin_y += 1;
-	}
+	begin_y += askpass->label_nlines;
 
 	for (; i < width; i++)
 		mvwprintw(win, begin_y, begin_x + i, "*");

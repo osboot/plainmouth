@@ -359,7 +359,7 @@ bool handle_pair(struct ipc_ctx *ctx, struct ipc_token *tok)
 	char *val = eq + 1;
 
 	sanitize_newlines(key);
-	sanitize_newlines(val);
+	//sanitize_newlines(val);
 
 	struct ipc_message *msg = ipc_msg_find(ctx, tok->id);
 	if (!msg)

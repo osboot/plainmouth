@@ -38,6 +38,7 @@ static void show_percent(PANEL *panel)
 static PANEL *p_splash_create(struct request *req)
 {
 	PANEL *panel;
+	chtype bdr[BORDER_SIZE];
 	struct splash *splash;
 
 	splash = calloc(1, sizeof(*splash));
@@ -48,27 +49,33 @@ static PANEL *p_splash_create(struct request *req)
 
 	int begin_x = req_get_int(req, "x", -1);
 	int begin_y = req_get_int(req, "y", -1);
+	int ncols = req_get_int(req, "width", -1);
+	int nlines = 1;
 
+	if (ncols < 0)
+		ncols = COLS - 4;
+
+	splash->width = ncols;
 	splash->percent = req_get_bool(req, "percent", false);
-	splash->borders = req_get_bool(req, "borders", false);
 	splash->total = req_get_int(req, "total", 0);
+	splash->borders = widget_borders(req, bdr);
 
-	int border_cols = (splash->borders ? 2 : 0);
-
-	splash->width = COLS - border_cols - 2;
-
-	int nlines = 1 + border_cols;
-	int ncols = splash->width + border_cols;
+	if (splash->borders) {
+		ncols  += 2;
+		nlines += 2;
+	}
 
 	widget_begin_yx(ncols, splash->borders, &begin_y, &begin_x);
 
 	WINDOW *win = newwin(nlines, ncols, begin_y, begin_x);
+	if (splash->borders) {
+		wborder(win,
+			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],
+			bdr[BORDER_TL], bdr[BORDER_TR], bdr[BORDER_BL], bdr[BORDER_BR]);
+	}
+
 	panel = new_panel(win);
-
 	set_panel_userptr(panel, splash);
-
-	if (splash->borders)
-		box(win, 0, 0);
 
 	show_percent(panel);
 
