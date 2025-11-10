@@ -227,6 +227,20 @@ static inline void ui_check_widget_finished(struct widget *w)
 	}
 }
 
+static struct widget *ui_get_widget_by_id(struct ui_task *t)
+{
+	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
+	struct widget *widget = find_widget(widget_id);
+
+	if (!widget) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
+				req_id(&t->req), widget_id);
+		return NULL;
+	}
+
+	return widget;
+}
+
 static int ui_process_task_create(struct ui_task *t)
 {
 	if (!pthread_equal(pthread_self(), ui_thread))
@@ -304,14 +318,9 @@ static int ui_process_task_update(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
-	struct widget *widget = find_widget(widget_id);
-
-	if (!widget) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
-				req_id(&t->req), widget_id);
+	struct widget *widget = ui_get_widget_by_id(t);
+	if (!widget)
 		return -1;
-	}
 
 	if (widget->w_plugin->p_update_widget &&
 			widget->w_plugin->p_update_widget(&t->req, widget->w_panel) != P_RET_OK) {
@@ -333,14 +342,9 @@ static int ui_process_task_delete(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
-	struct widget *widget = find_widget(widget_id);
-
-	if (!widget) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
-				req_id(&t->req), widget_id);
+	struct widget *widget = ui_get_widget_by_id(t);
+	if (!widget)
 		return -1;
-	}
 
 	if (widget->w_plugin->p_delete_widget &&
 			widget->w_plugin->p_delete_widget(widget->w_panel) != P_RET_OK) {
@@ -367,14 +371,9 @@ static int ui_process_task_focus(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	const char *widget_id = ipc_get_val(req_data(&t->req), "widget");
-	struct widget *widget = find_widget(widget_id);
-
-	if (!widget) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
-				req_id(&t->req), widget_id);
+	struct widget *widget = ui_get_widget_by_id(t);
+	if (!widget)
 		return -1;
-	}
 
 	pthread_mutex_lock(&widgets_mutex);
 	TAILQ_REMOVE(&widgets, widget, entries);
@@ -396,22 +395,12 @@ static int ui_process_task_result(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	struct ipc_pair *data = req_data(&t->req);
+	struct widget *widget = ui_get_widget_by_id(t);
+	if (!widget)
+		return -1;
 
-	for (size_t i = 0; i < data->num_kv; i++) {
-		if (!streq(data->kv[i].key, "widget"))
-			continue;
-
-		struct widget *w = find_widget(data->kv[i].val);
-		if (!w)
-			continue;
-
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s WIDGET=%s",
-				req_id(&t->req), w->w_id);
-
-		if (w->w_plugin->p_result)
-			w->w_plugin->p_result(&t->req, w->w_panel);
-	}
+	if (widget->w_plugin->p_result)
+		widget->w_plugin->p_result(&t->req, widget->w_panel);
 
 	return 0;
 }
