@@ -144,4 +144,5 @@ struct plugin plugin = {
 	.p_finished        = p_splash_finished,
 	.p_input           = NULL,
 	.p_result          = NULL,
+	.p_get_cursor      = NULL,
 };

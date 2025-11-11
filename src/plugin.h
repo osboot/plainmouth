@@ -29,6 +29,7 @@ struct plugin {
 	bool (*p_finished)(PANEL *panel);
 	enum p_retcode (*p_result)(struct request *req, PANEL *panel);
 	enum p_retcode (*p_plugin_free)(void);
+	enum p_retcode (*p_get_cursor)(PANEL *panel, int *y, int *x);
 };
 
 bool load_plugins(const char *dirpath);

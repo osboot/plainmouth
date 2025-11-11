@@ -18,6 +18,9 @@ struct askpass {
 	int passcap;
 	int passlen;
 
+	int cursor_x;
+	int cursor_y;
+
 	int label_nlines;
 	bool borders;
 	bool enter;
@@ -70,14 +73,17 @@ static PANEL *p_askpass_create(struct request *req)
 			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],
 			bdr[BORDER_TL], bdr[BORDER_TR], bdr[BORDER_BL], bdr[BORDER_BR]);
 	}
-	if (label) {
-		begin_y = begin_x = 0;
 
-		if (borders)
-			begin_y = begin_x = 1;
+	begin_y = begin_x = 0;
 
+	if (borders)
+		begin_y = begin_x = 1;
+
+	if (label)
 		widget_mvwtext(win, begin_y, begin_x, label);
-	}
+
+	askpass->cursor_x = begin_x;
+	askpass->cursor_y = begin_y + askpass->label_nlines;
 
 	panel = new_panel(win);
 	set_panel_userptr(panel, askpass);
@@ -171,8 +177,21 @@ static enum p_retcode p_askpass_input(PANEL *panel, wchar_t code)
 	for (; i < width; i++)
 		mvwprintw(win, begin_y, begin_x + i, "*");
 
+	askpass->cursor_x = begin_x + i;
+	askpass->cursor_y = begin_y;
+
 	for (; i < max_x; i++)
 		mvwprintw(win, begin_y, begin_x + i, " ");
+
+	return P_RET_OK;
+}
+
+static enum p_retcode p_askpass_get_cursor(PANEL *panel, int *y, int *x)
+{
+	const struct askpass *askpass = panel_userptr(panel);
+
+	*x = askpass->cursor_x;
+	*y = askpass->cursor_y;
 
 	return P_RET_OK;
 }
@@ -204,4 +223,5 @@ struct plugin plugin = {
 	.p_input           = p_askpass_input,
 	.p_finished        = p_askpass_finished,
 	.p_result          = p_askpass_result,
+	.p_get_cursor      = p_askpass_get_cursor,
 };

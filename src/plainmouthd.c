@@ -227,6 +227,45 @@ static inline void ui_check_widget_finished(struct widget *w)
 	}
 }
 
+static void ui_update_cursor(void)
+{
+	WINDOW *win;
+	int y, x;
+
+	struct widget *focused = TAILQ_FIRST(&widgets);
+	if (!focused || !focused->w_panel || !focused->w_plugin->p_get_cursor) {
+		curs_set(0);
+		return;
+	}
+
+	if (focused->w_plugin->p_get_cursor(focused->w_panel, &y, &x) != P_RET_OK) {
+		curs_set(0);
+		return;
+	}
+
+	win = panel_window(focused->w_panel);
+	if (!win) {
+		curs_set(0);
+		return;
+	}
+
+	curs_set(1);
+
+	wmove(win, y, x);
+	wnoutrefresh(win);
+}
+
+static void ui_update(void)
+{
+	if (!use_terminal)
+		return;
+
+	ui_update_cursor();
+
+	update_panels();
+	doupdate();
+}
+
 static struct widget *ui_get_widget_by_id(struct ui_task *t)
 {
 	const char *widget_id = req_get_val(&t->req, "widget");
@@ -305,10 +344,7 @@ static int ui_process_task_create(struct ui_task *t)
 	TAILQ_INSERT_HEAD(&widgets, wnew, entries);
 	pthread_mutex_unlock(&widgets_mutex);
 
-	if (use_terminal) {
-		update_panels();
-		doupdate();
-	}
+	ui_update();
 
 	return 0;
 }
@@ -328,11 +364,7 @@ static int ui_process_task_update(struct ui_task *t)
 	}
 
 	ui_check_widget_finished(widget);
-
-	if (use_terminal) {
-		update_panels();
-		doupdate();
-	}
+	ui_update();
 
 	return 0;
 }
@@ -358,10 +390,7 @@ static int ui_process_task_delete(struct ui_task *t)
 	free(widget->w_id);
 	free(widget);
 
-	if (use_terminal) {
-		update_panels();
-		doupdate();
-	}
+	ui_update();
 
 	return 0;
 }
@@ -382,10 +411,7 @@ static int ui_process_task_focus(struct ui_task *t)
 
 	top_panel(widget->w_panel);
 
-	if (use_terminal) {
-		update_panels();
-		doupdate();
-	}
+	ui_update();
 
 	return 0;
 }
@@ -586,10 +612,7 @@ static void handle_input(void)
 			getmaxyx(stdscr, rows, cols);
 			resize_term(rows, cols);
 
-			if (use_terminal) {
-				update_panels();
-				doupdate();
-			}
+			ui_update();
 			return;
 		}
 	}
@@ -607,10 +630,7 @@ static void handle_input(void)
 				w = TAILQ_FIRST(&widgets);
 				top_panel(w->w_panel);
 
-				if (use_terminal) {
-					update_panels();
-					doupdate();
-				}
+				ui_update();
 			}
 			return;
 		}
@@ -622,10 +642,7 @@ static void handle_input(void)
 
 			ui_check_widget_finished(focused);
 
-			if (use_terminal) {
-				update_panels();
-				doupdate();
-			}
+			ui_update();
 		}
 	}
 }
