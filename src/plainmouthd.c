@@ -162,6 +162,37 @@ static void free_widgets(void)
 	}
 }
 
+static inline struct widget *widget_focused(void)
+{
+	return TAILQ_FIRST(&widgets);
+}
+
+static inline bool widget_can_focus(struct widget *widget)
+{
+	return widget->w_plugin->p_input != NULL;
+}
+
+static void widget_unfocus(struct widget *widget)
+{
+	pthread_mutex_lock(&widgets_mutex);
+	TAILQ_REMOVE(&widgets, widget, entries);
+	TAILQ_INSERT_TAIL(&widgets, widget, entries);
+	pthread_mutex_unlock(&widgets_mutex);
+}
+
+static void widget_infocus(struct widget *widget)
+{
+	if (!widget_can_focus(widget) || widget == widget_focused())
+		return;
+
+	pthread_mutex_lock(&widgets_mutex);
+	TAILQ_REMOVE(&widgets, widget, entries);
+	TAILQ_INSERT_HEAD(&widgets, widget, entries);
+	pthread_mutex_unlock(&widgets_mutex);
+
+	top_panel(widget->w_panel);
+}
+
 static inline void ui_wakeup(void)
 {
 	uint64_t one = 1;
@@ -232,7 +263,7 @@ static void ui_update_cursor(void)
 	WINDOW *win;
 	int y, x;
 
-	struct widget *focused = TAILQ_FIRST(&widgets);
+	struct widget *focused = widget_focused();
 	if (!focused || !focused->w_panel || !focused->w_plugin->p_get_cursor) {
 		curs_set(0);
 		return;
@@ -260,10 +291,26 @@ static void ui_update(void)
 	if (!use_terminal)
 		return;
 
-	ui_update_cursor();
-
 	update_panels();
+	ui_update_cursor();
 	doupdate();
+}
+
+static void ui_next_focused(void)
+{
+	struct widget *focused = widget_focused();
+	if (!focused)
+		return;
+
+	struct widget *w;
+
+	for (w = TAILQ_NEXT(focused, entries); w && !widget_can_focus(w); w = TAILQ_NEXT(w, entries));
+
+	if (w) {
+		widget_unfocus(focused);
+		widget_infocus(w);
+		ui_update();
+	}
 }
 
 static struct widget *ui_get_widget_by_id(struct ui_task *t)
@@ -341,7 +388,12 @@ static int ui_process_task_create(struct ui_task *t)
 	wnew->w_finished = (plugin->p_finished == NULL);
 
 	pthread_mutex_lock(&widgets_mutex);
-	TAILQ_INSERT_HEAD(&widgets, wnew, entries);
+
+	if (plugin->p_input)
+		TAILQ_INSERT_HEAD(&widgets, wnew, entries);
+	else
+		TAILQ_INSERT_TAIL(&widgets, wnew, entries);
+
 	pthread_mutex_unlock(&widgets_mutex);
 
 	ui_update();
@@ -404,13 +456,7 @@ static int ui_process_task_focus(struct ui_task *t)
 	if (!widget)
 		return -1;
 
-	pthread_mutex_lock(&widgets_mutex);
-	TAILQ_REMOVE(&widgets, widget, entries);
-	TAILQ_INSERT_HEAD(&widgets, widget, entries);
-	pthread_mutex_unlock(&widgets_mutex);
-
-	top_panel(widget->w_panel);
-
+	widget_infocus(widget);
 	ui_update();
 
 	return 0;
@@ -619,23 +665,11 @@ static void handle_input(void)
 
 	if (ret == OK) {
 		if (code == L'\t') {
-			struct widget *w = TAILQ_FIRST(&widgets);
-
-			if (w && TAILQ_NEXT(w, entries)) {
-				pthread_mutex_lock(&widgets_mutex);
-				TAILQ_REMOVE(&widgets, w, entries);
-				TAILQ_INSERT_TAIL(&widgets, w, entries);
-				pthread_mutex_unlock(&widgets_mutex);
-
-				w = TAILQ_FIRST(&widgets);
-				top_panel(w->w_panel);
-
-				ui_update();
-			}
+			ui_next_focused();
 			return;
 		}
 
-		struct widget *focused = TAILQ_FIRST(&widgets);
+		struct widget *focused = widget_focused();
 
 		if (focused && focused->w_plugin->p_input) {
 			focused->w_plugin->p_input(focused->w_panel, (wchar_t)code);
