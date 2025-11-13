@@ -182,13 +182,15 @@ static void widget_unfocus(struct widget *widget)
 
 static void widget_infocus(struct widget *widget)
 {
-	if (!widget_can_focus(widget) || widget == widget_focused())
+	if (!widget_can_focus(widget))
 		return;
 
-	pthread_mutex_lock(&widgets_mutex);
-	TAILQ_REMOVE(&widgets, widget, entries);
-	TAILQ_INSERT_HEAD(&widgets, widget, entries);
-	pthread_mutex_unlock(&widgets_mutex);
+	if (widget != widget_focused()) {
+		pthread_mutex_lock(&widgets_mutex);
+		TAILQ_REMOVE(&widgets, widget, entries);
+		TAILQ_INSERT_HEAD(&widgets, widget, entries);
+		pthread_mutex_unlock(&widgets_mutex);
+	}
 
 	top_panel(widget->w_panel);
 }
