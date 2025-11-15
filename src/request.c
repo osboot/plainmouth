@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <err.h>
 
 #include "helpers.h"
 #include "request.h"
@@ -17,6 +18,28 @@ const char *req_get_val(struct request *req, const char *key)
 			return p->kv[i].val;
 	}
 	return NULL;
+}
+
+wchar_t *req_get_wchars(struct request *req, const char *key)
+{
+	const char *v = req_get_val(req, key);
+	size_t mbslen = mbstowcs(NULL, v, 0);
+
+	if (mbslen == (size_t) -1) {
+		warn("mbstowcs");
+		return NULL;
+	}
+
+	wchar_t *wcs = calloc(mbslen + 1, sizeof(*wcs));
+
+	if (!wcs) {
+		warn("calloc");
+		return NULL;
+	}
+
+	mbstowcs(wcs, v, mbslen + 1);
+
+	return wcs;
 }
 
 int req_get_int(struct request *req, const char *key, int def)

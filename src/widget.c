@@ -112,10 +112,10 @@ void widget_begin_yx(int width, bool border, int *begin_y, int *begin_x)
 		*begin_x = widget_round(((float) COLS / 2) - ((float) width / 2));
 }
 
-void widget_text_lines(const char *text, int *num_lines, int *max_width)
+void widget_text_lines(const wchar_t *text, int *num_lines, int *max_width)
 {
 	int nlines, maxwidth;
-	const char *s, *e;
+	const wchar_t *s, *e;
 
 	nlines = maxwidth = 0;
 
@@ -148,9 +148,9 @@ empty:
 		*max_width = maxwidth;
 }
 
-void widget_mvwtext(WINDOW *win, int y, int x, const char *text)
+void widget_mvwtext(WINDOW *win, int y, int x, const wchar_t *text)
 {
-	const char *s, *e;
+	const wchar_t *s, *e;
 
 	if (!text)
 		return;
@@ -159,7 +159,7 @@ void widget_mvwtext(WINDOW *win, int y, int x, const char *text)
 
 	while (1) {
 		if (*e == '\n' || *e == '\0') {
-			mvwaddnstr(win, y, x, s, (int)(e - s));
+			mvwprintw(win, y, x, "%.*ls", (int)(e - s), s);
 			s = e + 1;
 			y += 1;
 		}

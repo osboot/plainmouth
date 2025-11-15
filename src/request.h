@@ -3,6 +3,7 @@
 #define _PLAINMOUTH_REQUEST_H_
 
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include "ipc.h"
 
@@ -29,5 +30,6 @@ static inline struct ipc_pair *req_data(struct request *req)
 const char *req_get_val(struct request *req, const char *key)     __attribute__((nonnull(1, 2)));
 int req_get_int(struct request *req, const char *key, int def)    __attribute__((nonnull(1, 2)));
 bool req_get_bool(struct request *req, const char *key, bool def) __attribute__((nonnull(1, 2)));
+wchar_t *req_get_wchars(struct request *req, const char *key)     __attribute__((nonnull(1, 2)));
 
 #endif /* _PLAINMOUTH_REQUEST_H_ */

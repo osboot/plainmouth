@@ -38,7 +38,7 @@ static PANEL *p_askpass_create(struct request *req)
 		return NULL;
 	}
 
-	const char *label = req_get_val(req, "label");
+	wchar_t *label = req_get_wchars(req, "label");
 	int begin_x = req_get_int(req, "x", -1);
 	int begin_y = req_get_int(req, "y", -1);
 	int nlines = req_get_int(req, "height", -1);
@@ -81,8 +81,10 @@ static PANEL *p_askpass_create(struct request *req)
 	if (borders)
 		begin_y = begin_x = 1;
 
-	if (label)
+	if (label) {
 		widget_mvwtext(win, begin_y, begin_x, label);
+		free(label);
+	}
 
 	askpass->cursor_x = begin_x;
 	askpass->cursor_y = begin_y + askpass->label_nlines;

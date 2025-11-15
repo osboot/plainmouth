@@ -46,8 +46,8 @@ enum boders_geometric {
 
 int widget_round(float number);
 void widget_begin_yx(int width, bool border, int *begin_y, int *begin_x);
-void widget_text_lines(const char *text, int *num_lines, int *max_width);
-void widget_mvwtext(WINDOW *win, int y, int x, const char *text);
+void widget_text_lines(const wchar_t *text, int *num_lines, int *max_width);
+void widget_mvwtext(WINDOW *win, int y, int x, const wchar_t *text);
 bool widget_borders(struct request *req, chtype bdr[BORDER_SIZE]);
 
 #endif /* _PLAINMOUTH_WIDGET_H_ */
