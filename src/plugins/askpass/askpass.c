@@ -68,6 +68,8 @@ static PANEL *p_askpass_create(struct request *req)
 	widget_begin_yx(ncols, borders, &begin_y, &begin_x);
 
 	WINDOW *win = newwin(nlines, ncols, begin_y, begin_x);
+	wbkgd(win, COLOR_PAIR(COLOR_PAIR_WINDOW));
+
 	if (borders) {
 		wborder(win,
 			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],

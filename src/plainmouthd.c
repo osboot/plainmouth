@@ -706,10 +706,10 @@ static void curses_init(void)
 
 	if (has_colors()) {
 		start_color();
-		init_pair(1, COLOR_WHITE, COLOR_BLUE);
-		init_pair(2, COLOR_GREEN, COLOR_BLACK);
-		init_pair(3, COLOR_CYAN, COLOR_BLACK);
-		bkgd((chtype) COLOR_PAIR(1));
+		init_pair(COLOR_PAIR_MAIN,   COLOR_WHITE, COLOR_BLACK);
+		init_pair(COLOR_PAIR_WINDOW, COLOR_WHITE, COLOR_BLUE);
+		init_pair(COLOR_PAIR_BUTTON, COLOR_BLACK, COLOR_WHITE);
+		bkgd(COLOR_PAIR(COLOR_PAIR_MAIN));
 	}
 
 	refresh();
