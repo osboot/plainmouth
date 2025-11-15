@@ -2,10 +2,30 @@
 #ifndef _PLAINMOUTH_WIDGET_H_
 #define _PLAINMOUTH_WIDGET_H_
 
+#include <sys/queue.h>
 #include <stdbool.h>
 #include <ncurses.h>
 
 #include "request.h"
+
+struct focus {
+	TAILQ_ENTRY(focus) entries;
+	void *data;
+};
+
+TAILQ_HEAD(focushead, focus);
+
+struct focuses {
+	struct focushead head;
+	bool (*on_change)(void *data, bool in_focus);
+};
+
+void focus_init(struct focuses *focuses, bool (*on_change)(void *data, bool in_focus));
+bool focus_new(struct focuses *focuses, void *data);
+struct focus *focus_current(struct focuses *focuses);
+void focus_set(struct focuses *focuses, void *data);
+void focus_next(struct focuses *focuses);
+void focus_prev(struct focuses *focuses);
 
 struct borders {
 	const char *name;

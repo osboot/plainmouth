@@ -2,10 +2,99 @@
 
 #include <unistd.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <err.h>
 
 #include <curses.h>
 
 #include "widget.h"
+
+void focus_init(struct focuses *focuses, bool (*on_change)(void *data, bool in_focus))
+{
+	TAILQ_INIT(&focuses->head);
+	focuses->on_change = on_change;
+}
+
+bool focus_new(struct focuses *focuses, void *data)
+{
+	struct focus *new = calloc(1, sizeof(*new));
+
+	if (!new) {
+		warnx("focus_new: no memory");
+		return false;
+	}
+
+	new->data = data;
+	TAILQ_INSERT_TAIL(&focuses->head, new, entries);
+
+	if (focuses->on_change) {
+		struct focus *curr = focus_current(focuses);
+		focuses->on_change(data, (curr->data == data));
+	}
+
+	return true;
+}
+
+struct focus *focus_current(struct focuses *focuses)
+{
+	return TAILQ_FIRST(&focuses->head);
+}
+
+void focus_set(struct focuses *focuses, void *data)
+{
+	struct focus *curr = focus_current(focuses);
+
+	if (!curr)
+		return;
+
+	if (curr->data != data) {
+		if (focuses->on_change)
+			focuses->on_change(curr->data, false);
+
+		TAILQ_REMOVE(&focuses->head, curr, entries);
+		TAILQ_INSERT_HEAD(&focuses->head, curr, entries);
+
+		if (focuses->on_change) {
+			curr = focus_current(focuses);
+			focuses->on_change(curr->data, true);
+		}
+	}
+}
+
+void focus_next(struct focuses *focuses)
+{
+	struct focus *curr = focus_current(focuses);
+
+	if (curr) {
+		if (focuses->on_change)
+			focuses->on_change(curr->data, false);
+
+		TAILQ_REMOVE(&focuses->head, curr, entries);
+		TAILQ_INSERT_TAIL(&focuses->head, curr, entries);
+
+		if (focuses->on_change) {
+			curr = focus_current(focuses);
+			focuses->on_change(curr->data, true);
+		}
+	}
+}
+
+void focus_prev(struct focuses *focuses)
+{
+	struct focus *prev = TAILQ_LAST(&focuses->head, focushead);
+	struct focus *curr = focus_current(focuses);
+
+	if (prev && prev != curr) {
+		if (focuses->on_change)
+			focuses->on_change(curr->data, false);
+
+		TAILQ_REMOVE(&focuses->head, prev, entries);
+		TAILQ_INSERT_HEAD(&focuses->head, prev, entries);
+
+		if (focuses->on_change)
+			focuses->on_change(prev->data, true);
+	}
+}
 
 int widget_round(float number)
 {
