@@ -22,6 +22,7 @@
 #define _UNUSED __attribute__((unused))
 
 #define MIN(a, b)	(((a) < (b)) ? (a) : (b))
+#define MAX(a, b)	(((a) > (b)) ? (a) : (b))
 
 #define streq(a, b)		(strcmp((a), (b)) == 0)
 #define strneq(a, b, n)		(strncmp((a), (b), (n)) == 0)

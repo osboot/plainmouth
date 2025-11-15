@@ -49,13 +49,8 @@ static PANEL *p_askpass_create(struct request *req)
 
 	widget_text_lines(label, &lbl_nlines, &lbl_maxwidth);
 
-	if (nlines < (1 + lbl_nlines))
-		nlines = 1 + lbl_nlines;
-
-	if (ncols < 0)
-		ncols = lbl_maxwidth;
-	else if (ncols < lbl_maxwidth)
-		ncols = lbl_maxwidth;
+	nlines = MAX(nlines, lbl_nlines + 1);
+	ncols  = MAX(ncols, lbl_maxwidth);
 
 	askpass->label_nlines = lbl_nlines;
 	askpass->borders = borders;
