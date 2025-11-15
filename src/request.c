@@ -20,13 +20,11 @@ const char *req_get_val(struct request *req, const char *key)
 	return NULL;
 }
 
-wchar_t *req_get_wchars(struct request *req, const char *key)
+wchar_t *req_get_kv_wchars(struct ipc_kv *kv)
 {
-	const char *v = req_get_val(req, key);
-	size_t mbslen = mbstowcs(NULL, v, 0);
+	size_t mbslen = mbstowcs(NULL, kv->val, 0);
 
 	if (mbslen == (size_t) -1) {
-		warn("mbstowcs");
 		return NULL;
 	}
 
@@ -37,9 +35,19 @@ wchar_t *req_get_wchars(struct request *req, const char *key)
 		return NULL;
 	}
 
-	mbstowcs(wcs, v, mbslen + 1);
-
+	mbstowcs(wcs, kv->val, mbslen + 1);
 	return wcs;
+}
+
+wchar_t *req_get_wchars(struct request *req, const char *key)
+{
+	struct ipc_pair *p = req_data(req);
+
+	for (size_t i = 0; i < p->num_kv; i++) {
+		if (streq(p->kv[i].key, key))
+			return req_get_kv_wchars(p->kv + i);
+	}
+	return NULL;
 }
 
 int req_get_int(struct request *req, const char *key, int def)
