@@ -665,21 +665,19 @@ static void handle_input(void)
 		}
 	}
 
-	if (ret == OK) {
-		if (code == L'\t') {
-			ui_next_focused();
-			return;
-		}
+	if (code == L'\t') {
+		ui_next_focused();
+		return;
+	}
 
-		struct widget *focused = widget_focused();
+	struct widget *focused = widget_focused();
 
-		if (focused && focused->w_plugin->p_input) {
-			focused->w_plugin->p_input(focused->w_panel, (wchar_t)code);
+	if (focused && focused->w_plugin->p_input) {
+		focused->w_plugin->p_input(focused->w_panel, (wchar_t)code);
 
-			ui_check_widget_finished(focused);
+		ui_check_widget_finished(focused);
 
-			ui_update();
-		}
+		ui_update();
 	}
 }
 
@@ -699,9 +697,10 @@ static void curses_init(void)
 
 	set_term(scr);
 
-	nodelay(stdscr, TRUE);
 	cbreak();
 	noecho();
+	keypad(stdscr, TRUE);
+	set_escdelay(100);
 	curs_set(0);
 
 	if (has_colors()) {

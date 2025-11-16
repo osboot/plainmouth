@@ -197,10 +197,12 @@ static enum p_retcode p_msgbox_input(PANEL *panel, wchar_t code)
 			}
 			break;
 
+		case KEY_LEFT:
 		case L'<':
 			focus_prev(&msgbox->focus);
 			break;
 
+		case KEY_RIGHT:
 		case L'>':
 			focus_next(&msgbox->focus);
 			break;
