@@ -45,6 +45,7 @@ COMMON_SO   = libplainmouth.so
 COMMON_SRC  = src/ipc.c src/request.c src/widget.c src/plugin.c
 COMMON_OBJ  = $(COMMON_SRC:.c=.o)
 COMMON_LIBS = $(NCURSES_LIBS)
+GARBAGE += $(COMMON_SO)
 
 PROGS += plainmouthd
 SRC_plainmouthd = src/plainmouthd.c
@@ -58,24 +59,8 @@ OBJ_plainmouth = $(SRC_plainmouth:.c=.o)
 LIB_plainmouth = -L$(CURDIR) -lplainmouth
 GARBAGE += plainmouth $(OBJ_plainmouth)
 
-PLUGINS += splash
-SRC_plugin_splash = src/plugins/splash/splash.c
-OBJ_plugin_splash = $(SRC_plugin_splash:.c=.o)
-LIB_plugin_splash = $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
-GARBAGE += $(OBJ_plugin_splash)
-
-PLUGINS += askpass
-SRC_plugin_askpass = src/plugins/askpass/askpass.c
-OBJ_plugin_askpass = $(SRC_plugin_askpass:.c=.o)
-LIB_plugin_askpass = $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
-GARBAGE += $(OBJ_plugin_askpass)
-
-PLUGINS += msgbox
-SRC_plugin_msgbox = src/plugins/msgbox/msgbox.c
-OBJ_plugin_msgbox = $(SRC_plugin_msgbox:.c=.o)
-LIB_plugin_msgbox = $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
-GARBAGE += $(OBJ_plugin_msgbox)
-
+PLUGINS = $(basename $(notdir $(wildcard src/plugins/*-main.c)))
+PLUGINS := $(PLUGINS:-main=)
 GARBAGE += $(PLUGINSDIR)
 
 quiet_cmd = $(if $(VERBOSE),$(3),$(Q)printf "  %-08s%s\n" "$(1)" $(2); $(3))
@@ -107,21 +92,21 @@ plainmouthd: Makefile $(COMMON_SO) $(OBJ_plainmouthd)
 plainmouth:  Makefile $(COMMON_SO) $(OBJ_plainmouth)
 	$(call cmd_LINK,$(OBJ_plainmouth)) $(LIB_plainmouth)
 
-### Widgets
+### Plugins
 
-.PHONY: bin_plugins
+PLUGINS_SRC = $(wildcard src/plugins/*.c)
+PLUGINS_OBJ = $(PLUGINS_SRC:.c=.o)
+GARBAGE += $(PLUGINS_OBJ)
 
-bin_plugins: Makefile
+.PHONY: plugins-dest plugins-objs
+
+plugins-dest: Makefile plugins-objs
 	$(call cmd_MKDIR,$(PLUGINSDIR))
 
-$(PLUGINSDIR)/splash.so:  Makefile bin_plugins $(COMMON_SO) $(OBJ_plugin_splash)
-	$(call cmd_LINK,$(OBJ_plugin_splash)) -shared -ldl $(LIB_plugin_splash)
+plugins-objs: $(PLUGINS_OBJ) $(COMMON_SO)
 
-$(PLUGINSDIR)/askpass.so: Makefile bin_plugins $(COMMON_SO) $(OBJ_plugin_askpass)
-	$(call cmd_LINK,$(OBJ_plugin_askpass)) -shared -ldl $(LIB_plugin_askpass)
-
-$(PLUGINSDIR)/msgbox.so:  Makefile bin_plugins $(COMMON_SO) $(OBJ_plugin_msgbox)
-	$(call cmd_LINK,$(OBJ_plugin_msgbox)) -shared -ldl $(LIB_plugin_msgbox)
+$(PLUGINSDIR)/%.so: plugins-dest plugins-objs
+	$(call cmd_LINK,$(wildcard src/plugins/$*-*.o)) -shared -ldl $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
 
 ### Tests
 
