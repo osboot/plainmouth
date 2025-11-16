@@ -39,37 +39,41 @@ CFLAGS = -g -O0 -fPIC $(if $(DEBUG),-DDEBUG)
 CFLAGS += $(PTHREAD_CFLAGS) $(NCURSES_CFLAGS) $(PANEL_CFLAGS)
 
 override CFLAGS := $(WARNINGS) $(CFLAGS)
-LDLIBS =
+LDLIBS = -Wl,-rpath,'$$ORIGIN'
+
+COMMON_SO   = libplainmouth.so
+COMMON_SRC  = src/ipc.c src/request.c src/widget.c src/plugin.c
+COMMON_OBJ  = $(COMMON_SRC:.c=.o)
+COMMON_LIBS = $(NCURSES_LIBS)
 
 PROGS += plainmouthd
-SRC_plainmouthd = $(addprefix src/,plainmouthd.c ipc.c request.c plugin.c)
+SRC_plainmouthd = src/plainmouthd.c
 OBJ_plainmouthd = $(SRC_plainmouthd:.c=.o)
-LIB_plainmouthd = $(PTHREAD_LIBS) $(NCURSES_LIBS) $(PANEL_LIBS)
+LIB_plainmouthd = $(PTHREAD_LIBS) $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
 GARBAGE += plainmouthd $(OBJ_plainmouthd)
 
 PROGS += plainmouth
-SRC_plainmouth = $(addprefix src/,plainmouth.c ipc.c)
+SRC_plainmouth = src/plainmouth.c
 OBJ_plainmouth = $(SRC_plainmouth:.c=.o)
+LIB_plainmouth = -L$(CURDIR) -lplainmouth
 GARBAGE += plainmouth $(OBJ_plainmouth)
 
-SRC_COMMON = $(addprefix src/,ipc.c request.c widget.c)
-
 PLUGINS += splash
-SRC_plugin_splash = $(SRC_COMMON) $(addprefix src/plugins/splash/,splash.c)
+SRC_plugin_splash = src/plugins/splash/splash.c
 OBJ_plugin_splash = $(SRC_plugin_splash:.c=.o)
-LIB_plugin_splash = $(NCURSES_LIBS) $(PANEL_LIBS)
+LIB_plugin_splash = $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
 GARBAGE += $(OBJ_plugin_splash)
 
 PLUGINS += askpass
-SRC_plugin_askpass = $(SRC_COMMON) $(addprefix src/plugins/askpass/,askpass.c)
+SRC_plugin_askpass = src/plugins/askpass/askpass.c
 OBJ_plugin_askpass = $(SRC_plugin_askpass:.c=.o)
-LIB_plugin_askpass = $(NCURSES_LIBS) $(PANEL_LIBS)
+LIB_plugin_askpass = $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
 GARBAGE += $(OBJ_plugin_askpass)
 
 PLUGINS += msgbox
-SRC_plugin_msgbox = $(SRC_COMMON) $(addprefix src/plugins/msgbox/,msgbox.c)
+SRC_plugin_msgbox = src/plugins/msgbox/msgbox.c
 OBJ_plugin_msgbox = $(SRC_plugin_msgbox:.c=.o)
-LIB_plugin_msgbox = $(NCURSES_LIBS) $(PANEL_LIBS)
+LIB_plugin_msgbox = $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
 GARBAGE += $(OBJ_plugin_msgbox)
 
 GARBAGE += $(PLUGINSDIR)
@@ -94,11 +98,14 @@ clean:
 %.o: %.c
 	$(call quiet_cmd,CC,$<,$(COMPILE.c)) $(CFLAGS) $(OUTPUT_OPTION) $<
 
-plainmouthd: Makefile $(OBJ_plainmouthd)
+$(COMMON_SO): Makefile $(COMMON_OBJ)
+	$(call quiet_cmd,LD,$@,$(CC) -shared -o $@ $(COMMON_OBJ)) $(COMMON_LIBS)
+
+plainmouthd: Makefile $(COMMON_SO) $(OBJ_plainmouthd)
 	$(call cmd_LINK,$(OBJ_plainmouthd)) $(LIB_plainmouthd)
 
-plainmouth: Makefile $(OBJ_plainmouth)
-	$(call cmd_LINK,$(OBJ_plainmouth))
+plainmouth:  Makefile $(COMMON_SO) $(OBJ_plainmouth)
+	$(call cmd_LINK,$(OBJ_plainmouth)) $(LIB_plainmouth)
 
 ### Widgets
 
@@ -107,13 +114,13 @@ plainmouth: Makefile $(OBJ_plainmouth)
 bin_plugins: Makefile
 	$(call cmd_MKDIR,$(PLUGINSDIR))
 
-$(PLUGINSDIR)/splash.so: Makefile bin_plugins $(OBJ_plugin_splash)
+$(PLUGINSDIR)/splash.so:  Makefile bin_plugins $(COMMON_SO) $(OBJ_plugin_splash)
 	$(call cmd_LINK,$(OBJ_plugin_splash)) -shared -ldl $(LIB_plugin_splash)
 
-$(PLUGINSDIR)/askpass.so: Makefile bin_plugins $(OBJ_plugin_askpass)
+$(PLUGINSDIR)/askpass.so: Makefile bin_plugins $(COMMON_SO) $(OBJ_plugin_askpass)
 	$(call cmd_LINK,$(OBJ_plugin_askpass)) -shared -ldl $(LIB_plugin_askpass)
 
-$(PLUGINSDIR)/msgbox.so: Makefile bin_plugins $(OBJ_plugin_msgbox)
+$(PLUGINSDIR)/msgbox.so:  Makefile bin_plugins $(COMMON_SO) $(OBJ_plugin_msgbox)
 	$(call cmd_LINK,$(OBJ_plugin_msgbox)) -shared -ldl $(LIB_plugin_msgbox)
 
 ### Tests
