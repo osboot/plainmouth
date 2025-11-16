@@ -169,6 +169,17 @@ static enum p_retcode p_msgbox_delete(PANEL *panel)
 	struct msgbox *msgbox = (struct msgbox *) panel_userptr(panel);
 	WINDOW *win = panel_window(panel);
 
+	struct button *b1, *b2;
+
+	b1 = TAILQ_FIRST(&msgbox->buttons);
+	while (b1) {
+		b2 = TAILQ_NEXT(b1, entries);
+		delwin(b1->win);
+		b1 = b2;
+	}
+
+	focus_free(&msgbox->focus);
+
 	del_panel(panel);
 	delwin(win);
 

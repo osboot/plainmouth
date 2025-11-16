@@ -22,6 +22,7 @@ struct focuses {
 
 void focus_init(struct focuses *focuses, bool (*on_change)(void *data, bool in_focus));
 bool focus_new(struct focuses *focuses, void *data);
+void focus_free(struct focuses *focuses);
 struct focus *focus_current(struct focuses *focuses);
 void focus_set(struct focuses *focuses, void *data);
 void focus_next(struct focuses *focuses);

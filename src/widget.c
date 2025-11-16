@@ -35,6 +35,18 @@ bool focus_new(struct focuses *focuses, void *data)
 	return true;
 }
 
+void focus_free(struct focuses *focuses)
+{
+	struct focus *f1, *f2;
+
+	f1 = TAILQ_FIRST(&focuses->head);
+	while (f1) {
+		f2 = TAILQ_NEXT(f1, entries);
+		free(f1);
+		f1 = f2;
+	}
+}
+
 struct focus *focus_current(struct focuses *focuses)
 {
 	return TAILQ_FIRST(&focuses->head);
