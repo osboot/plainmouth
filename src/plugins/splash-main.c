@@ -32,7 +32,7 @@ static void show_percent(PANEL *panel)
 	WINDOW *win = panel_window(panel);
 	int mid = (splash->width / 2) - 3;
 
-	mvwprintw(win, 2, 1 + mid, "[%3d%%]", widget_round(((float) splash->value * 100) / (float) splash->total));
+	mvwprintw(win, 2, 1 + mid, "[%3d%%]", simple_round(((float) splash->value * 100) / (float) splash->total));
 }
 
 static PANEL *p_splash_create(struct request *req)
@@ -65,7 +65,7 @@ static PANEL *p_splash_create(struct request *req)
 		nlines += 2;
 	}
 
-	widget_begin_yx(ncols, splash->borders, &begin_y, &begin_x);
+	position_center(ncols, nlines, &begin_y, &begin_x);
 
 	WINDOW *win = newwin(nlines, ncols, begin_y, begin_x);
 	wbkgd(win, COLOR_PAIR(COLOR_PAIR_WINDOW));
@@ -111,7 +111,7 @@ static enum p_retcode p_splash_update(struct request *req, PANEL *panel)
 
 	splash->value = value;
 
-	int num = widget_round(((float) splash->value / (float) splash->total) * (float) splash->width);
+	int num = simple_round(((float) splash->value / (float) splash->total) * (float) splash->width);
 	int i = (splash->borders ? 1 : 0);
 
 	wattron(win, A_REVERSE);

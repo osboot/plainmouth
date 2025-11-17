@@ -108,20 +108,25 @@ void focus_prev(struct focuses *focuses)
 	}
 }
 
-int widget_round(float number)
+int simple_round(float number)
 {
 	// Example: 15.4 + 0.5 = 15.9 -> 15
 	//          15.6 + 0.5 = 16.1 -> 16
 	return (int) (number >= 0 ? number + 0.5 : number - 0.5);
 }
 
-void widget_begin_yx(int width, bool border, int *begin_y, int *begin_x)
+void position_center(int width, int height, int *begin_y, int *begin_x)
 {
+	float center_y = (float) LINES / 2;
+	float center_x = (float) COLS  / 2;
+	float half_w = (float) width   / 2;
+	float half_h = (float) height  / 2;
+
 	if (begin_y && *begin_y < 0)
-		*begin_y = widget_round(((float) LINES / 2) - (border ? 1 : 0));
+		*begin_y = simple_round(center_y - half_h);
 
 	if (begin_x && *begin_x < 0)
-		*begin_x = widget_round(((float) COLS / 2) - ((float) width / 2));
+		*begin_x = simple_round(center_x - half_w);
 }
 
 void widget_text_lines(const wchar_t *text, int *num_lines, int *max_width)

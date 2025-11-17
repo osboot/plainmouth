@@ -119,7 +119,7 @@ static PANEL *p_msgbox_create(struct request *req)
 		nlines += 2;
 	}
 
-	widget_begin_yx(ncols, borders, &begin_y, &begin_x);
+	position_center(ncols, nlines, &begin_y, &begin_x);
 
 	WINDOW *win = newwin(nlines, ncols, begin_y, begin_x);
 	wbkgd(win, COLOR_PAIR(COLOR_PAIR_WINDOW));
