@@ -21,7 +21,7 @@ struct askpass {
 	int cursor_x;
 	int cursor_y;
 
-	int label_nlines;
+	int text_nlines;
 	bool borders;
 	bool enter;
 };
@@ -38,21 +38,21 @@ static PANEL *p_askpass_create(struct request *req)
 		return NULL;
 	}
 
-	wchar_t *label = req_get_wchars(req, "label");
+	wchar_t *text = req_get_wchars(req, "text");
 	int begin_x = req_get_int(req, "x", -1);
 	int begin_y = req_get_int(req, "y", -1);
 	int nlines = req_get_int(req, "height", -1);
 	int ncols = req_get_int(req, "width", -1);
 	bool borders = widget_borders(req, bdr);
 
-	int lbl_nlines, lbl_maxwidth;
+	int txt_nlines, txt_maxwidth;
 
-	widget_text_lines(label, &lbl_nlines, &lbl_maxwidth);
+	widget_text_lines(text, &txt_nlines, &txt_maxwidth);
 
-	nlines = MAX(nlines, lbl_nlines + 1);
-	ncols  = MAX(ncols, lbl_maxwidth);
+	nlines = MAX(nlines, txt_nlines + 1);
+	ncols  = MAX(ncols, txt_maxwidth);
 
-	askpass->label_nlines = lbl_nlines;
+	askpass->text_nlines = txt_nlines;
 	askpass->borders = borders;
 
 	if (borders) {
@@ -76,13 +76,13 @@ static PANEL *p_askpass_create(struct request *req)
 	if (borders)
 		begin_y = begin_x = 1;
 
-	if (label) {
-		widget_mvwtext(win, begin_y, begin_x, label);
-		free(label);
+	if (text) {
+		widget_mvwtext(win, begin_y, begin_x, text);
+		free(text);
 	}
 
 	askpass->cursor_x = begin_x;
-	askpass->cursor_y = begin_y + askpass->label_nlines;
+	askpass->cursor_y = begin_y + askpass->text_nlines;
 
 	panel = new_panel(win);
 	set_panel_userptr(panel, askpass);
@@ -171,7 +171,7 @@ static enum p_retcode p_askpass_input(PANEL *panel, wchar_t code)
 		max_x -= 2;
 	}
 
-	begin_y += askpass->label_nlines;
+	begin_y += askpass->text_nlines;
 
 	for (; i < width; i++)
 		mvwprintw(win, begin_y, begin_x + i, "*");

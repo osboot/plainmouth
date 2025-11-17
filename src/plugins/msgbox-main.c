@@ -87,7 +87,7 @@ static PANEL *p_msgbox_create(struct request *req)
 	focus_init(&msgbox->focus, &on_button_focus);
 	TAILQ_INIT(&msgbox->buttons);
 
-	wchar_t *label = req_get_wchars(req, "label");
+	wchar_t *text = req_get_wchars(req, "text");
 	int begin_x = req_get_int(req, "x", -1);
 	int begin_y = req_get_int(req, "y", -1);
 	int nlines = req_get_int(req, "height", -1);
@@ -101,19 +101,18 @@ static PANEL *p_msgbox_create(struct request *req)
 			buttons_len += button_len(p->kv[i].val) + 1;
 	}
 
-	int lbl_nlines, lbl_maxwidth;
+	int txt_nlines, txt_maxwidth;
 
-	widget_text_lines(label, &lbl_nlines, &lbl_maxwidth);
+	widget_text_lines(text, &txt_nlines, &txt_maxwidth);
 
-	nlines = MAX(nlines, lbl_nlines);
-	ncols  = MAX(ncols, lbl_maxwidth);
+	nlines = MAX(nlines, txt_nlines);
+	ncols  = MAX(ncols, txt_maxwidth);
 	ncols  = MAX(ncols, buttons_len);
 
 	if (buttons_len > 0) {
 		ncols  -= 1;
 		nlines += 1;
 	}
-
 
 	if (borders) {
 		ncols  += 2;
@@ -136,12 +135,12 @@ static PANEL *p_msgbox_create(struct request *req)
 	if (borders)
 		begin_y = begin_x = 1;
 
-	if (label) {
-		widget_mvwtext(win, begin_y, begin_x, label);
-		free(label);
+	if (text) {
+		widget_mvwtext(win, begin_y, begin_x, text);
+		free(text);
 	}
 
-	begin_y += lbl_nlines;
+	begin_y += txt_nlines;
 
 	for (size_t i = 0; i < p->num_kv; i++) {
 		if (!streq(p->kv[i].key, "button"))
