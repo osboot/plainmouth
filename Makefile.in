@@ -42,7 +42,7 @@ override CFLAGS := $(WARNINGS) $(CFLAGS)
 LDLIBS = -Wl,-rpath,'$$ORIGIN'
 
 COMMON_SO   = libplainmouth.so
-COMMON_SRC  = src/ipc.c src/request.c src/widget.c src/plugin.c
+COMMON_SRC  = src/ipc.c src/request.c src/plugin.c src/widget.c src/widget_button.c
 COMMON_OBJ  = $(COMMON_SRC:.c=.o)
 COMMON_LIBS = $(NCURSES_LIBS)
 GARBAGE += $(COMMON_SO)

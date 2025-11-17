@@ -13,15 +13,6 @@
 #include "widget.h"
 #include "plugin.h"
 
-struct button {
-	TAILQ_ENTRY(button) entries;
-	WINDOW *win;
-	int width;
-	bool clicked;
-};
-
-TAILQ_HEAD(buttons, button);
-
 struct msgbox {
 	struct focuses focus;
 	struct buttons buttons;
@@ -31,44 +22,7 @@ struct msgbox {
 static bool on_button_focus(void *data, bool in_focus)
 {
 	struct button *btn = data;
-
-	if (in_focus) {
-		mvwaddch(btn->win, 0, 0, '[');
-		mvwaddch(btn->win, 0, btn->width - 1, ']');
-	} else {
-		mvwaddch(btn->win, 0, 0, ' ');
-		mvwaddch(btn->win, 0, btn->width - 1, ' ');
-	}
-	wnoutrefresh(btn->win);
-
-	return true;
-}
-
-static int button_len(const char *label)
-{
-	size_t mbslen = mbstowcs(NULL, label, 0);
-
-	if (mbslen == (size_t) -1) {
-		warn("mbstowcs");
-		return 0;
-	}
-
-	// "[" + label + "]"
-	return (int) mbslen + 2;
-}
-
-static struct button *create_button(WINDOW *parent, int begin_y, int begin_x, const wchar_t *label)
-{
-	int width = (int) wcslen(label) + 2;
-	struct button *btn = calloc(1, sizeof(*btn));
-
-	btn->win = derwin(parent, 1, width, begin_y, begin_x);
-	btn->width = width;
-
-	wbkgd(btn->win, COLOR_PAIR(COLOR_PAIR_BUTTON));
-	mvwprintw(btn->win, 0, 0, " %ls ", label);
-
-	return btn;
+	return btn->on_change(btn, in_focus);
 }
 
 static PANEL *p_msgbox_create(struct request *req)
@@ -85,7 +39,7 @@ static PANEL *p_msgbox_create(struct request *req)
 	}
 
 	focus_init(&msgbox->focus, &on_button_focus);
-	TAILQ_INIT(&msgbox->buttons);
+	buttons_init(&msgbox->buttons);
 
 	wchar_t *text = req_get_wchars(req, "text");
 	int begin_x = req_get_int(req, "x", -1);
@@ -148,10 +102,9 @@ static PANEL *p_msgbox_create(struct request *req)
 
 		wchar_t *wcs = req_get_kv_wchars(p->kv + i);
 
-		struct button *btn = create_button(win, begin_y, begin_x, wcs);
+		struct button *btn = button_new(&msgbox->buttons, win, begin_y, begin_x, wcs);
 		free(wcs);
 
-		TAILQ_INSERT_TAIL(&msgbox->buttons, btn, entries);
 		focus_new(&msgbox->focus, btn);
 
 		begin_x += btn->width + 1;
@@ -168,15 +121,7 @@ static enum p_retcode p_msgbox_delete(PANEL *panel)
 	struct msgbox *msgbox = (struct msgbox *) panel_userptr(panel);
 	WINDOW *win = panel_window(panel);
 
-	struct button *b1, *b2;
-
-	b1 = TAILQ_FIRST(&msgbox->buttons);
-	while (b1) {
-		b2 = TAILQ_NEXT(b1, entries);
-		delwin(b1->win);
-		b1 = b2;
-	}
-
+	buttons_free(&msgbox->buttons);
 	focus_free(&msgbox->focus);
 
 	del_panel(panel);

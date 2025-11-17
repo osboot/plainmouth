@@ -51,4 +51,25 @@ void text_size(const wchar_t *text, int *lines, int *columns);
 void write_mvwtext(WINDOW *win, int y, int x, const wchar_t *text);
 bool widget_borders(struct request *req, chtype bdr[BORDER_SIZE]);
 
+struct button {
+	TAILQ_ENTRY(button) entries;
+	WINDOW *win;
+	int width;
+	bool clicked;
+
+	bool (*on_change)(struct button *btn, bool in_focus);
+};
+
+TAILQ_HEAD(buttons, button);
+
+static inline void buttons_init(struct buttons *buttons)
+{
+	TAILQ_INIT(buttons);
+}
+
+bool button_focus(struct button *btn, bool in_focus);
+int button_len(const char *label);
+struct button *button_new(struct buttons *buttons, WINDOW *parent, int begin_y, int begin_x, const wchar_t *label);
+void buttons_free(struct buttons *buttons);
+
 #endif /* _PLAINMOUTH_WIDGET_H_ */
