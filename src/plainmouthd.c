@@ -54,26 +54,24 @@ struct worker {
 };
 LIST_HEAD(workers, worker);
 
-struct widget {
-	TAILQ_ENTRY(widget) entries;
-
-	char *w_id;
-	struct plugin *w_plugin;
-
-	PANEL *w_panel;
-	bool w_finished;
+struct instance {
+	TAILQ_ENTRY(instance) entries;
+	char *id;
+	struct plugin *plugin;
+	PANEL *panel;
+	bool finished;
 };
-TAILQ_HEAD(widgets, widget);
+TAILQ_HEAD(instances, instance);
 
 static struct workers workers;
-static struct widgets widgets;
+static struct instances instances;
 static struct uitasks uitasks;
 
 static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  ui_cond  = PTHREAD_COND_INITIALIZER;
 
-static pthread_mutex_t widgets_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t  widget_cond   = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t instances_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  instance_cond   = PTHREAD_COND_INITIALIZER;
 
 static _Atomic uint64_t done_task_id = 0;
 static _Atomic uint64_t next_task_id = 1;
@@ -131,68 +129,68 @@ print_version(const char *progname)
 	exit(EXIT_SUCCESS);
 }
 
-static struct widget *find_widget(const char *w_id)
+static struct instance *find_instance(const char *id)
 {
-	struct widget *widget;
-	TAILQ_FOREACH(widget, &widgets, entries) {
-		if (streq(w_id, widget->w_id))
-			return widget;
+	struct instance *instance;
+	TAILQ_FOREACH(instance, &instances, entries) {
+		if (streq(id, instance->id))
+			return instance;
 	}
 	return NULL;
 }
 
-static void free_widgets(void)
+static void free_instances(void)
 {
-	struct widget *w1, *w2;
+	struct instance *w1, *w2;
 
-	TAILQ_FOREACH(w1, &widgets, entries) {
+	TAILQ_FOREACH(w1, &instances, entries) {
 		if (IS_DEBUG())
-			warnx("release widget '%s'", w1->w_id);
+			warnx("release instance '%s'", w1->id);
 
-		if (w1->w_plugin->p_delete_widget && w1->w_plugin->p_delete_widget(w1->w_panel) == P_RET_ERR)
-			warnx("destructor failed for widget '%s'", w1->w_id);
+		if (w1->plugin->p_delete_instance && w1->plugin->p_delete_instance(w1->panel) == P_RET_ERR)
+			warnx("destructor failed for instance '%s'", w1->id);
 	}
 
-	w1 = TAILQ_FIRST(&widgets);
+	w1 = TAILQ_FIRST(&instances);
 	while (w1) {
 		w2 = TAILQ_NEXT(w1, entries);
-		free(w1->w_id);
+		free(w1->id);
 		free(w1);
 		w1 = w2;
 	}
 }
 
-static inline struct widget *widget_focused(void)
+static inline struct instance *instance_focused(void)
 {
-	return TAILQ_FIRST(&widgets);
+	return TAILQ_FIRST(&instances);
 }
 
-static inline bool widget_can_focus(struct widget *widget)
+static inline bool instance_can_focus(struct instance *instance)
 {
-	return widget->w_plugin->p_input != NULL;
+	return instance->plugin->p_input != NULL;
 }
 
-static void widget_unfocus(struct widget *widget)
+static void instance_unfocus(struct instance *instance)
 {
-	pthread_mutex_lock(&widgets_mutex);
-	TAILQ_REMOVE(&widgets, widget, entries);
-	TAILQ_INSERT_TAIL(&widgets, widget, entries);
-	pthread_mutex_unlock(&widgets_mutex);
+	pthread_mutex_lock(&instances_mutex);
+	TAILQ_REMOVE(&instances, instance, entries);
+	TAILQ_INSERT_TAIL(&instances, instance, entries);
+	pthread_mutex_unlock(&instances_mutex);
 }
 
-static void widget_infocus(struct widget *widget)
+static void instance_infocus(struct instance *instance)
 {
-	if (!widget_can_focus(widget))
+	if (!instance_can_focus(instance))
 		return;
 
-	if (widget != widget_focused()) {
-		pthread_mutex_lock(&widgets_mutex);
-		TAILQ_REMOVE(&widgets, widget, entries);
-		TAILQ_INSERT_HEAD(&widgets, widget, entries);
-		pthread_mutex_unlock(&widgets_mutex);
+	if (instance != instance_focused()) {
+		pthread_mutex_lock(&instances_mutex);
+		TAILQ_REMOVE(&instances, instance, entries);
+		TAILQ_INSERT_HEAD(&instances, instance, entries);
+		pthread_mutex_unlock(&instances_mutex);
 	}
 
-	top_panel(widget->w_panel);
+	top_panel(instance->panel);
 }
 
 static inline void ui_wakeup(void)
@@ -247,15 +245,15 @@ static int ui_enqueue_and_wait(struct ui_task *t)
 	return rc;
 }
 
-static inline void ui_check_widget_finished(struct widget *w)
+static inline void ui_check_instance_finished(struct instance *w)
 {
-	if (!w->w_finished && w->w_plugin->p_finished) {
-		w->w_finished = w->w_plugin->p_finished(w->w_panel);
+	if (!w->finished && w->plugin->p_finished) {
+		w->finished = w->plugin->p_finished(w->panel);
 
-		if (w->w_finished) {
-			pthread_mutex_lock(&widgets_mutex);
-			pthread_cond_broadcast(&widget_cond);
-			pthread_mutex_unlock(&widgets_mutex);
+		if (w->finished) {
+			pthread_mutex_lock(&instances_mutex);
+			pthread_cond_broadcast(&instance_cond);
+			pthread_mutex_unlock(&instances_mutex);
 		}
 	}
 }
@@ -265,18 +263,18 @@ static void ui_update_cursor(void)
 	WINDOW *win;
 	int y, x;
 
-	struct widget *focused = widget_focused();
-	if (!focused || !focused->w_panel || !focused->w_plugin->p_get_cursor) {
+	struct instance *focused = instance_focused();
+	if (!focused || !focused->panel || !focused->plugin->p_get_cursor) {
 		curs_set(0);
 		return;
 	}
 
-	if (focused->w_plugin->p_get_cursor(focused->w_panel, &y, &x) != P_RET_OK) {
+	if (focused->plugin->p_get_cursor(focused->panel, &y, &x) != P_RET_OK) {
 		curs_set(0);
 		return;
 	}
 
-	win = panel_window(focused->w_panel);
+	win = panel_window(focused->panel);
 	if (!win) {
 		curs_set(0);
 		return;
@@ -300,33 +298,33 @@ static void ui_update(void)
 
 static void ui_next_focused(void)
 {
-	struct widget *focused = widget_focused();
+	struct instance *focused = instance_focused();
 	if (!focused)
 		return;
 
-	struct widget *w;
+	struct instance *w;
 
-	for (w = TAILQ_NEXT(focused, entries); w && !widget_can_focus(w); w = TAILQ_NEXT(w, entries));
+	for (w = TAILQ_NEXT(focused, entries); w && !instance_can_focus(w); w = TAILQ_NEXT(w, entries));
 
 	if (w) {
-		widget_unfocus(focused);
-		widget_infocus(w);
+		instance_unfocus(focused);
+		instance_infocus(w);
 		ui_update();
 	}
 }
 
-static struct widget *ui_get_widget_by_id(struct ui_task *t)
+static struct instance *ui_get_instance_by_id(struct ui_task *t)
 {
-	const char *widget_id = req_get_val(&t->req, "widget");
-	struct widget *widget = find_widget(widget_id);
+	const char *instance_id = req_get_val(&t->req, "id");
+	struct instance *instance = find_instance(instance_id);
 
-	if (!widget) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no widget found by id: %s",
-				req_id(&t->req), widget_id);
+	if (!instance) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no instance found by id: %s",
+				req_id(&t->req), instance_id);
 		return NULL;
 	}
 
-	return widget;
+	return instance;
 }
 
 static int ui_process_task_create(struct ui_task *t)
@@ -334,12 +332,12 @@ static int ui_process_task_create(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	const char *widget_id = req_get_val(&t->req, "widget");
-	struct widget *widget = find_widget(widget_id);
+	const char *instance_id = req_get_val(&t->req, "id");
+	struct instance *instance = find_instance(instance_id);
 
-	if (widget) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=widget with '%s' already exists",
-				req_id(&t->req), widget_id);
+	if (instance) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=instance with '%s' already exists",
+				req_id(&t->req), instance_id);
 		return -1;
 	}
 
@@ -357,46 +355,46 @@ static int ui_process_task_create(struct ui_task *t)
 		return -1;
 	}
 
-	struct widget *wnew = calloc(1, sizeof(*wnew));
+	struct instance *wnew = calloc(1, sizeof(*wnew));
 	if (!wnew) {
 		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no memory",
 				req_id(&t->req));
 		return -1;
 	}
 
-	wnew->w_id = strdup(widget_id);
-	wnew->w_plugin = plugin;
+	wnew->id = strdup(instance_id);
+	wnew->plugin = plugin;
 
-	if (!wnew->w_id) {
+	if (!wnew->id) {
 		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no memory",
 				req_id(&t->req));
 		free(wnew);
 		return -1;
 	}
 
-	if (plugin->p_create_widget) {
-		wnew->w_panel = plugin->p_create_widget(&t->req);
-		if (!wnew->w_panel) {
+	if (plugin->p_create_instance) {
+		wnew->panel = plugin->p_create_instance(&t->req);
+		if (!wnew->panel) {
 			ipc_send_string(req_fd(&t->req),
-					"RESPDATA %s ERR=unable to create widget",
+					"RESPDATA %s ERR=unable to create instance",
 					req_id(&t->req));
-			free(wnew->w_id);
+			free(wnew->id);
 			free(wnew);
 			return -1;
 		}
 	}
 
 	// A plugin without a callback is always finished.
-	wnew->w_finished = (plugin->p_finished == NULL);
+	wnew->finished = (plugin->p_finished == NULL);
 
-	pthread_mutex_lock(&widgets_mutex);
+	pthread_mutex_lock(&instances_mutex);
 
 	if (plugin->p_input)
-		TAILQ_INSERT_HEAD(&widgets, wnew, entries);
+		TAILQ_INSERT_HEAD(&instances, wnew, entries);
 	else
-		TAILQ_INSERT_TAIL(&widgets, wnew, entries);
+		TAILQ_INSERT_TAIL(&instances, wnew, entries);
 
-	pthread_mutex_unlock(&widgets_mutex);
+	pthread_mutex_unlock(&instances_mutex);
 
 	ui_update();
 
@@ -408,16 +406,16 @@ static int ui_process_task_update(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	struct widget *widget = ui_get_widget_by_id(t);
-	if (!widget)
+	struct instance *instance = ui_get_instance_by_id(t);
+	if (!instance)
 		return -1;
 
-	if (widget->w_plugin->p_update_widget &&
-			widget->w_plugin->p_update_widget(&t->req, widget->w_panel) != P_RET_OK) {
+	if (instance->plugin->p_update_instance &&
+			instance->plugin->p_update_instance(&t->req, instance->panel) != P_RET_OK) {
 		return -1;
 	}
 
-	ui_check_widget_finished(widget);
+	ui_check_instance_finished(instance);
 	ui_update();
 
 	return 0;
@@ -428,21 +426,21 @@ static int ui_process_task_delete(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	struct widget *widget = ui_get_widget_by_id(t);
-	if (!widget)
+	struct instance *instance = ui_get_instance_by_id(t);
+	if (!instance)
 		return -1;
 
-	if (widget->w_plugin->p_delete_widget &&
-			widget->w_plugin->p_delete_widget(widget->w_panel) != P_RET_OK) {
+	if (instance->plugin->p_delete_instance &&
+			instance->plugin->p_delete_instance(instance->panel) != P_RET_OK) {
 		return -1;
 	}
 
-	pthread_mutex_lock(&widgets_mutex);
-	TAILQ_REMOVE(&widgets, widget, entries);
-	pthread_mutex_unlock(&widgets_mutex);
+	pthread_mutex_lock(&instances_mutex);
+	TAILQ_REMOVE(&instances, instance, entries);
+	pthread_mutex_unlock(&instances_mutex);
 
-	free(widget->w_id);
-	free(widget);
+	free(instance->id);
+	free(instance);
 
 	ui_update();
 
@@ -454,11 +452,11 @@ static int ui_process_task_focus(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	struct widget *widget = ui_get_widget_by_id(t);
-	if (!widget)
+	struct instance *instance = ui_get_instance_by_id(t);
+	if (!instance)
 		return -1;
 
-	widget_infocus(widget);
+	instance_infocus(instance);
 	ui_update();
 
 	return 0;
@@ -469,12 +467,12 @@ static int ui_process_task_result(struct ui_task *t)
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
 
-	struct widget *widget = ui_get_widget_by_id(t);
-	if (!widget)
+	struct instance *instance = ui_get_instance_by_id(t);
+	if (!instance)
 		return -1;
 
-	if (widget->w_plugin->p_result)
-		widget->w_plugin->p_result(&t->req, widget->w_panel);
+	if (instance->plugin->p_result)
+		instance->plugin->p_result(&t->req, instance->panel);
 
 	return 0;
 }
@@ -582,28 +580,28 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 		return 0;
 	}
 	else if (streq(action, "wait-result")) {
-		const char *widget_id = req_get_val(&req, "widget");
-		if (!widget_id) {
-			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: widget", req_id(&req));
+		const char *instance_id = req_get_val(&req, "id");
+		if (!instance_id) {
+			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: id", req_id(&req));
 			return -1;
 		}
 
-		struct widget *widget;
+		struct instance *instance;
 
-		pthread_mutex_lock(&widgets_mutex);
+		pthread_mutex_lock(&instances_mutex);
 		while (1) {
-			widget = find_widget(widget_id);
-			if (!widget) {
-				pthread_mutex_unlock(&widgets_mutex);
-				ipc_send_string(req_fd(&req), "RESPDATA %s ERR=no widget", req_id(&req));
+			instance = find_instance(instance_id);
+			if (!instance) {
+				pthread_mutex_unlock(&instances_mutex);
+				ipc_send_string(req_fd(&req), "RESPDATA %s ERR=no instance", req_id(&req));
 				return -1;
 			}
-			if (widget->w_finished)
+			if (instance->finished)
 				break;
 
-			pthread_cond_wait(&widget_cond, &widgets_mutex);
+			pthread_cond_wait(&instance_cond, &instances_mutex);
 		}
-		pthread_mutex_unlock(&widgets_mutex);
+		pthread_mutex_unlock(&instances_mutex);
 
 		struct ui_task *t = ui_task_create(UI_TASK_RESULT, &req);
 		if (!t) {
@@ -628,9 +626,9 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 	}
 
 	if (ttype != UI_TASK_SHOW_SPLASH && ttype != UI_TASK_HIDE_SPLASH) {
-		const char *widget_id = req_get_val(&req, "widget");
-		if (!widget_id) {
-			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: widget", req_id(&req));
+		const char *instance_id = req_get_val(&req, "id");
+		if (!instance_id) {
+			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: id", req_id(&req));
 			return -1;
 		}
 	}
@@ -670,12 +668,12 @@ static void handle_input(void)
 		return;
 	}
 
-	struct widget *focused = widget_focused();
+	struct instance *focused = instance_focused();
 
-	if (focused && focused->w_plugin->p_input) {
-		focused->w_plugin->p_input(focused->w_panel, (wchar_t)code);
+	if (focused && focused->plugin->p_input) {
+		focused->plugin->p_input(focused->panel, (wchar_t)code);
 
-		ui_check_widget_finished(focused);
+		ui_check_instance_finished(focused);
 
 		ui_update();
 	}
@@ -770,7 +768,7 @@ int main(int argc, char **argv)
 	setlocale(LC_CTYPE, "");
 
 	LIST_INIT(&workers);
-	TAILQ_INIT(&widgets);
+	TAILQ_INIT(&instances);
 	TAILQ_INIT(&uitasks);
 
 	retcode = EXIT_SUCCESS;
@@ -878,7 +876,7 @@ int main(int argc, char **argv)
 		w1 = w2;
 	}
 
-	free_widgets();
+	free_instances();
 	unload_plugins();
 
 	ipc_close(&ctx);

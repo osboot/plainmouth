@@ -203,7 +203,7 @@ static int command_result(struct ipc_ctx *ctx, int n_ids, char **ids)
 	ipc_pair_sprintf(&data, "action", "result");
 
 	for (int i = 0; i < n_ids; i++)
-		ipc_pair_sprintf(&data, "widget", "%s", ids[i]);
+		ipc_pair_sprintf(&data, "id", "%s", ids[i]);
 
 	bool ret = ipc_send_message2(ctx, &data, &resp);
 

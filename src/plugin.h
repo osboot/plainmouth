@@ -28,9 +28,9 @@ struct plugin {
 	void *dl_handle;
 
 	enum p_retcode (*p_plugin_init)(void);
-	PANEL *(*p_create_widget)(struct request *req);
-	enum p_retcode (*p_delete_widget)(PANEL *panel);
-	enum p_retcode (*p_update_widget)(struct request *req, PANEL *panel);
+	PANEL *(*p_create_instance)(struct request *req);
+	enum p_retcode (*p_delete_instance)(PANEL *panel);
+	enum p_retcode (*p_update_instance)(struct request *req, PANEL *panel);
 	enum p_retcode (*p_input)(PANEL *panel, wchar_t code);
 	bool (*p_finished)(PANEL *panel);
 	enum p_retcode (*p_result)(struct request *req, PANEL *panel);
