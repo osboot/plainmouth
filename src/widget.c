@@ -3,10 +3,12 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <wchar.h>
 #include <err.h>
 
 #include <curses.h>
 
+#include "helpers.h"
 #include "widget.h"
 
 void focus_init(struct focuses *focuses, bool (*on_change)(void *data, bool in_focus))
@@ -129,60 +131,50 @@ void position_center(int width, int height, int *begin_y, int *begin_x)
 		*begin_x = simple_round(center_x - half_w);
 }
 
-void widget_text_lines(const wchar_t *text, int *num_lines, int *max_width)
+void text_size(const wchar_t *text, int *lines, int *columns)
 {
-	int nlines, maxwidth;
+	ssize_t nlines, ncols;
 	const wchar_t *s, *e;
 
-	nlines = maxwidth = 0;
+	nlines = ncols = 0;
 
-	if (!text)
+	if (!text || *text == '\0')
 		goto empty;
 
-	s = e = text;
+	s = text;
+	e = s + wcslen(s);
 
-	while (1) {
-		if (*e == '\n' || *e == '\0') {
-			if (maxwidth < (e - s)) {
-				maxwidth = (int)(e - s);
-				s = e + 1;
-			}
-			nlines += 1;
-		}
-		if (*e == '\0')
-			break;
-		e++;
+	while (s < e) {
+		const wchar_t *c = wcschr(s, L'\n') ?: e;
+
+		ncols = MAX(ncols, (c - s));
+		nlines += 1;
+
+		s = c + 1;
 	}
 
-	if (s == text && !nlines) {
-		maxwidth = (int)(e - s);
-		nlines = 1;
-	}
+	if (nlines < 0) nlines = 0;
+	if (ncols  < 0)  ncols = 0;
+
 empty:
-	if (num_lines)
-		*num_lines = nlines;
-	if (max_width)
-		*max_width = maxwidth;
+	if (lines)   *lines   = (int) nlines;
+	if (columns) *columns = (int) ncols;
 }
 
-void widget_mvwtext(WINDOW *win, int y, int x, const wchar_t *text)
+void write_mvwtext(WINDOW *win, int y, int x, const wchar_t *text)
 {
 	const wchar_t *s, *e;
 
 	if (!text)
 		return;
 
-	s = e = text;
+	s = text;
+	e = s + wcslen(s);
 
-	while (1) {
-		if (*e == '\n' || *e == '\0') {
-			mvwprintw(win, y, x, "%.*ls", (int)(e - s), s);
-			s = e + 1;
-			y += 1;
-		}
-		if (*e == '\0')
-			break;
-		e++;
+	while (s < e) {
+		const wchar_t *c = wcschr(s, L'\n') ?: e;
+		mvwaddnwstr(win, y++, x, s, (int) (c - s));
+		s = c + 1;
 	}
 }
 

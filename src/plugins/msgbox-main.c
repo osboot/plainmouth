@@ -101,12 +101,12 @@ static PANEL *p_msgbox_create(struct request *req)
 			buttons_len += button_len(p->kv[i].val) + 1;
 	}
 
-	int txt_nlines, txt_maxwidth;
+	int txt_nlines, txt_ncols;
 
-	widget_text_lines(text, &txt_nlines, &txt_maxwidth);
+	text_size(text, &txt_nlines, &txt_ncols);
 
 	nlines = MAX(nlines, txt_nlines);
-	ncols  = MAX(ncols, txt_maxwidth);
+	ncols  = MAX(ncols, txt_ncols);
 	ncols  = MAX(ncols, buttons_len);
 
 	if (buttons_len > 0) {
@@ -136,7 +136,7 @@ static PANEL *p_msgbox_create(struct request *req)
 		begin_y = begin_x = 1;
 
 	if (text) {
-		widget_mvwtext(win, begin_y, begin_x, text);
+		write_mvwtext(win, begin_y, begin_x, text);
 		free(text);
 	}
 

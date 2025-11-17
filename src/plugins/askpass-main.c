@@ -45,12 +45,12 @@ static PANEL *p_askpass_create(struct request *req)
 	int ncols = req_get_int(req, "width", -1);
 	bool borders = widget_borders(req, bdr);
 
-	int txt_nlines, txt_maxwidth;
+	int txt_nlines, txt_ncols;
 
-	widget_text_lines(text, &txt_nlines, &txt_maxwidth);
+	text_size(text, &txt_nlines, &txt_ncols);
 
 	nlines = MAX(nlines, txt_nlines + 1);
-	ncols  = MAX(ncols, txt_maxwidth);
+	ncols  = MAX(ncols, txt_ncols);
 
 	askpass->text_nlines = txt_nlines;
 	askpass->borders = borders;
@@ -77,7 +77,7 @@ static PANEL *p_askpass_create(struct request *req)
 		begin_y = begin_x = 1;
 
 	if (text) {
-		widget_mvwtext(win, begin_y, begin_x, text);
+		write_mvwtext(win, begin_y, begin_x, text);
 		free(text);
 	}
 
