@@ -91,14 +91,18 @@ bool input_wchar(struct input *input, wchar_t c)
 				return false;
 	}
 
+	int i;
 	int max_x = getmaxx(input->win);
 	int width = MIN(input->len, max_x);
 
 	wmove(input->win, 0, 0);
 	wclrtoeol(input->win);
 
-	for (int i = 0; i < width; i++)
+	for (i = 0; i < width; i++)
 		wprintw(input->win, "%lc", (input->force_chr ?: input->data[i]));
+
+	if (i == max_x)
+		wmove(input->win, 0, max_x - 1);
 
 	wnoutrefresh(input->win);
 	return true;
