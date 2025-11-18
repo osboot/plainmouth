@@ -131,6 +131,40 @@ void position_center(int width, int height, int *begin_y, int *begin_x)
 		*begin_x = simple_round(center_x - half_w);
 }
 
+bool get_abs_cursor(WINDOW *target, WINDOW *win, int *cursor_y, int *cursor_x)
+{
+	if (!target || !win || !cursor_y || !cursor_x)
+		return false;
+
+	WINDOW *cur = win;
+
+	int y, x;
+	getyx(cur, y, x);
+
+	while (cur != target) {
+		WINDOW *parent = wgetparent(cur);
+
+		if (!parent)
+			return false;
+
+		int py, px;
+		getparyx(cur, py, px);
+
+		if (py == -1 && px == -1)
+			return false;
+
+		y += py;
+		x += px;
+
+		cur = parent;
+	}
+
+	*cursor_y = y;
+	*cursor_x = x;
+
+	return true;
+}
+
 void text_size(const wchar_t *text, int *lines, int *columns)
 {
 	ssize_t nlines, ncols;

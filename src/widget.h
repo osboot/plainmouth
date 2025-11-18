@@ -47,9 +47,12 @@ enum boders_geometric {
 
 int simple_round(float number);
 void position_center(int width, int height, int *begin_y, int *begin_x);
+bool get_abs_cursor(WINDOW *target, WINDOW *win, int *cursor_y, int *cursor_x);
 void text_size(const wchar_t *text, int *lines, int *columns);
 void write_mvwtext(WINDOW *win, int y, int x, const wchar_t *text);
 bool widget_borders(struct request *req, chtype bdr[BORDER_SIZE]);
+
+// widget_button.c
 
 struct button {
 	TAILQ_ENTRY(button) entries;
@@ -71,5 +74,23 @@ bool button_focus(struct button *btn, bool in_focus);
 int button_len(const char *label);
 struct button *button_new(struct buttons *buttons, WINDOW *parent, int begin_y, int begin_x, const wchar_t *label);
 void buttons_free(struct buttons *buttons);
+
+// widget_input.c
+
+struct input {
+	WINDOW *win;
+
+	wchar_t force_chr;
+
+	wchar_t *data;
+	int cap;
+	int len;
+
+	bool finished;
+};
+
+struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width);
+void input_free(struct input *input);
+bool input_wchar(struct input *input, wchar_t c);
 
 #endif /* _PLAINMOUTH_WIDGET_H_ */
