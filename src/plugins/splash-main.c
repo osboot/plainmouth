@@ -6,7 +6,7 @@
 #include <string.h>
 #include <err.h>
 
-#include <ncurses.h>
+#include <curses.h>
 #include <panel.h>
 
 #include "helpers.h"

@@ -10,12 +10,6 @@
 
 #include "request.h"
 
-enum {
-	COLOR_PAIR_MAIN = 1,
-	COLOR_PAIR_WINDOW,
-	COLOR_PAIR_BUTTON,
-};
-
 enum p_retcode {
 	P_RET_OK  = 0,
 	P_RET_ERR = 1,

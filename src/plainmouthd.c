@@ -16,13 +16,13 @@
 #include <err.h>
 
 #include <pthread.h>
-#include <ncurses.h>
-#include <term.h>
+#include <curses.h>
 
 #include "helpers.h"
 #include "ipc.h"
 #include "plugin.h"
 #include "request.h"
+#include "widget.h"
 
 /*
  * UI task types — what operations need to be performed in the main thread

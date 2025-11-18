@@ -4,7 +4,8 @@
 
 #include <sys/queue.h>
 #include <stdbool.h>
-#include <ncurses.h>
+
+#include <curses.h>
 
 #include "request.h"
 
@@ -45,12 +46,19 @@ enum boders_geometric {
 	BORDER_SIZE,
 };
 
+bool widget_borders(struct request *req, chtype bdr[BORDER_SIZE]);
+
+enum {
+	COLOR_PAIR_MAIN = 1,
+	COLOR_PAIR_WINDOW,
+	COLOR_PAIR_BUTTON,
+};
+
 int simple_round(float number);
 void position_center(int width, int height, int *begin_y, int *begin_x);
 bool get_abs_cursor(WINDOW *target, WINDOW *win, int *cursor_y, int *cursor_x);
 void text_size(const wchar_t *text, int *lines, int *columns);
 void write_mvwtext(WINDOW *win, int y, int x, const wchar_t *text);
-bool widget_borders(struct request *req, chtype bdr[BORDER_SIZE]);
 
 // widget_button.c
 

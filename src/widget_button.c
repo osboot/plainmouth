@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <err.h>
 
-#include <ncurses.h>
+#include <curses.h>
 
 #include "plugin.h"
 #include "widget.h"
