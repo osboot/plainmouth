@@ -83,6 +83,9 @@ int button_len(const char *label);
 struct button *button_new(struct buttons *buttons, WINDOW *parent, int begin_y, int begin_x, const wchar_t *label);
 void buttons_free(struct buttons *buttons);
 
+#define widget_cols(widget)	getmaxx(widget->win)
+#define widget_lines(widget)	getmaxy(widget->win)
+
 // widget_input.c
 
 struct input {
@@ -100,5 +103,14 @@ struct input {
 struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width);
 void input_free(struct input *input);
 bool input_wchar(struct input *input, wchar_t c);
+
+// widget_message.c
+
+struct message {
+	WINDOW *win;
+};
+
+struct message *message_new(WINDOW *parent, int begin_y, int begin_x, const wchar_t *text);
+void message_free(struct message *msg);
 
 #endif /* _PLAINMOUTH_WIDGET_H_ */

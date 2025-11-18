@@ -46,6 +46,7 @@ COMMON_SRC  = src/ipc.c src/request.c src/plugin.c \
 	      src/widget.c \
 	      src/widget_button.c \
 	      src/widget_input.c \
+	      src/widget_message.c \
 	      #
 COMMON_OBJ  = $(COMMON_SRC:.c=.o)
 COMMON_LIBS = $(NCURSES_LIBS)

@@ -13,17 +13,42 @@
 #include "widget.h"
 #include "plugin.h"
 
-struct askpass {
-	struct input *input;
+/*
+ * Full layout:
+ *    +---------------------------+ +---------------------------+
+ *    |<long text message>        | |<multi line long           |
+ *    |<label text> [= password =]| | text message>             |
+ *    +---------------------------+ |<multi line                |
+ *                                  | label text> [= password =]|
+ *                                  +---------------------------+
+ * or without label:
+ *    +---------------------------+ +---------------------------+
+ *    |<long text message>        | |<multi line long           |
+ *    |[= password ==============]| | text message>             |
+ *    +---------------------------+ |[= password ==============]|
+ *                                  +---------------------------+
+ * or without upper text message:
+ *    +---------------------------+ +---------------------------+
+ *    |<label text> [= password =]| |<multi line                |
+ *    +---------------------------+ | label text> [= password =]|
+ *                                  +---------------------------+
+ * or without any text:
+ *    +---------------------------+
+ *    |[= password ==============]|
+ *    +---------------------------+
+ */
 
-	int text_nlines;
-	bool borders;
-	bool enter;
+#define MIN_INPUT_COLS 10
+
+struct askpass {
+	struct message *text;
+	struct message *label;
+	struct input   *input;
 };
 
 static PANEL *p_askpass_create(struct request *req)
 {
-	PANEL *panel;
+	PANEL *panel = NULL;
 	chtype bdr[BORDER_SIZE];
 	struct askpass *askpass;
 
@@ -34,21 +59,24 @@ static PANEL *p_askpass_create(struct request *req)
 	}
 
 	wchar_t *text = req_get_wchars(req, "text");
+	wchar_t *label = req_get_wchars(req, "label");
 	int begin_x = req_get_int(req, "x", -1);
 	int begin_y = req_get_int(req, "y", -1);
 	int nlines = req_get_int(req, "height", -1);
 	int ncols = req_get_int(req, "width", -1);
 	bool borders = widget_borders(req, bdr);
 
+	int lbl_nlines, lbl_ncols;
 	int txt_nlines, txt_ncols;
 
+	text_size(label, &lbl_nlines, &lbl_ncols);
 	text_size(text, &txt_nlines, &txt_ncols);
 
-	nlines = MAX(nlines, txt_nlines + 1);
+	nlines = MAX(nlines, txt_nlines) + (lbl_nlines ?: 1);
 	ncols  = MAX(ncols, txt_ncols);
 
-	askpass->text_nlines = txt_nlines;
-	askpass->borders = borders;
+	if (ncols < (lbl_ncols + MIN_INPUT_COLS))
+		ncols = lbl_ncols + MIN_INPUT_COLS;
 
 	if (borders) {
 		ncols  += 2;
@@ -58,30 +86,66 @@ static PANEL *p_askpass_create(struct request *req)
 	position_center(ncols, nlines, &begin_y, &begin_x);
 
 	WINDOW *win = newwin(nlines, ncols, begin_y, begin_x);
+	if (!win)
+		goto fail;
 	wbkgd(win, COLOR_PAIR(COLOR_PAIR_WINDOW));
+
+	begin_y = begin_x = 0;
 
 	if (borders) {
 		wborder(win,
 			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],
 			bdr[BORDER_TL], bdr[BORDER_TR], bdr[BORDER_BL], bdr[BORDER_BR]);
+		ncols -= 2;
+		begin_y = begin_x = 1;
 	}
-
-	begin_y = begin_x = (borders ? 1 : 0);
 
 	if (text) {
-		write_mvwtext(win, begin_y, begin_x, text);
+		askpass->text = message_new(win, begin_y, begin_x, text);
 		free(text);
-	}
-	wmove(win, 0, 0);
 
-	askpass->input = input_new(win, begin_y + askpass->text_nlines, begin_x,
-			(borders ? (ncols - 2) : ncols));
+		if (!askpass->text)
+			goto fail;
+
+		begin_y += widget_lines(askpass->text);
+	}
+
+	if (label) {
+		askpass->label = message_new(win, begin_y, begin_x, label);
+		free(label);
+
+		if (!askpass->label)
+			goto fail;
+
+		begin_y += widget_lines(askpass->label) - 1;
+		begin_x += widget_cols(askpass->label);
+		ncols   -= widget_cols(askpass->label);
+	}
+
+	askpass->input = input_new(win, begin_y, begin_x, ncols);
+	if (!askpass->input)
+		goto fail;
+
 	askpass->input->force_chr = L'*';
 
 	panel = new_panel(win);
-	set_panel_userptr(panel, askpass);
+	if (panel) {
+		set_panel_userptr(panel, askpass);
+		return panel;
+	}
+fail:
+	if (askpass) {
+		message_free(askpass->text);
+		message_free(askpass->label);
+		input_free(askpass->input);
+		free(askpass);
+	}
+	if (panel)
+		del_panel(panel);
+	if (win)
+		delwin(win);
 
-	return panel;
+	return NULL;
 }
 
 static enum p_retcode p_askpass_delete(PANEL *panel)
@@ -89,6 +153,8 @@ static enum p_retcode p_askpass_delete(PANEL *panel)
 	struct askpass *askpass = (struct askpass *) panel_userptr(panel);
 	WINDOW *win = panel_window(panel);
 
+	message_free(askpass->text);
+	message_free(askpass->label);
 	input_free(askpass->input);
 
 	del_panel(panel);
