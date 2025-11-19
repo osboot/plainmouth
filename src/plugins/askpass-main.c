@@ -178,6 +178,9 @@ static enum p_retcode p_askpass_get_cursor(PANEL *panel, int *y, int *x)
 	const struct askpass *askpass = panel_userptr(panel);
 	WINDOW *win = panel_window(panel);
 
+	if (askpass->input->finished)
+		return P_RET_ERR;
+
 	return get_abs_cursor(win, askpass->input->win, y, x)
 		? P_RET_OK : P_RET_ERR;
 }
