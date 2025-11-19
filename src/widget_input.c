@@ -21,9 +21,10 @@ struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width)
 	}
 
 	input->win = (parent)
-		? derwin(parent, 0, width, begin_y, begin_x)
-		: newwin(0, width, begin_y, begin_x);
+		? derwin(parent, 1, width, begin_y, begin_x)
+		: newwin(1, width, begin_y, begin_x);
 
+	wbkgd(input->win, COLOR_PAIR(COLOR_PAIR_BUTTON));
 	wmove(input->win, 0, 0);
 
 	return input;
