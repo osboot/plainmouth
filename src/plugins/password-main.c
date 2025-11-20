@@ -40,21 +40,21 @@
 
 #define MIN_INPUT_COLS 10
 
-struct askpass {
+struct pass {
 	struct message *text;
 	struct message *label;
 	struct input   *input;
 };
 
-static PANEL *p_askpass_create(struct request *req)
+static PANEL *p_pass_create(struct request *req)
 {
 	PANEL *panel = NULL;
 	chtype bdr[BORDER_SIZE];
-	struct askpass *askpass;
+	struct pass *pass;
 
-	askpass = calloc(1, sizeof(*askpass));
-	if (!askpass) {
-		warn("calloc askpass");
+	pass = calloc(1, sizeof(*pass));
+	if (!pass) {
+		warn("calloc pass");
 		return NULL;
 	}
 
@@ -101,44 +101,44 @@ static PANEL *p_askpass_create(struct request *req)
 	}
 
 	if (text) {
-		askpass->text = message_new(win, begin_y, begin_x, text);
+		pass->text = message_new(win, begin_y, begin_x, text);
 		free(text);
 
-		if (!askpass->text)
+		if (!pass->text)
 			goto fail;
 
-		begin_y += widget_lines(askpass->text);
+		begin_y += widget_lines(pass->text);
 	}
 
 	if (label) {
-		askpass->label = message_new(win, begin_y, begin_x, label);
+		pass->label = message_new(win, begin_y, begin_x, label);
 		free(label);
 
-		if (!askpass->label)
+		if (!pass->label)
 			goto fail;
 
-		begin_y += widget_lines(askpass->label) - 1;
-		begin_x += widget_cols(askpass->label);
-		ncols   -= widget_cols(askpass->label);
+		begin_y += widget_lines(pass->label) - 1;
+		begin_x += widget_cols(pass->label);
+		ncols   -= widget_cols(pass->label);
 	}
 
-	askpass->input = input_new(win, begin_y, begin_x, ncols);
-	if (!askpass->input)
+	pass->input = input_new(win, begin_y, begin_x, ncols);
+	if (!pass->input)
 		goto fail;
 
-	askpass->input->force_chr = L'*';
+	pass->input->force_chr = L'*';
 
 	panel = new_panel(win);
 	if (panel) {
-		set_panel_userptr(panel, askpass);
+		set_panel_userptr(panel, pass);
 		return panel;
 	}
 fail:
-	if (askpass) {
-		message_free(askpass->text);
-		message_free(askpass->label);
-		input_free(askpass->input);
-		free(askpass);
+	if (pass) {
+		message_free(pass->text);
+		message_free(pass->label);
+		input_free(pass->input);
+		free(pass);
 	}
 	if (panel)
 		del_panel(panel);
@@ -148,69 +148,69 @@ fail:
 	return NULL;
 }
 
-static enum p_retcode p_askpass_delete(PANEL *panel)
+static enum p_retcode p_pass_delete(PANEL *panel)
 {
-	struct askpass *askpass = (struct askpass *) panel_userptr(panel);
+	struct pass *pass = (struct pass *) panel_userptr(panel);
 	WINDOW *win = panel_window(panel);
 
-	message_free(askpass->text);
-	message_free(askpass->label);
-	input_free(askpass->input);
+	message_free(pass->text);
+	message_free(pass->label);
+	input_free(pass->input);
 
 	del_panel(panel);
 	delwin(win);
 
-	free(askpass);
+	free(pass);
 
 	return P_RET_OK;
 }
 
-static enum p_retcode p_askpass_input(PANEL *panel, wchar_t code)
+static enum p_retcode p_pass_input(PANEL *panel, wchar_t code)
 {
-	struct askpass *askpass = (struct askpass *) panel_userptr(panel);
+	struct pass *pass = (struct pass *) panel_userptr(panel);
 
-	return input_wchar(askpass->input, code)
+	return input_wchar(pass->input, code)
 		? P_RET_OK : P_RET_ERR;
 }
 
-static enum p_retcode p_askpass_get_cursor(PANEL *panel, int *y, int *x)
+static enum p_retcode p_pass_get_cursor(PANEL *panel, int *y, int *x)
 {
-	const struct askpass *askpass = panel_userptr(panel);
+	const struct pass *pass = panel_userptr(panel);
 	WINDOW *win = panel_window(panel);
 
-	if (askpass->input->finished)
+	if (pass->input->finished)
 		return P_RET_ERR;
 
-	return get_abs_cursor(win, askpass->input->win, y, x)
+	return get_abs_cursor(win, pass->input->win, y, x)
 		? P_RET_OK : P_RET_ERR;
 }
 
-static enum p_retcode p_askpass_result(struct request *req, PANEL *panel)
+static enum p_retcode p_pass_result(struct request *req, PANEL *panel)
 {
-	const struct askpass *askpass = panel_userptr(panel);
+	const struct pass *pass = panel_userptr(panel);
 
-	ipc_send_string(req_fd(req), "RESPDATA %s PASSWORD=%ls", req_id(req), askpass->input->data ?: L"");
-	ipc_send_string(req_fd(req), "RESPDATA %s BUTTON_0=%d", req_id(req), askpass->input->finished);
+	ipc_send_string(req_fd(req), "RESPDATA %s PASSWORD=%ls", req_id(req), pass->input->data ?: L"");
+	ipc_send_string(req_fd(req), "RESPDATA %s BUTTON_0=%d", req_id(req), pass->input->finished);
 
 	return P_RET_OK;
 }
 
-static bool p_askpass_finished(PANEL *panel)
+static bool p_pass_finished(PANEL *panel)
 {
-	const struct askpass *askpass = panel_userptr(panel);
+	const struct pass *pass = panel_userptr(panel);
 
-	return askpass->input->finished;
+	return pass->input->finished;
 }
 
 struct plugin plugin = {
-	.name              = "askpass",
+	.name              = "password",
 	.p_plugin_init     = NULL,
 	.p_plugin_free     = NULL,
-	.p_create_instance = p_askpass_create,
-	.p_delete_instance = p_askpass_delete,
+	.p_create_instance = p_pass_create,
+	.p_delete_instance = p_pass_delete,
 	.p_update_instance = NULL,
-	.p_input           = p_askpass_input,
-	.p_finished        = p_askpass_finished,
-	.p_result          = p_askpass_result,
-	.p_get_cursor      = p_askpass_get_cursor,
+	.p_input           = p_pass_input,
+	.p_finished        = p_pass_finished,
+	.p_result          = p_pass_result,
+	.p_get_cursor      = p_pass_get_cursor,
 };
