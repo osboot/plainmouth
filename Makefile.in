@@ -25,7 +25,7 @@ WARNINGS = \
 	-Wall -W -Waggregate-return -Wconversion -Wdisabled-optimization \
 	-Wmissing-declarations -Wmissing-format-attribute -Wmissing-noreturn \
 	-Wmissing-prototypes -Wpointer-arith -Wredundant-decls -Wshadow \
-	-Wstrict-prototypes -Wwrite-strings \
+	-Wstrict-prototypes -Wwrite-strings -Wmismatched-dealloc \
 	#
 
 CPPFLAGS = \
@@ -49,7 +49,7 @@ COMMON_SRC  = src/ipc.c src/request.c src/plugin.c \
 	      src/widget_message.c \
 	      #
 COMMON_OBJ  = $(COMMON_SRC:.c=.o)
-COMMON_LIBS = $(NCURSES_LIBS)
+COMMON_LIBS = $(NCURSES_LIBS) $(PANEL_LIBS)
 GARBAGE += $(COMMON_SO)
 
 PROGS += plainmouthd

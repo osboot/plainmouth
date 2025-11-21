@@ -41,6 +41,7 @@
 #define MIN_INPUT_COLS 10
 
 struct pass {
+	struct mainwin mainwin;
 	struct message *text;
 	struct message *label;
 	struct input   *input;
@@ -49,7 +50,6 @@ struct pass {
 static PANEL *p_pass_create(struct request *req)
 {
 	PANEL *panel = NULL;
-	chtype bdr[BORDER_SIZE];
 	struct pass *pass;
 
 	pass = calloc(1, sizeof(*pass));
@@ -58,13 +58,11 @@ static PANEL *p_pass_create(struct request *req)
 		return NULL;
 	}
 
-	wchar_t *text = req_get_wchars(req, "text");
-	wchar_t *label = req_get_wchars(req, "label");
-	int begin_x = req_get_int(req, "x", -1);
-	int begin_y = req_get_int(req, "y", -1);
-	int nlines = req_get_int(req, "height", -1);
-	int ncols = req_get_int(req, "width", -1);
-	bool borders = widget_borders(req, bdr);
+	wchar_t *text  __free(ptr) = req_get_wchars(req, "text");
+	wchar_t *label __free(ptr) = req_get_wchars(req, "label");
+
+	int nlines = 0;
+	int ncols = 0;
 
 	int lbl_nlines, lbl_ncols;
 	int txt_nlines, txt_ncols;
@@ -78,32 +76,16 @@ static PANEL *p_pass_create(struct request *req)
 	if (ncols < (lbl_ncols + MIN_INPUT_COLS))
 		ncols = lbl_ncols + MIN_INPUT_COLS;
 
-	if (borders) {
-		ncols  += 2;
-		nlines += 2;
+	if (!mainwin_new(req, &pass->mainwin, nlines, ncols)) {
+		free(pass);
+		return NULL;
 	}
 
-	position_center(ncols, nlines, &begin_y, &begin_x);
-
-	WINDOW *win = newwin(nlines, ncols, begin_y, begin_x);
-	if (!win)
-		goto fail;
-	wbkgd(win, COLOR_PAIR(COLOR_PAIR_WINDOW));
-
-	begin_y = begin_x = 0;
-
-	if (borders) {
-		wborder(win,
-			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],
-			bdr[BORDER_TL], bdr[BORDER_TR], bdr[BORDER_BL], bdr[BORDER_BR]);
-		ncols -= 2;
-		begin_y = begin_x = 1;
-	}
+	int begin_y = 0;
+	int begin_x = 0;
 
 	if (text) {
-		pass->text = message_new(win, begin_y, begin_x, text);
-		free(text);
-
+		pass->text = message_new(widget_win(&pass->mainwin), begin_y, begin_x, text);
 		if (!pass->text)
 			goto fail;
 
@@ -111,9 +93,7 @@ static PANEL *p_pass_create(struct request *req)
 	}
 
 	if (label) {
-		pass->label = message_new(win, begin_y, begin_x, label);
-		free(label);
-
+		pass->label = message_new(widget_win(&pass->mainwin), begin_y, begin_x, label);
 		if (!pass->label)
 			goto fail;
 
@@ -122,44 +102,41 @@ static PANEL *p_pass_create(struct request *req)
 		ncols   -= widget_cols(pass->label);
 	}
 
-	pass->input = input_new(win, begin_y, begin_x, ncols);
+	pass->input = input_new(widget_win(&pass->mainwin), begin_y, begin_x, ncols);
 	if (!pass->input)
 		goto fail;
 
 	pass->input->force_chr = L'*';
 
-	panel = new_panel(win);
+	panel = mainwin_panel(&pass->mainwin);
 	if (panel) {
 		set_panel_userptr(panel, pass);
 		return panel;
 	}
 fail:
+	if (panel)
+		del_panel(panel);
 	if (pass) {
 		message_free(pass->text);
 		message_free(pass->label);
 		input_free(pass->input);
+		mainwin_free(&pass->mainwin);
 		free(pass);
 	}
-	if (panel)
-		del_panel(panel);
-	if (win)
-		delwin(win);
-
 	return NULL;
 }
 
 static enum p_retcode p_pass_delete(PANEL *panel)
 {
 	struct pass *pass = (struct pass *) panel_userptr(panel);
-	WINDOW *win = panel_window(panel);
 
 	message_free(pass->text);
 	message_free(pass->label);
 	input_free(pass->input);
 
 	del_panel(panel);
-	delwin(win);
 
+	mainwin_free(&pass->mainwin);
 	free(pass);
 
 	return P_RET_OK;

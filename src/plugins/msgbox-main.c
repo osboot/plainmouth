@@ -14,6 +14,7 @@
 #include "plugin.h"
 
 struct msgbox {
+	struct mainwin mainwin;
 	struct focuses focus;
 	struct buttons buttons;
 	bool finished;
@@ -28,7 +29,6 @@ static bool on_button_focus(void *data, bool in_focus)
 static PANEL *p_msgbox_create(struct request *req)
 {
 	PANEL *panel;
-	chtype bdr[BORDER_SIZE];
 	struct msgbox *msgbox;
 	struct ipc_pair *p = req_data(req);
 
@@ -41,60 +41,36 @@ static PANEL *p_msgbox_create(struct request *req)
 	focus_init(&msgbox->focus, &on_button_focus);
 	buttons_init(&msgbox->buttons);
 
-	wchar_t *text = req_get_wchars(req, "text");
-	int begin_x = req_get_int(req, "x", -1);
-	int begin_y = req_get_int(req, "y", -1);
-	int nlines = req_get_int(req, "height", -1);
-	int ncols = req_get_int(req, "width", -1);
-	bool borders = widget_borders(req, bdr);
+	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
 
+	int nlines = 0;
+	int ncols = 0;
 	int buttons_len = 0;
+
+	text_size(text, &nlines, &ncols);
 
 	for (size_t i = 0; i < p->num_kv; i++) {
 		if (streq(p->kv[i].key, "button"))
 			buttons_len += button_len(p->kv[i].val) + 1;
 	}
 
-	int txt_nlines, txt_ncols;
-
-	text_size(text, &txt_nlines, &txt_ncols);
-
-	nlines = MAX(nlines, txt_nlines);
-	ncols  = MAX(ncols, txt_ncols);
-	ncols  = MAX(ncols, buttons_len);
-
 	if (buttons_len > 0) {
-		ncols  -= 1;
+		ncols  = MAX(ncols, buttons_len - 1);
 		nlines += 1;
 	}
 
-	if (borders) {
-		ncols  += 2;
-		nlines += 2;
+	if (!mainwin_new(req, &msgbox->mainwin, nlines, ncols)) {
+		free(msgbox);
+		return NULL;
 	}
 
-	position_center(ncols, nlines, &begin_y, &begin_x);
-
-	WINDOW *win = newwin(nlines, ncols, begin_y, begin_x);
-	wbkgd(win, COLOR_PAIR(COLOR_PAIR_WINDOW));
-
-	if (borders) {
-		wborder(win,
-			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],
-			bdr[BORDER_TL], bdr[BORDER_TR], bdr[BORDER_BL], bdr[BORDER_BR]);
-	}
-
-	begin_y = begin_x = 0;
-
-	if (borders)
-		begin_y = begin_x = 1;
+	int begin_x = 0;
+	int begin_y = 0;
 
 	if (text) {
-		write_mvwtext(win, begin_y, begin_x, text);
-		free(text);
+		write_mvwtext(widget_win(&msgbox->mainwin), begin_y, begin_x, text);
+		begin_y += getcury(widget_win(&msgbox->mainwin)) + 1;
 	}
-
-	begin_y += txt_nlines;
 
 	for (size_t i = 0; i < p->num_kv; i++) {
 		if (!streq(p->kv[i].key, "button"))
@@ -102,7 +78,7 @@ static PANEL *p_msgbox_create(struct request *req)
 
 		wchar_t *wcs = req_get_kv_wchars(p->kv + i);
 
-		struct button *btn = button_new(&msgbox->buttons, win, begin_y, begin_x, wcs);
+		struct button *btn = button_new(&msgbox->buttons, widget_win(&msgbox->mainwin), begin_y, begin_x, wcs);
 		free(wcs);
 
 		focus_new(&msgbox->focus, btn);
@@ -110,7 +86,7 @@ static PANEL *p_msgbox_create(struct request *req)
 		begin_x += btn->width + 1;
 	}
 
-	panel = new_panel(win);
+	panel = mainwin_panel(&msgbox->mainwin);
 	set_panel_userptr(panel, msgbox);
 
 	return panel;
@@ -119,14 +95,13 @@ static PANEL *p_msgbox_create(struct request *req)
 static enum p_retcode p_msgbox_delete(PANEL *panel)
 {
 	struct msgbox *msgbox = (struct msgbox *) panel_userptr(panel);
-	WINDOW *win = panel_window(panel);
 
 	buttons_free(&msgbox->buttons);
 	focus_free(&msgbox->focus);
 
 	del_panel(panel);
-	delwin(win);
 
+	mainwin_free(&msgbox->mainwin);
 	free(msgbox);
 
 	return P_RET_OK;

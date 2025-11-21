@@ -43,11 +43,7 @@ struct button *button_new(struct buttons *buttons, WINDOW *parent,
 	int width = (int) wcslen(label) + 2;
 	struct button *btn = calloc(1, sizeof(*btn));
 
-	if (parent)
-		btn->win = derwin(parent, 1, width, begin_y, begin_x);
-	else
-		btn->win = newwin(1, width, begin_y, begin_x);
-
+	btn->win = derwin(parent, 1, width, begin_y, begin_x);
 	btn->width = width;
 	btn->on_change = &button_focus;
 
@@ -56,6 +52,8 @@ struct button *button_new(struct buttons *buttons, WINDOW *parent,
 
 	if (buttons)
 		TAILQ_INSERT_TAIL(buttons, btn, entries);
+
+	wnoutrefresh(btn->win);
 
 	return btn;
 }

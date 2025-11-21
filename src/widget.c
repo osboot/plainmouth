@@ -7,6 +7,7 @@
 #include <err.h>
 
 #include <curses.h>
+#include <panel.h>
 
 #include "helpers.h"
 #include "widget.h"
@@ -239,4 +240,65 @@ bool widget_borders(struct request *req, chtype bdr[BORDER_SIZE])
 	}
 
 	return res;
+}
+
+bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def_ncols)
+{
+	chtype bdr[BORDER_SIZE];
+
+	int begin_x = req_get_int(req, "x", -1);
+	int begin_y = req_get_int(req, "y", -1);
+	int nlines  = req_get_int(req, "height", -1);
+	int ncols   = req_get_int(req, "width",  -1);
+	bool borders = widget_borders(req, bdr);
+
+	if (nlines < 0) {
+		nlines = def_nlines;
+		if (borders)
+			nlines += 2;
+	}
+
+	if (ncols < 0) {
+		ncols = def_ncols;
+		if (borders)
+			ncols += 2;
+	}
+
+	position_center(ncols, nlines, &begin_y, &begin_x);
+
+	w->_main = newwin(nlines, ncols, begin_y, begin_x);
+	if (!w->_main) {
+		warnx("unable to create new ncurses window");
+		return false;
+	}
+	wbkgd(w->_main, COLOR_PAIR(COLOR_PAIR_WINDOW));
+
+	if (borders) {
+		wborder(w->_main,
+			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],
+			bdr[BORDER_TL], bdr[BORDER_TR], bdr[BORDER_BL], bdr[BORDER_BR]);
+
+		w->win = derwin(w->_main, nlines - 2, ncols - 2, 1, 1);
+		if (!w->win) {
+			warnx("unable to create window area");
+			delwin(w->_main);
+			return false;
+		}
+	} else {
+		w->win = w->_main;
+	}
+	return true;
+}
+
+void mainwin_free(struct mainwin *w)
+{
+	if (w->win && w->win != w->_main)
+		delwin(w->win);
+	if (w->_main)
+		delwin(w->_main);
+}
+
+PANEL *mainwin_panel(struct mainwin *w)
+{
+	return new_panel(w->_main);
 }

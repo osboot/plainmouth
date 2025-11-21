@@ -20,10 +20,7 @@ struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width)
 		return NULL;
 	}
 
-	input->win = (parent)
-		? derwin(parent, 1, width, begin_y, begin_x)
-		: newwin(1, width, begin_y, begin_x);
-
+	input->win = derwin(parent, 1, width, begin_y, begin_x);
 	wbkgd(input->win, COLOR_PAIR(COLOR_PAIR_BUTTON));
 	wmove(input->win, 0, 0);
 
@@ -93,7 +90,7 @@ bool input_wchar(struct input *input, wchar_t c)
 	}
 
 	int i;
-	int max_x = getmaxx(input->win);
+	int max_x = widget_cols(input);
 	int width = MIN(input->len, max_x);
 
 	wmove(input->win, 0, 0);

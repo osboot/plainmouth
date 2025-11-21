@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 #include <curses.h>
+#include <panel.h>
 
 #include "request.h"
 
@@ -60,6 +61,19 @@ bool get_abs_cursor(WINDOW *target, WINDOW *win, int *cursor_y, int *cursor_x);
 void text_size(const wchar_t *text, int *lines, int *columns);
 void write_mvwtext(WINDOW *win, int y, int x, const wchar_t *text);
 
+struct mainwin {
+	WINDOW *_main;
+	WINDOW *win;
+};
+
+#define widget_win(w)		((w)->win)
+#define widget_cols(w)		getmaxx(widget_win(w))
+#define widget_lines(w)		getmaxy(widget_win(w))
+
+bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def_ncols);
+void mainwin_free(struct mainwin *w);
+PANEL *mainwin_panel(struct mainwin *w);
+
 // widget_button.c
 
 struct button {
@@ -82,9 +96,6 @@ bool button_focus(struct button *btn, bool in_focus);
 int button_len(const char *label);
 struct button *button_new(struct buttons *buttons, WINDOW *parent, int begin_y, int begin_x, const wchar_t *label);
 void buttons_free(struct buttons *buttons);
-
-#define widget_cols(widget)	getmaxx(widget->win)
-#define widget_lines(widget)	getmaxy(widget->win)
 
 // widget_input.c
 
