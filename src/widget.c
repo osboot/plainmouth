@@ -242,6 +242,35 @@ bool widget_borders(struct request *req, chtype bdr[BORDER_SIZE])
 	return res;
 }
 
+WINDOW *window_new(WINDOW *parent,
+		int nlines, int ncols, int begin_y, int begin_x,
+		const char *what)
+{
+	WINDOW *win;
+
+	if (parent)
+		win = derwin(parent, nlines, ncols, begin_y, begin_x);
+	else
+		win = newwin(nlines, ncols, begin_y, begin_x);
+
+	if (!win)
+		warnx("unable to create %s window", what);
+	else if (IS_DEBUG())
+		warnx("%s (%p) window was created", what, win);
+
+	return win;
+}
+
+void window_free(WINDOW *win, const char *what)
+{
+	if (win) {
+		if (delwin(win) == ERR)
+			warnx("unable to free %s (%p) window", what, win);
+		else if (IS_DEBUG())
+			warnx("%s (%p) window was freed up", what, win);
+	}
+}
+
 bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def_ncols)
 {
 	chtype bdr[BORDER_SIZE];
@@ -266,11 +295,9 @@ bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def
 
 	position_center(ncols, nlines, &begin_y, &begin_x);
 
-	w->_main = newwin(nlines, ncols, begin_y, begin_x);
-	if (!w->_main) {
-		warnx("unable to create new ncurses window");
+	w->_main = window_new(NULL, nlines, ncols, begin_y, begin_x, "mainwin");
+	if (!w->_main)
 		return false;
-	}
 	wbkgd(w->_main, COLOR_PAIR(COLOR_PAIR_WINDOW));
 
 	if (borders) {
@@ -278,10 +305,9 @@ bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def
 			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],
 			bdr[BORDER_TL], bdr[BORDER_TR], bdr[BORDER_BL], bdr[BORDER_BR]);
 
-		w->win = derwin(w->_main, nlines - 2, ncols - 2, 1, 1);
+		w->win = window_new(w->_main, nlines - 2, ncols - 2, 1, 1, "work aria");
 		if (!w->win) {
-			warnx("unable to create window area");
-			delwin(w->_main);
+			window_free(w->_main, "mainwin");
 			return false;
 		}
 	} else {
@@ -293,12 +319,39 @@ bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def
 void mainwin_free(struct mainwin *w)
 {
 	if (w->win && w->win != w->_main)
-		delwin(w->win);
-	if (w->_main)
-		delwin(w->_main);
+		window_free(w->win, "mainwin work area");
 }
 
-PANEL *mainwin_panel(struct mainwin *w)
+PANEL *mainwin_panel_new(struct mainwin *w, const void *data)
 {
-	return new_panel(w->_main);
+	PANEL *panel = new_panel(w->_main);
+
+	if (!panel) {
+		warnx("unable to create mainwin panel");
+		return NULL;
+	}
+	if (IS_DEBUG())
+		warnx("mainwin panel (%p) was created", panel);
+
+	if (data)
+		set_panel_userptr(panel, data);
+
+	return panel;
+}
+
+void mainwin_panel_free(PANEL *panel)
+{
+	if (!panel)
+		return;
+
+	void *data = (void *) panel_userptr(panel);
+	WINDOW *win = panel_window(panel);
+
+	if (del_panel(panel) == ERR)
+		warnx("unable to free mainwin (%p) panel", panel);
+	else if (IS_DEBUG())
+		warnx("mainwin (%p) panel was freed up", panel);
+
+	window_free(win, "mainwin");
+	free(data);
 }

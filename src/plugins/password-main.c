@@ -108,14 +108,9 @@ static PANEL *p_pass_create(struct request *req)
 
 	pass->input->force_chr = L'*';
 
-	panel = mainwin_panel(&pass->mainwin);
-	if (panel) {
-		set_panel_userptr(panel, pass);
+	if ((panel = mainwin_panel_new(&pass->mainwin, pass)) != NULL)
 		return panel;
-	}
 fail:
-	if (panel)
-		del_panel(panel);
 	if (pass) {
 		message_free(pass->text);
 		message_free(pass->label);
@@ -134,10 +129,8 @@ static enum p_retcode p_pass_delete(PANEL *panel)
 	message_free(pass->label);
 	input_free(pass->input);
 
-	del_panel(panel);
-
 	mainwin_free(&pass->mainwin);
-	free(pass);
+	mainwin_panel_free(panel);
 
 	return P_RET_OK;
 }

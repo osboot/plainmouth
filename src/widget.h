@@ -61,6 +61,9 @@ bool get_abs_cursor(WINDOW *target, WINDOW *win, int *cursor_y, int *cursor_x);
 void text_size(const wchar_t *text, int *lines, int *columns);
 void write_mvwtext(WINDOW *win, int y, int x, const wchar_t *text);
 
+WINDOW *window_new(WINDOW *parent, int nlines, int ncols, int begin_y, int begin_x, const char *what);
+void window_free(WINDOW *win, const char *what);
+
 struct mainwin {
 	WINDOW *_main;
 	WINDOW *win;
@@ -72,7 +75,9 @@ struct mainwin {
 
 bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def_ncols);
 void mainwin_free(struct mainwin *w);
-PANEL *mainwin_panel(struct mainwin *w);
+
+PANEL *mainwin_panel_new(struct mainwin *w, const void *data);
+void mainwin_panel_free(PANEL *panel);
 
 // widget_button.c
 

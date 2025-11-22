@@ -51,21 +51,21 @@ static PANEL *p_meter_create(struct request *req)
 		return NULL;
 	}
 
-	panel = mainwin_panel(&meter->mainwin);
-	set_panel_userptr(panel, meter);
+	if ((panel = mainwin_panel_new(&meter->mainwin, meter)) != NULL) {
+		show_percent(panel);
+		return panel;
+	}
 
-	show_percent(panel);
-
-	return panel;
+	free(meter);
+	return NULL;
 }
 
 static enum p_retcode p_meter_delete(PANEL *panel)
 {
 	struct meter *meter = (struct meter *) panel_userptr(panel);
 
-	del_panel(panel);
 	mainwin_free(&meter->mainwin);
-	free(meter);
+	mainwin_panel_free(panel);
 
 	return P_RET_OK;
 }

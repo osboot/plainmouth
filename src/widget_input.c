@@ -20,22 +20,24 @@ struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width)
 		return NULL;
 	}
 
-	input->win = derwin(parent, 1, width, begin_y, begin_x);
+	input->win = window_new(parent, 1, width, begin_y, begin_x, "input");
+	if (!input->win) {
+		free(input);
+		return NULL;
+	}
+
 	wbkgd(input->win, COLOR_PAIR(COLOR_PAIR_BUTTON));
 	wmove(input->win, 0, 0);
-
 	return input;
 }
 
 void input_free(struct input *input)
 {
-	if (!input)
-		return;
-
-	delwin(input->win);
-
-	free(input->data);
-	free(input);
+	if (input) {
+		window_free(input->win, "input");
+		free(input->data);
+		free(input);
+	}
 }
 
 static bool __input_unchr(struct input *input)

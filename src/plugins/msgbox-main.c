@@ -86,10 +86,11 @@ static PANEL *p_msgbox_create(struct request *req)
 		begin_x += btn->width + 1;
 	}
 
-	panel = mainwin_panel(&msgbox->mainwin);
-	set_panel_userptr(panel, msgbox);
+	if ((panel = mainwin_panel_new(&msgbox->mainwin, msgbox)) != NULL)
+		return panel;
 
-	return panel;
+	free(msgbox);
+	return NULL;
 }
 
 static enum p_retcode p_msgbox_delete(PANEL *panel)
@@ -99,10 +100,8 @@ static enum p_retcode p_msgbox_delete(PANEL *panel)
 	buttons_free(&msgbox->buttons);
 	focus_free(&msgbox->focus);
 
-	del_panel(panel);
-
 	mainwin_free(&msgbox->mainwin);
-	free(msgbox);
+	mainwin_panel_free(panel);
 
 	return P_RET_OK;
 }

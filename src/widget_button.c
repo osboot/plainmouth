@@ -43,7 +43,17 @@ struct button *button_new(struct buttons *buttons, WINDOW *parent,
 	int width = (int) wcslen(label) + 2;
 	struct button *btn = calloc(1, sizeof(*btn));
 
-	btn->win = derwin(parent, 1, width, begin_y, begin_x);
+	if (!btn) {
+		warn("calloc failed");
+		return NULL;
+	}
+
+	btn->win = window_new(parent, 1, width, begin_y, begin_x, "button");
+	if (!btn->win) {
+		free(btn);
+		return NULL;
+	}
+
 	btn->width = width;
 	btn->on_change = &button_focus;
 
@@ -65,7 +75,7 @@ void buttons_free(struct buttons *buttons)
 	b1 = TAILQ_FIRST(buttons);
 	while (b1) {
 		b2 = TAILQ_NEXT(b1, entries);
-		delwin(b1->win);
+		window_free(b1->win, "button");
 		free(b1);
 		b1 = b2;
 	}
