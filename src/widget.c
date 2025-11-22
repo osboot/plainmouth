@@ -179,7 +179,7 @@ void text_size(const wchar_t *text, int *lines, int *columns)
 	s = text;
 	e = s + wcslen(s);
 
-	while (s < e) {
+	while (s <= e) {
 		const wchar_t *c = wcschr(s, L'\n') ?: e;
 
 		ncols = MAX(ncols, (c - s));
@@ -206,7 +206,7 @@ void write_mvwtext(WINDOW *win, int y, int x, const wchar_t *text)
 	s = text;
 	e = s + wcslen(s);
 
-	while (s < e) {
+	while (s <= e) {
 		const wchar_t *c = wcschr(s, L'\n') ?: e;
 		mvwaddnwstr(win, y++, x, s, (int) (c - s));
 		s = c + 1;
