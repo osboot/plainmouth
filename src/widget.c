@@ -196,23 +196,6 @@ empty:
 	if (columns) *columns = (int) ncols;
 }
 
-void write_mvwtext(WINDOW *win, int y, int x, const wchar_t *text)
-{
-	const wchar_t *s, *e;
-
-	if (!text)
-		return;
-
-	s = text;
-	e = s + wcslen(s);
-
-	while (s <= e) {
-		const wchar_t *c = wcschr(s, L'\n') ?: e;
-		mvwaddnwstr(win, y++, x, s, (int) (c - s));
-		s = c + 1;
-	}
-}
-
 bool widget_borders(struct request *req, chtype bdr[BORDER_SIZE])
 {
 	struct borders borders[BORDER_SIZE] = {
@@ -254,9 +237,9 @@ WINDOW *window_new(WINDOW *parent,
 		win = newwin(nlines, ncols, begin_y, begin_x);
 
 	if (!win)
-		warnx("unable to create %s window", what);
+		warnx("unable to create %s window (%dx%d)", what, nlines, ncols);
 	else if (IS_DEBUG())
-		warnx("%s (%p) window was created", what, win);
+		warnx("%s (%p) window (%dx%d) was created", what, win, nlines, ncols);
 
 	return win;
 }
@@ -292,6 +275,9 @@ bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def
 		if (borders)
 			ncols += 2;
 	}
+
+	nlines = MIN(nlines, LINES);
+	ncols  = MIN(ncols,  COLS);
 
 	position_center(ncols, nlines, &begin_y, &begin_x);
 

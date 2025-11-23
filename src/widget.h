@@ -59,7 +59,6 @@ int simple_round(float number);
 void position_center(int width, int height, int *begin_y, int *begin_x);
 bool get_abs_cursor(WINDOW *target, WINDOW *win, int *cursor_y, int *cursor_x);
 void text_size(const wchar_t *text, int *lines, int *columns);
-void write_mvwtext(WINDOW *win, int y, int x, const wchar_t *text);
 
 WINDOW *window_new(WINDOW *parent, int nlines, int ncols, int begin_y, int begin_x, const char *what);
 void window_free(WINDOW *win, const char *what);
@@ -124,9 +123,17 @@ bool input_wchar(struct input *input, wchar_t c);
 
 struct message {
 	WINDOW *win;
+
+	WINDOW *vscroll;
+	int vscroll_pos;
+
+	wchar_t *text;
+	int text_nlines;
+	int text_ncols;
 };
 
-struct message *message_new(WINDOW *parent, int begin_y, int begin_x, const wchar_t *text);
+struct message *message_new(WINDOW *parent, int begin_y, int begin_x, wchar_t *text);
 void message_free(struct message *msg);
+void message_key(struct message *msg, wchar_t key);
 
 #endif /* _PLAINMOUTH_WIDGET_H_ */

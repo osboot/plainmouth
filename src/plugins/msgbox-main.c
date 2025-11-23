@@ -42,7 +42,7 @@ static PANEL *p_msgbox_create(struct request *req)
 	focus_init(&msgbox->focus, &on_button_focus);
 	buttons_init(&msgbox->buttons);
 
-	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
+	wchar_t *text = req_get_wchars(req, "text");
 
 	int nlines = 0;
 	int ncols = 0;
@@ -142,6 +142,14 @@ static enum p_retcode p_msgbox_input(PANEL *panel, wchar_t code)
 		case KEY_RIGHT:
 		case L'>':
 			focus_next(&msgbox->focus);
+			break;
+
+		case KEY_UP:
+		case KEY_DOWN:
+		case KEY_PPAGE:
+		case KEY_NPAGE:
+			if (msgbox->text)
+				message_key(msgbox->text, code);
 			break;
 
 		default:
