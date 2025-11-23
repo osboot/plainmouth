@@ -14,6 +14,7 @@
 #include "plugin.h"
 
 struct msgbox {
+	struct message *text;
 	struct mainwin mainwin;
 	struct focuses focus;
 	struct buttons buttons;
@@ -68,8 +69,11 @@ static PANEL *p_msgbox_create(struct request *req)
 	int begin_y = 0;
 
 	if (text) {
-		write_mvwtext(widget_win(&msgbox->mainwin), begin_y, begin_x, text);
-		begin_y += getcury(widget_win(&msgbox->mainwin)) + 1;
+		msgbox->text = message_new(widget_win(&msgbox->mainwin), begin_y, begin_x, text);
+		if (!msgbox->text)
+			goto fail;
+
+		begin_y += widget_lines(msgbox->text);
 	}
 
 	for (size_t i = 0; i < p->num_kv; i++) {
@@ -88,8 +92,11 @@ static PANEL *p_msgbox_create(struct request *req)
 
 	if ((panel = mainwin_panel_new(&msgbox->mainwin, msgbox)) != NULL)
 		return panel;
-
-	free(msgbox);
+fail:
+	if (msgbox) {
+		message_free(msgbox->text);
+		free(msgbox);
+	}
 	return NULL;
 }
 
@@ -97,6 +104,7 @@ static enum p_retcode p_msgbox_delete(PANEL *panel)
 {
 	struct msgbox *msgbox = (struct msgbox *) panel_userptr(panel);
 
+	message_free(msgbox->text);
 	buttons_free(&msgbox->buttons);
 	focus_free(&msgbox->focus);
 
