@@ -11,7 +11,7 @@
 #include "plugin.h"
 #include "widget.h"
 
-struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width)
+struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width, wchar_t *label)
 {
 	struct input *input = calloc(1, sizeof(*input));
 
@@ -20,9 +20,25 @@ struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width)
 		return NULL;
 	}
 
+	if (label) {
+		int lbl_ncols;
+
+		text_size(label, NULL, &lbl_ncols);
+
+		input->label = message_new(parent, begin_y, begin_x, -1, lbl_ncols, label);
+		if (!input->label) {
+			input_free(input);
+			return NULL;
+		}
+
+		begin_y += widget_lines(input->label) - 1;
+		begin_x += widget_cols(input->label);
+		width   -= widget_cols(input->label);
+	}
+
 	input->win = window_new(parent, 1, width, begin_y, begin_x, "input");
 	if (!input->win) {
-		free(input);
+		input_free(input);
 		return NULL;
 	}
 
@@ -34,6 +50,7 @@ struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width)
 void input_free(struct input *input)
 {
 	if (input) {
+		message_free(input->label);
 		window_free(input->win, "input");
 		free(input->data);
 		free(input);

@@ -43,7 +43,6 @@
 struct pass {
 	struct mainwin mainwin;
 	struct message *text;
-	struct message *label;
 	struct input   *input;
 };
 
@@ -85,24 +84,14 @@ static PANEL *p_pass_create(struct request *req)
 	int begin_x = 0;
 
 	if (text) {
-		pass->text = message_new(widget_win(&pass->mainwin), begin_y, begin_x, text);
+		pass->text = message_new(widget_win(&pass->mainwin), begin_y, begin_x, -1, -1, text);
 		if (!pass->text)
 			goto fail;
 
 		begin_y += widget_lines(pass->text);
 	}
 
-	if (label) {
-		pass->label = message_new(widget_win(&pass->mainwin), begin_y, begin_x, label);
-		if (!pass->label)
-			goto fail;
-
-		begin_y += widget_lines(pass->label) - 1;
-		begin_x += widget_cols(pass->label);
-		ncols   -= widget_cols(pass->label);
-	}
-
-	pass->input = input_new(widget_win(&pass->mainwin), begin_y, begin_x, ncols);
+	pass->input = input_new(widget_win(&pass->mainwin), begin_y, begin_x, ncols, label);
 	if (!pass->input)
 		goto fail;
 
@@ -113,7 +102,6 @@ static PANEL *p_pass_create(struct request *req)
 fail:
 	if (pass) {
 		message_free(pass->text);
-		message_free(pass->label);
 		input_free(pass->input);
 		mainwin_free(&pass->mainwin);
 		free(pass);
@@ -126,7 +114,6 @@ static enum p_retcode p_pass_delete(PANEL *panel)
 	struct pass *pass = (struct pass *) panel_userptr(panel);
 
 	message_free(pass->text);
-	message_free(pass->label);
 	input_free(pass->input);
 
 	mainwin_free(&pass->mainwin);

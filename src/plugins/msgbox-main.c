@@ -69,7 +69,7 @@ static PANEL *p_msgbox_create(struct request *req)
 	int begin_y = 0;
 
 	if (text) {
-		msgbox->text = message_new(widget_win(&msgbox->mainwin), begin_y, begin_x, text);
+		msgbox->text = message_new(widget_win(&msgbox->mainwin), begin_y, begin_x, -1, -1, text);
 		if (!msgbox->text)
 			goto fail;
 

@@ -78,6 +78,31 @@ void mainwin_free(struct mainwin *w);
 PANEL *mainwin_panel_new(struct mainwin *w, const void *data);
 void mainwin_panel_free(PANEL *panel);
 
+// widget_message.c
+
+struct text_viewport {
+	wchar_t **lines;
+	int nlines;
+	int ncols;
+};
+
+void viewport_create(struct text_viewport *vp, const wchar_t *text);
+void viewport_free(struct text_viewport *vp);
+void viewport_draw(WINDOW *win, struct text_viewport *vp, int scroll_pos);
+
+struct message {
+	WINDOW *win;
+
+	WINDOW *vscroll;
+	int vscroll_pos;
+
+	struct text_viewport text;
+};
+
+struct message *message_new(WINDOW *parent, int begin_y, int begin_x, int nlines, int ncols, wchar_t *text);
+void message_free(struct message *msg);
+void message_key(struct message *msg, wchar_t key);
+
 // widget_button.c
 
 struct button {
@@ -105,6 +130,7 @@ void buttons_free(struct buttons *buttons);
 
 struct input {
 	WINDOW *win;
+	struct message *label;
 
 	wchar_t force_chr;
 
@@ -115,33 +141,8 @@ struct input {
 	bool finished;
 };
 
-struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width);
+struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width, wchar_t *label);
 void input_free(struct input *input);
 bool input_wchar(struct input *input, wchar_t c);
-
-// widget_message.c
-
-struct text_viewport {
-	wchar_t **lines;
-	int nlines;
-	int ncols;
-};
-
-void viewport_create(struct text_viewport *vp, const wchar_t *text);
-void viewport_free(struct text_viewport *vp);
-void viewport_draw(WINDOW *win, struct text_viewport *vp, int scroll_pos);
-
-struct message {
-	WINDOW *win;
-
-	WINDOW *vscroll;
-	int vscroll_pos;
-
-	struct text_viewport text;
-};
-
-struct message *message_new(WINDOW *parent, int begin_y, int begin_x, wchar_t *text);
-void message_free(struct message *msg);
-void message_key(struct message *msg, wchar_t key);
 
 #endif /* _PLAINMOUTH_WIDGET_H_ */

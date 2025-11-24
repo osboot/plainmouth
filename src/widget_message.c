@@ -106,7 +106,7 @@ static void draw_vscroll(WINDOW *scrollwin, int scroll_pos, int content_height)
 	wnoutrefresh(scrollwin);
 }
 
-struct message *message_new(WINDOW *parent, int begin_y, int begin_x, wchar_t *text)
+struct message *message_new(WINDOW *parent, int begin_y, int begin_x, int nlines, int ncols, wchar_t *text)
 {
 	int par_nlines, par_ncols;
 	struct message *msg = calloc(1, sizeof(*msg));
@@ -123,8 +123,11 @@ struct message *message_new(WINDOW *parent, int begin_y, int begin_x, wchar_t *t
 	par_nlines -= 1;
 	par_ncols  -= 1;
 
-	int nlines = (msg->text.nlines > par_nlines) ? par_nlines : msg->text.nlines;
-	int ncols  = (msg->text.ncols  < par_ncols)  ? par_ncols  : msg->text.ncols;
+	if (nlines < 0) nlines = (msg->text.nlines > par_nlines) ? par_nlines : msg->text.nlines;
+	if (ncols  < 0) ncols  = (msg->text.ncols  < par_ncols)  ? par_ncols  : msg->text.ncols;
+
+	if (nlines > par_nlines) nlines = par_nlines;
+	if (ncols  > par_ncols ) ncols  = par_ncols;
 
 	if (nlines < msg->text.nlines) {
 		ncols -= 1;
