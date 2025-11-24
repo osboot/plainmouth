@@ -42,7 +42,7 @@ static PANEL *p_msgbox_create(struct request *req)
 	focus_init(&msgbox->focus, &on_button_focus);
 	buttons_init(&msgbox->buttons);
 
-	wchar_t *text = req_get_wchars(req, "text");
+	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
 
 	int nlines = 0;
 	int ncols = 0;

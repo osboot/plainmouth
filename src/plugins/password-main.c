@@ -58,8 +58,8 @@ static PANEL *p_pass_create(struct request *req)
 		return NULL;
 	}
 
-	wchar_t *text  = req_get_wchars(req, "text");
-	wchar_t *label = req_get_wchars(req, "label");
+	wchar_t *text  __free(ptr) = req_get_wchars(req, "text");
+	wchar_t *label __free(ptr) = req_get_wchars(req, "label");
 
 	int nlines = 0;
 	int ncols = 0;

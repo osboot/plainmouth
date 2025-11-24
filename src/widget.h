@@ -121,15 +121,23 @@ bool input_wchar(struct input *input, wchar_t c);
 
 // widget_message.c
 
+struct text_viewport {
+	wchar_t **lines;
+	int nlines;
+	int ncols;
+};
+
+void viewport_create(struct text_viewport *vp, const wchar_t *text);
+void viewport_free(struct text_viewport *vp);
+void viewport_draw(WINDOW *win, struct text_viewport *vp, int scroll_pos);
+
 struct message {
 	WINDOW *win;
 
 	WINDOW *vscroll;
 	int vscroll_pos;
 
-	wchar_t *text;
-	int text_nlines;
-	int text_ncols;
+	struct text_viewport text;
 };
 
 struct message *message_new(WINDOW *parent, int begin_y, int begin_x, wchar_t *text);

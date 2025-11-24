@@ -10,31 +10,79 @@
 #include "helpers.h"
 #include "widget.h"
 
-static void message_text(WINDOW *win, const wchar_t *text, int scroll_pos)
+static wchar_t *wcsndup(const wchar_t *s, size_t n)
 {
-	int y, nlines, ncols, curline;
-	const wchar_t *s, *e;
+	wchar_t *t = calloc((n + 1), sizeof(wchar_t));
+	if (t) {
+		wmemcpy(t, s, n);
+		t[n] = L'\0';
+	}
+	return t;
+}
 
-	if (!text)
+void viewport_create(struct text_viewport *vp, const wchar_t *text)
+{
+	const wchar_t *s = text;
+	const wchar_t *e = text + wcslen(text);
+
+	int capacity = 128;
+
+	vp->ncols = 0;
+	vp->nlines = 0;
+	vp->lines = calloc((size_t) capacity, sizeof(wchar_t *));
+
+	if (!vp->lines) {
+		warn("calloc failed");
 		return;
+	}
 
+	while (s < e) {
+		const wchar_t *c = wcschr(s, L'\n') ?: e;
+		size_t len = (size_t) (c - s);
+		wchar_t *line = wcsndup(s, len);
+
+		if (!line) {
+			warnx("unable to duplicate string");
+			viewport_free(vp);
+			return;
+		}
+
+		if (vp->nlines == capacity) {
+			wchar_t **newlines;
+
+			capacity *= 2;
+			newlines = realloc(vp->lines, sizeof(wchar_t *) * (size_t) capacity);
+
+			if (!newlines) {
+				warn("realloc failed");
+				viewport_free(vp);
+				return;
+			}
+			vp->lines = newlines;
+		}
+
+		vp->lines[vp->nlines++] = line;
+		vp->ncols = MAX(vp->ncols, (int) len);
+
+		s = (c == e) ? e : c + 1;
+	}
+}
+
+void viewport_free(struct text_viewport *vp)
+{
+	for (int i = 0; i < vp->nlines; i++)
+		free(vp->lines[i]);
+	free(vp->lines);
+}
+
+void viewport_draw(WINDOW *win, struct text_viewport *vp, int scroll_pos)
+{
+	int nlines, ncols, y = 0;
 	getmaxyx(win, nlines, ncols);
 	werase(win);
 
-	s = text;
-	e = s + wcslen(s);
-	y = curline = 0;
-
-	while (s < e && y < nlines) {
-		const wchar_t *c = wcschr(s, L'\n') ?: e;
-		int len = MIN((int) (c - s), ncols);
-
-		if (curline >= scroll_pos)
-			mvwaddnwstr(win, y++, 0, s, len);
-
-		curline++;
-		s = (c == e) ? e : c + 1;
-	}
+	for (int i = scroll_pos; i < vp->nlines && y < nlines; i++)
+		mvwaddnwstr(win, y++, 0, vp->lines[i], ncols);
 
 	wnoutrefresh(win);
 }
@@ -67,31 +115,31 @@ struct message *message_new(WINDOW *parent, int begin_y, int begin_x, wchar_t *t
 		warnx("calloc failed");
 		return NULL;
 	}
-	msg->text = text;
 
-	text_size(msg->text, &msg->text_nlines, &msg->text_ncols);
+	viewport_create(&msg->text, text);
+
 	getmaxyx(parent, par_nlines, par_ncols);
 
 	par_nlines -= 1;
 	par_ncols  -= 1;
 
-	int nlines = (msg->text_nlines > par_nlines) ? par_nlines : msg->text_nlines;
-	int ncols  = (msg->text_ncols  < par_ncols)  ? par_ncols  : msg->text_ncols;
+	int nlines = (msg->text.nlines > par_nlines) ? par_nlines : msg->text.nlines;
+	int ncols  = (msg->text.ncols  < par_ncols)  ? par_ncols  : msg->text.ncols;
 
-	if (nlines < msg->text_nlines) {
+	if (nlines < msg->text.nlines) {
 		ncols -= 1;
 		msg->vscroll = window_new(parent, nlines, 1, begin_y, begin_x + ncols, "vertical scroll");
 		if (!msg->vscroll)
 			goto fail;
 
-		draw_vscroll(msg->vscroll, msg->vscroll_pos, msg->text_nlines);
+		draw_vscroll(msg->vscroll, msg->vscroll_pos, msg->text.nlines);
 	}
 
 	msg->win = window_new(parent, nlines, ncols, begin_y, begin_x, "message");
 	if (!msg->win)
 		goto fail;
 
-	message_text(msg->win, msg->text, msg->vscroll_pos);
+	viewport_draw(msg->win, &msg->text, msg->vscroll_pos);
 
 	return msg;
 fail:
@@ -104,7 +152,7 @@ void message_free(struct message *msg)
 	if (msg) {
 		window_free(msg->win, "message");
 		window_free(msg->vscroll, "vertical scroll");
-		free(msg->text);
+		viewport_free(&msg->text);
 		free(msg);
 	}
 }
@@ -123,7 +171,7 @@ void message_key(struct message *msg, wchar_t code)
 			break;
 
 		case KEY_DOWN:
-			if (msg->vscroll_pos < msg->text_nlines - view_height)
+			if (msg->vscroll_pos < msg->text.nlines - view_height)
 				msg->vscroll_pos++;
 			break;
 
@@ -132,12 +180,12 @@ void message_key(struct message *msg, wchar_t code)
 			break;
 
 		case KEY_NPAGE:
-			msg->vscroll_pos = MIN(msg->text_nlines - view_height, msg->vscroll_pos + view_height);
+			msg->vscroll_pos = MIN(msg->text.nlines - view_height, msg->vscroll_pos + view_height);
 			break;
 		default:
 			return;
 	}
 
-	message_text(msg->win, msg->text, msg->vscroll_pos);
-	draw_vscroll(msg->vscroll, msg->vscroll_pos, msg->text_nlines);
+	viewport_draw(msg->win, &msg->text, msg->vscroll_pos);
+	draw_vscroll(msg->vscroll, msg->vscroll_pos, msg->text.nlines);
 }
