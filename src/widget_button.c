@@ -14,10 +14,10 @@ bool button_focus(struct button *btn, bool in_focus)
 {
 	if (in_focus) {
 		mvwaddch(btn->win, 0, 0, '[');
-		mvwaddch(btn->win, 0, btn->width - 1, ']');
+		mvwaddch(btn->win, 0, btn->ncols - 1, ']');
 	} else {
 		mvwaddch(btn->win, 0, 0, ' ');
-		mvwaddch(btn->win, 0, btn->width - 1, ' ');
+		mvwaddch(btn->win, 0, btn->ncols - 1, ' ');
 	}
 	wnoutrefresh(btn->win);
 
@@ -54,7 +54,8 @@ struct button *button_new(struct buttons *buttons, WINDOW *parent,
 		return NULL;
 	}
 
-	btn->width = width;
+	btn->ncols  = getmaxx(btn->win);
+	btn->nlines = getmaxy(btn->win);
 	btn->on_change = &button_focus;
 
 	wbkgd(btn->win, COLOR_PAIR(COLOR_PAIR_BUTTON));

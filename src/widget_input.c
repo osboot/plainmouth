@@ -31,9 +31,12 @@ struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width, wch
 			return NULL;
 		}
 
-		begin_y += widget_lines(input->label) - 1;
-		begin_x += widget_cols(input->label);
-		width   -= widget_cols(input->label);
+		input->nlines = MAX(input->nlines, input->label->nlines);
+		input->ncols  = MAX(input->ncols,  input->label->ncols);
+
+		begin_y += input->nlines - 1;
+		begin_x += input->ncols;
+		width   -= input->ncols;
 	}
 
 	input->win = window_new(parent, 1, width, begin_y, begin_x, "input");
@@ -41,6 +44,8 @@ struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width, wch
 		input_free(input);
 		return NULL;
 	}
+	input->nlines = MAX(input->nlines, getmaxy(input->win));
+	input->ncols  = MAX(input->ncols,  getmaxx(input->win));
 
 	wbkgd(input->win, COLOR_PAIR(COLOR_PAIR_BUTTON));
 	wmove(input->win, 0, 0);
@@ -109,7 +114,7 @@ bool input_wchar(struct input *input, wchar_t c)
 	}
 
 	int i;
-	int max_x = widget_cols(input);
+	int max_x = input->ncols;
 	int width = MIN(input->len, max_x);
 
 	wmove(input->win, 0, 0);

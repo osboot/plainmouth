@@ -84,14 +84,14 @@ static PANEL *p_pass_create(struct request *req)
 	int begin_x = 0;
 
 	if (text) {
-		pass->text = message_new(widget_win(&pass->mainwin), begin_y, begin_x, -1, -1, text);
+		pass->text = message_new(pass->mainwin.win, begin_y, begin_x, -1, -1, text);
 		if (!pass->text)
 			goto fail;
 
-		begin_y += widget_lines(pass->text);
+		begin_y += pass->text->nlines;
 	}
 
-	pass->input = input_new(widget_win(&pass->mainwin), begin_y, begin_x, ncols, label);
+	pass->input = input_new(pass->mainwin.win, begin_y, begin_x, ncols, label);
 	if (!pass->input)
 		goto fail;
 

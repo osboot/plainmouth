@@ -26,9 +26,9 @@ static void show_percent(PANEL *panel)
 	const struct meter *meter = panel_userptr(panel);
 
 	if (meter->percent) {
-		mvwprintw(widget_win(&meter->mainwin), 0, (widget_cols(&meter->mainwin) / 2) - 1,
+		mvwprintw(meter->mainwin.win, 0, (meter->mainwin.ncols / 2) - 1,
 			  "%3d%%", simple_round(((float) meter->value * 100) / (float) meter->total));
-		wnoutrefresh(widget_win(&meter->mainwin));
+		wnoutrefresh(meter->mainwin.win);
 	}
 }
 
@@ -75,7 +75,7 @@ static enum p_retcode p_meter_update(struct request *req, PANEL *panel)
 	struct meter *meter = (struct meter *) panel_userptr(panel);
 
 	int value = req_get_int(req, "value", 0);
-	int width = widget_cols(&meter->mainwin);
+	int width = meter->mainwin.ncols;
 
 	if (value < 0)
 		value = 0;
@@ -87,16 +87,16 @@ static enum p_retcode p_meter_update(struct request *req, PANEL *panel)
 
 	int num = simple_round(((float) meter->value / (float) meter->total) * (float) width);
 
-	wmove(widget_win(&meter->mainwin), 0, 0);
-	wclrtoeol(widget_win(&meter->mainwin));
-	wattron(widget_win(&meter->mainwin), A_REVERSE);
+	wmove(meter->mainwin.win, 0, 0);
+	wclrtoeol(meter->mainwin.win);
+	wattron(meter->mainwin.win, A_REVERSE);
 
 	for (int i = 0; i <= num; i++)
-		mvwaddch(widget_win(&meter->mainwin), 0, i, ' ');
+		mvwaddch(meter->mainwin.win, 0, i, ' ');
 
-	wattroff(widget_win(&meter->mainwin), A_REVERSE);
+	wattroff(meter->mainwin.win, A_REVERSE);
 	show_percent(panel);
-	wnoutrefresh(widget_win(&meter->mainwin));
+	wnoutrefresh(meter->mainwin.win);
 
 	return P_RET_OK;
 }

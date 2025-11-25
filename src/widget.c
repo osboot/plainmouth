@@ -276,12 +276,12 @@ bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def
 			ncols += 2;
 	}
 
-	nlines = MIN(nlines, LINES);
-	ncols  = MIN(ncols,  COLS);
+	w->nlines = MIN(nlines, LINES);
+	w->ncols  = MIN(ncols,  COLS);
 
-	position_center(ncols, nlines, &begin_y, &begin_x);
+	position_center(w->ncols, w->nlines, &begin_y, &begin_x);
 
-	w->_main = window_new(NULL, nlines, ncols, begin_y, begin_x, "mainwin");
+	w->_main = window_new(NULL, w->nlines, w->ncols, begin_y, begin_x, "mainwin");
 	if (!w->_main)
 		return false;
 	wbkgd(w->_main, COLOR_PAIR(COLOR_PAIR_WINDOW));
@@ -291,7 +291,7 @@ bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def
 			bdr[BORDER_LS], bdr[BORDER_RS], bdr[BORDER_TS], bdr[BORDER_BS],
 			bdr[BORDER_TL], bdr[BORDER_TR], bdr[BORDER_BL], bdr[BORDER_BR]);
 
-		w->win = window_new(w->_main, nlines - 2, ncols - 2, 1, 1, "work aria");
+		w->win = window_new(w->_main, w->nlines - 2, w->ncols - 2, 1, 1, "work aria");
 		if (!w->win) {
 			window_free(w->_main, "mainwin");
 			return false;

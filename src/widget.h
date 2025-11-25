@@ -64,13 +64,12 @@ WINDOW *window_new(WINDOW *parent, int nlines, int ncols, int begin_y, int begin
 void window_free(WINDOW *win, const char *what);
 
 struct mainwin {
+	int nlines;
+	int ncols;
+
 	WINDOW *_main;
 	WINDOW *win;
 };
-
-#define widget_win(w)		((w)->win)
-#define widget_cols(w)		getmaxx(widget_win(w))
-#define widget_lines(w)		getmaxy(widget_win(w))
 
 bool mainwin_new(struct request *req, struct mainwin *w, int def_nlines, int def_ncols);
 void mainwin_free(struct mainwin *w);
@@ -91,8 +90,10 @@ void viewport_free(struct text_viewport *vp);
 void viewport_draw(WINDOW *win, struct text_viewport *vp, int scroll_pos);
 
 struct message {
-	WINDOW *win;
+	int nlines;
+	int ncols;
 
+	WINDOW *win;
 	WINDOW *vscroll;
 	int vscroll_pos;
 
@@ -107,8 +108,11 @@ void message_key(struct message *msg, wchar_t key);
 
 struct button {
 	TAILQ_ENTRY(button) entries;
+
+	int nlines;
+	int ncols;
+
 	WINDOW *win;
-	int width;
 	bool clicked;
 
 	bool (*on_change)(struct button *btn, bool in_focus);
@@ -129,6 +133,9 @@ void buttons_free(struct buttons *buttons);
 // widget_input.c
 
 struct input {
+	int nlines;
+	int ncols;
+
 	WINDOW *win;
 	struct message *label;
 

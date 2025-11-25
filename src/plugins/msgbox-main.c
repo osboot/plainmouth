@@ -69,11 +69,11 @@ static PANEL *p_msgbox_create(struct request *req)
 	int begin_y = 0;
 
 	if (text) {
-		msgbox->text = message_new(widget_win(&msgbox->mainwin), begin_y, begin_x, -1, -1, text);
+		msgbox->text = message_new(msgbox->mainwin.win, begin_y, begin_x, -1, -1, text);
 		if (!msgbox->text)
 			goto fail;
 
-		begin_y += widget_lines(msgbox->text);
+		begin_y += msgbox->text->nlines;
 	}
 
 	for (size_t i = 0; i < p->num_kv; i++) {
@@ -82,12 +82,12 @@ static PANEL *p_msgbox_create(struct request *req)
 
 		wchar_t *wcs = req_get_kv_wchars(p->kv + i);
 
-		struct button *btn = button_new(&msgbox->buttons, widget_win(&msgbox->mainwin), begin_y, begin_x, wcs);
+		struct button *btn = button_new(&msgbox->buttons, msgbox->mainwin.win, begin_y, begin_x, wcs);
 		free(wcs);
 
 		focus_new(&msgbox->focus, btn);
 
-		begin_x += btn->width + 1;
+		begin_x += btn->ncols + 1;
 	}
 
 	if ((panel = mainwin_panel_new(&msgbox->mainwin, msgbox)) != NULL)

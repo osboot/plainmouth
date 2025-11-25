@@ -136,11 +136,17 @@ struct message *message_new(WINDOW *parent, int begin_y, int begin_x, int nlines
 			goto fail;
 
 		draw_vscroll(msg->vscroll, msg->vscroll_pos, msg->text.nlines);
+
+		msg->nlines = MAX(msg->nlines, getmaxy(msg->vscroll));
+		msg->ncols  = MAX(msg->ncols,  getmaxx(msg->vscroll));
 	}
 
 	msg->win = window_new(parent, nlines, ncols, begin_y, begin_x, "message");
 	if (!msg->win)
 		goto fail;
+
+	msg->nlines = MAX(msg->nlines, getmaxy(msg->win));
+	msg->ncols  = MAX(msg->ncols,  getmaxx(msg->win));
 
 	viewport_draw(msg->win, &msg->text, msg->vscroll_pos);
 
