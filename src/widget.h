@@ -53,6 +53,10 @@ enum {
 	COLOR_PAIR_MAIN = 1,
 	COLOR_PAIR_WINDOW,
 	COLOR_PAIR_BUTTON,
+	COLOR_PAIR_EXTRA1,
+	COLOR_PAIR_EXTRA2,
+	COLOR_PAIR_EXTRA3,
+	COLOR_PAIR_EXTRA4,
 };
 
 int simple_round(float number);
@@ -151,5 +155,60 @@ struct input {
 struct input *input_new(WINDOW *parent, int begin_y, int begin_x, int width, wchar_t *label);
 void input_free(struct input *input);
 bool input_wchar(struct input *input, wchar_t c);
+
+enum widget_type {
+	WIDGET_WINDOW,
+	WIDGET_LABEL,
+	WIDGET_BUTTON,
+	WIDGET_INPUT,
+	WIDGET_VBOX,
+	WIDGET_HBOX
+};
+
+struct widget;
+TAILQ_HEAD(widgethead, widget);
+
+struct widget {
+	TAILQ_ENTRY(widget) siblings;
+
+	enum widget_type type;
+
+	// geometry
+	int x, y, w, h;
+	int min_w, min_h;
+
+	// ncurses handles
+	WINDOW *win;
+
+	// tree
+	struct widget *parent;
+	struct widgethead children;
+
+	// focus
+	//int can_focus;
+	//int focused;
+
+	// methods
+	void (*measure)(struct widget *);
+	void (*layout)(struct widget *);
+	void (*render)(struct widget *);
+	int (*on_key)(struct widget *, int);
+
+	// widget-specific data
+	void *data;
+};
+
+struct widget *widget_create(enum widget_type type);
+void widget_add(struct widget *parent, struct widget *child);
+void widget_free(struct widget *w);
+const char *widget_type(struct widget *w);
+bool widget_window(struct widget *w);
+void widget_measure(struct widget *w);
+void widget_layout(struct widget *w, int x, int y, int width, int height);
+void widget_render(struct widget *w);
+
+struct widget *make_window(void);
+struct widget *make_vbox(void);
+struct widget *make_button(const char *label);
 
 #endif /* _PLAINMOUTH_WIDGET_H_ */

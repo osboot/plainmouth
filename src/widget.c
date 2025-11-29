@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 #include <err.h>
 
@@ -341,3 +342,339 @@ void mainwin_panel_free(PANEL *panel)
 	window_free(win, "mainwin");
 	free(data);
 }
+
+/*
+ * ############################################################################
+ */
+
+struct widget *widget_create(enum widget_type type)
+{
+	struct widget *w = calloc(1, sizeof(*w));
+	if (!w) {
+		warn("calloc failed");
+		return NULL;
+	}
+	w->type = type;
+	TAILQ_INIT(&w->children);
+
+	return w;
+}
+
+void widget_add(struct widget *parent, struct widget *child)
+{
+	TAILQ_INSERT_TAIL(&parent->children, child, siblings);
+	child->parent = parent;
+}
+
+void widget_free(struct widget *w)
+{
+	struct widget *w1, *w2;
+	if (!w)
+		return;
+
+	w1 = TAILQ_FIRST(&w->children);
+	while (w1) {
+		w2 = TAILQ_NEXT(w1, siblings);
+		widget_free(w1);
+		w1 = w2;
+	}
+
+	if (w->win) {
+		delwin(w->win);
+		w->win = NULL;
+	}
+
+	if (w->data)
+		free(w->data);
+
+	free(w);
+}
+
+static const char *_widget_type[] = {
+	[WIDGET_WINDOW] = "window",
+	[WIDGET_LABEL]  = "label",
+	[WIDGET_BUTTON] = "button",
+	[WIDGET_INPUT]  = "input",
+	[WIDGET_VBOX]   = "vbox",
+	[WIDGET_HBOX]   = "hbox",
+};
+
+const char *widget_type(struct widget *w)
+{
+	return _widget_type[w->type];
+}
+
+/*
+ * Recreate window if size/pos changed or not created.
+ */
+bool widget_window(struct widget *w)
+{
+	if (!w)
+		return true;
+
+	if (w->w <= 0 || w->h <= 0) {
+		warnx("widget_window(%s): bad width or height", widget_type(w));
+		return false;
+	}
+
+	if (w->win) {
+		int cur_h, cur_w, cur_y, cur_x;
+
+		getbegyx(w->win, cur_y, cur_x);
+		getmaxyx(w->win, cur_h, cur_w);
+
+		if (cur_h == w->h && cur_w == w->w && cur_y == w->y && cur_x == w->x)
+			return true;
+
+		delwin(w->win);
+		w->win = NULL;
+	}
+
+	if (w->type != WIDGET_WINDOW) {
+		struct widget *p = w->parent;
+
+		if (!p->win) {
+			warnx("widget_window(%s): no parent window found", widget_type(w));
+			return false;
+		}
+		w->win = derwin(p->win, w->h, w->w, w->y, w->x);
+	} else {
+		w->win = newwin(w->h, w->w, w->y, w->x);
+	}
+
+	if (!w->win) {
+		warnx("widget_window(%s): unable to create window", widget_type(w));
+		return false;
+	}
+
+	wbkgd(w->win, COLOR_PAIR(COLOR_PAIR_WINDOW));
+	wnoutrefresh(w->win);
+
+	return true;
+}
+
+/*
+ * measure - Calculates the minimum size of each widget.
+ *
+ * Examples:
+ *   Label -> string width + padding, height 1.
+ *   Button -> text width + 4, height 1.
+ *   Input -> minimum width 10, height 1.
+ *   Container (horizontal) -> adds up the widths of all children + indents, max height.
+ *   Container (vertical) -> adds up the heights, max width.
+ *
+ * Result: Each widget has known min_w and min_h.
+ */
+void widget_measure(struct widget *w)
+{
+	struct widget *child;
+
+	if (!w)
+		return;
+
+	/*
+	 * Recurse to children so leaves can compute their min sizes too.
+	 */
+	TAILQ_FOREACH(child, &w->children, siblings) {
+		widget_measure(child);
+	}
+
+	/*
+	 * Call own measure (containers compute based on children which should
+	 * already have min sizes)
+	 */
+	if (w->measure)
+		w->measure(w);
+
+}
+
+/*
+ * layout - Assigns final coordinates and dimensions to each widget.
+ *
+ * For the root: layout(0,0, screen_width, screen_height).
+ *
+ * If the widget is fixed size -> w = min_w.
+ * If the widget is flexible -> stretches to available space.
+ * Containers distribute space between children (like flexbox).
+ *
+ * Result: Each widget knows: x, y, w, h.
+ */
+void widget_layout(struct widget *w, int x, int y, int width, int height)
+{
+	if (!w)
+		return;
+
+	w->x = x;
+	w->y = y;
+	w->w = width;
+	w->h = height;
+
+	/*
+	 * Call widget-specific layout; containers will call widget_layout()
+	 * for children.
+	 */
+	if (w->layout)
+		w->layout(w);
+}
+
+/*
+ * render - actual window creation based on coordinates and dimensions.
+ *
+ * Result: All windows are created or updated.
+ */
+void widget_render(struct widget *w)
+{
+	struct widget *child;
+
+	if (!w)
+		return;
+
+	if (!widget_window(w))
+		return;
+
+	if (w->render)
+		w->render(w);
+
+	TAILQ_FOREACH(child, &w->children, siblings) {
+		widget_render(child);
+	}
+}
+
+/* ------------------- VBOX/HBOX implementations ---------------------------- */
+
+static void vbox_measure(struct widget *w)
+{
+	struct widget *wp;
+	int maxw = 0, sumh = 0;
+
+	TAILQ_FOREACH(wp, &w->children, siblings) {
+		maxw = MAX(maxw, wp->min_w);
+		sumh += wp->min_h;
+	}
+
+	w->min_w = maxw;
+	w->min_h = sumh;
+}
+
+static void vbox_layout(struct widget *w)
+{
+	struct widget *child;
+	int yoff = 0;
+
+	TAILQ_FOREACH(child, &w->children, siblings) {
+		int h = child->min_h;
+		if (yoff + h > w->h)
+			h = MAX(0, w->h - yoff);
+
+		widget_layout(child, 0, yoff, w->w, h);
+		yoff += h;
+	}
+}
+
+struct widget *make_vbox(void)
+{
+	struct widget *w = widget_create(WIDGET_VBOX);
+
+	if (w) {
+		w->measure = vbox_measure;
+		w->layout = vbox_layout;
+	}
+
+	return w;
+}
+
+/* ------------------- WINDOW ----------------------------------------------- */
+
+static void window_measure(struct widget *w)
+{
+	struct widget *wp;
+	int maxw = 0, sumh = 0;
+
+	TAILQ_FOREACH(wp, &w->children, siblings) {
+		maxw = MAX(maxw, wp->min_w);
+		sumh += wp->min_h;
+	}
+
+	w->min_w = maxw;
+	w->min_h = sumh;
+}
+
+static void window_layout(struct widget *w)
+{
+	struct widget *child;
+	int yoff = 0;
+
+	TAILQ_FOREACH(child, &w->children, siblings) {
+		int h = child->min_h;
+		if (yoff + h > w->h)
+			h = MAX(0, w->h - yoff);
+
+		widget_layout(child, 0, yoff, w->w, h);
+		yoff += h;
+	}
+}
+
+struct widget *make_window(void)
+{
+	struct widget *w = widget_create(WIDGET_WINDOW);
+
+	if (w) {
+		w->measure = window_measure;
+		w->layout = window_layout;
+	}
+
+	return w;
+}
+
+/* ------------------- BUTTON ----------------------------------------------- */
+
+struct widget_button_data {
+	char *text;
+};
+
+static void button_measure(struct widget *w)
+{
+	struct widget_button_data *d = w->data;
+
+	w->min_w = (d && d->text)
+		? (int) strlen(d->text) + 2
+		: 4; // brackets-like padding
+	w->min_h = 1;
+}
+
+static void button_render(struct widget* w)
+{
+	struct widget_button_data *d = w->data;
+
+	if (!widget_window(w)) {
+		warnx("button_render: widget_window failed");
+		return;
+	}
+
+	wbkgd(w->win, COLOR_PAIR(COLOR_PAIR_BUTTON));
+	werase(w->win);
+
+	int tw = d && d->text ? (int) strlen(d->text) : 0;
+
+	int px = 0;
+	if (w->w > tw + 2)
+		px = (w->w - (tw + 2)) / 2;
+
+	mvwprintw(w->win, 0, px, "[%s]", d ? d->text : "");
+	wnoutrefresh(w->win);
+}
+
+struct widget *make_button(const char *label)
+{
+	struct widget *w = widget_create(WIDGET_BUTTON);
+	struct widget_button_data *d = calloc(1, sizeof(*d));
+
+	d->text = strdup(label ? label : "");
+
+	w->data = d;
+	w->measure = button_measure;
+	w->render = button_render;
+
+	return w;
+}
+
