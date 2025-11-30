@@ -168,47 +168,77 @@ enum widget_type {
 struct widget;
 TAILQ_HEAD(widgethead, widget);
 
+typedef void (*measure_fn)(struct widget *);
+typedef void (*layout_fn)(struct widget *);
+typedef void (*render_fn)(struct widget *);
+typedef int  (*on_key_fn)(struct widget *, int);
+
+struct widget_button_data {
+	char *text;
+	bool pressed;
+};
+
+struct widget_label_data {
+	char *text;
+};
+
+union widget_data {
+	struct widget_button_data button;
+	struct widget_label_data  label;
+	/* future: input, container options, etc */
+};
+
 struct widget {
 	TAILQ_ENTRY(widget) siblings;
-
 	enum widget_type type;
 
-	// geometry
-	int x, y, w, h;
+	/* geometry: local coords inside parent */
+	int lx, ly; /* local x,y inside parent */
+	int w, h;   /* allocated width/height */
+
+	/* minimum sizes computed by measure */
 	int min_w, min_h;
 
-	// ncurses handles
-	WINDOW *win;
+	/* flex weight (0 fixed, >0 = share remaining space) */
+	int flex;
 
-	// tree
+	/* ncurses/window */
+	WINDOW *win;
+	PANEL  *panel;
+
+	/* tree */
 	struct widget *parent;
 	struct widgethead children;
 
-	// focus
-	//int can_focus;
-	//int focused;
+	/* virtual functions */
+	measure_fn measure;
+	layout_fn layout;
+	render_fn render;
+	on_key_fn on_key;
 
-	// methods
-	void (*measure)(struct widget *);
-	void (*layout)(struct widget *);
-	void (*render)(struct widget *);
-	int (*on_key)(struct widget *, int);
+	/* state */
+	union widget_data data;
+	bool dirty;     /* needs re-render */
+	bool visible;   /* togglable */
 
-	// widget-specific data
-	void *data;
+	/* style (simple) */
+	int color_pair;
+
+	bool no_shrink;
 };
 
-struct widget *widget_create(enum widget_type type);
+struct widget *widget_create(enum widget_type);
 void widget_add(struct widget *parent, struct widget *child);
 void widget_free(struct widget *w);
-const char *widget_type(struct widget *w);
-bool widget_window(struct widget *w);
+
 void widget_measure(struct widget *w);
-void widget_layout(struct widget *w, int x, int y, int width, int height);
+void widget_layout(struct widget *w, int lx, int ly, int width, int height);
+void widget_recreate_windows(struct widget *w);
 void widget_render(struct widget *w);
 
 struct widget *make_window(void);
 struct widget *make_vbox(void);
 struct widget *make_button(const char *label);
+struct widget *make_label(const char *text);
 
 #endif /* _PLAINMOUTH_WIDGET_H_ */
