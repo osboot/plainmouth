@@ -179,6 +179,7 @@ struct widget *make_hbox(void)
 
 	w->measure    = hbox_measure;
 	w->layout     = hbox_layout;
+	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->flex_h = 1;
 	w->flex_w = 1;

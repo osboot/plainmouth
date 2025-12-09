@@ -164,6 +164,7 @@ struct widget *make_vbox(void)
 
 	w->measure    = vbox_measure;
 	w->layout     = vbox_layout;
+	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->flex_h = 1;
 	w->flex_w = 1;
