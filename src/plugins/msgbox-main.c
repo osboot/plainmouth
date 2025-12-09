@@ -42,6 +42,8 @@ static struct widget *p_msgbox_create(struct request *req)
 	struct widget *hbox = make_hbox();
 	widget_add(parent, hbox);
 
+	hbox->flex_h = 0;
+
 	int w_id = 1;
 
 	for (size_t i = 0; i < p->num_kv; i++) {
