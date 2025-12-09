@@ -102,7 +102,7 @@ struct widget *widget_create(enum widget_type type)
 	w->type = type;
 	TAILQ_INIT(&w->children);
 
-	w->visible = true;
+	w->flags |= FLAG_VISIBLE;
 	w->color_pair = COLOR_PAIR_MAIN;
 
 	w->flex_h   = w->flex_w   = 0;
@@ -242,7 +242,7 @@ static void widget_create_window(struct widget *w)
 		if (!w->win) {
 			warnx("unable to create %s subwindow (y=%d, x=%d, height=%d, width=%d)",
 				widget_type(w), w->ly, w->lx, w->h, w->w);
-			w->visible = false;
+			w->flags &= ~FLAG_VISIBLE;
 			return;
 		}
 	}
@@ -253,7 +253,7 @@ static void widget_create_window(struct widget *w)
 	if (w->color_pair)
 		wbkgd(w->win, COLOR_PAIR(w->color_pair));
 
-	w->visible = true;
+	w->flags |= FLAG_VISIBLE;
 }
 
 /*
@@ -285,7 +285,7 @@ void widget_create_tree(struct widget *w)
  */
 void widget_render_tree(struct widget *w)
 {
-	if (!w || !w->visible)
+	if (!w || !(w->flags & FLAG_VISIBLE))
 		return;
 
 	if (w->win) {

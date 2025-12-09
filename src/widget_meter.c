@@ -44,7 +44,7 @@ void meter_measure(struct widget *w)
 
 void meter_render(struct widget *w)
 {
-	enum color_pair color = (w->in_focus) ? COLOR_PAIR_FOCUS : w->color_pair;
+	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 	wbkgd(w->win, COLOR_PAIR(color));
 
 	wmove(w->win, 0, 0);

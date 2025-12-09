@@ -58,7 +58,7 @@ void input_measure(struct widget *w)
 
 void input_render(struct widget *w)
 {
-	enum color_pair color = (w->in_focus) ? COLOR_PAIR_FOCUS : w->color_pair;
+	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 	wbkgd(w->win, COLOR_PAIR(color));
 
 	wmove(w->win, 0, 0);
@@ -187,8 +187,7 @@ struct widget *make_input(const wchar_t *placeholder)
 	w->input       = input_input;
 	w->getter      = input_getter;
 	w->color_pair  = COLOR_PAIR_BUTTON;
-
-	w->show_cursor = true;
+	w->attrs       = ATTR_CAN_FOCUS | ATTR_CAN_CURSOR;
 
 	/* INPUT is normally stretched horizontally, but height stays fixed */
 	w->flex_w = 1;        /* expand width */

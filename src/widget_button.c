@@ -39,7 +39,7 @@ void button_render(struct widget *w)
 	if (w->w > inner)
 		px = (w->w - inner) / 2;
 
-	enum color_pair color = (w->in_focus) ? COLOR_PAIR_FOCUS : w->color_pair;
+	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
 	wbkgd(w->win, COLOR_PAIR(color));
 	mvwprintw(w->win, 0, px, "[%ls]", text);
@@ -98,6 +98,7 @@ struct widget *make_button(const wchar_t *text)
 	w->getter       = button_getter;
 	w->free_data    = button_free;
 	w->color_pair   = COLOR_PAIR_BUTTON;
+	w->attrs        = ATTR_CAN_FOCUS;
 
 	/* Buttons do not stretch by default — natural size only */
 	w->flex_h = 0;

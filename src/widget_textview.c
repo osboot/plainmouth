@@ -127,13 +127,17 @@ static void textview_measure(struct widget *w)
 
 static void textview_render(struct widget *w)
 {
-	enum color_pair color = (w->in_focus) ? COLOR_PAIR_FOCUS : w->color_pair;
+	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 	struct widget_textview *state = w->state.textview;
 
 	viewport_draw(w->win, &state->text, state->vscroll_pos);
 	draw_vscroll(w->win, color, state->vscroll_pos, state->text.nlines);
 
 	wmove(w->win, 0, 0);
+
+	if (getmaxy(w->win) < state->text.nlines) {
+		w->attrs |= ATTR_CAN_FOCUS;
+	}
 }
 
 static void textview_free(struct widget *w)

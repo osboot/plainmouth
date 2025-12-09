@@ -121,9 +121,15 @@ struct widget_meter;
 struct widget_textview;
 
 enum widget_flags {
-	FLAG_NONE       = 0,
-	FLAG_CAN_CURSOR = 1,
-	FLAG_CAN_FOCUS  = 2,
+	FLAG_NONE    = 0, // Nothing has been set
+	FLAG_VISIBLE = 1, // Rendering enabled flag
+	FLAG_INFOCUS = 2, // Is this subtree in focus
+};
+
+enum widget_attributes {
+	ATTR_NONE       = 0, // Nothing has been set
+	ATTR_CAN_CURSOR = 1, // Cursor may be displayed in the widget
+	ATTR_CAN_FOCUS  = 2, // Widget can be in focus
 };
 
 /*
@@ -177,11 +183,8 @@ struct widget {
 	/* ncurses objects */
 	WINDOW *win;                /* Associated window (root or derived) */
 	enum color_pair color_pair; /* Simple color/style attribute */
-	bool visible;               /* Rendering enabled flag */
-	bool in_focus;              /* Is this subtree in focus */
-	bool show_cursor;
-
-	int widget_flags;
+	int attrs;                  /* current attributes (widget_arributes) */
+	int flags;                  /* (widget_flags) */
 
 	/* Virtual methods */
 	free_data_fn free_data; /* Free widget-specific data */

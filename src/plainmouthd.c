@@ -155,7 +155,7 @@ static void use_instance_widgets(struct instance *ins, struct widget *w)
 
 	w->instance_id = ins->id;
 
-	if (w->input) {
+	if (w->attrs & ATTR_CAN_FOCUS) {
 		TAILQ_INSERT_HEAD(&focusable, w, focuses);
 	}
 }
@@ -273,7 +273,7 @@ static void ui_update_cursor(void)
 	int y, x;
 	struct instance *focused_ins = NULL;
 
-	if (!focused || !focused->show_cursor) {
+	if (!focused || !(focused->attrs & ATTR_CAN_CURSOR)) {
 		curs_set(0);
 		return;
 	}
@@ -313,7 +313,11 @@ static void ui_focused(bool state)
 	if (!focused)
 		return;
 
-	focused->in_focus = state;
+	if (state)
+		focused->flags |= FLAG_INFOCUS;
+	else
+		focused->flags &= ~FLAG_INFOCUS;
+
 	widget_render_tree(focused);
 
 	if (state) {
