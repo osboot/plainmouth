@@ -279,7 +279,7 @@ static void ui_update_cursor(void)
 	}
 
 	focused_ins = find_instance(focused->instance_id);
-	if (!focused_ins) {
+	if (!focused_ins || focused_ins->finished) {
 		curs_set(0);
 		return;
 	}
