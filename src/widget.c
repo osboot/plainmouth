@@ -136,8 +136,8 @@ void widget_free(struct widget *w)
 	}
 
 	if (IS_DEBUG())
-		warnx("destroy widget %s (y=%d, x=%d, height=%d, width=%d)",
-				widget_type(w), w->ly, w->lx, w->h, w->w);
+		warnx("destroy widget %s (%p) (y=%d, x=%d, height=%d, width=%d)",
+			widget_type(w), w->win, w->ly, w->lx, w->h, w->w);
 
 	if (w->win) {
 		delwin(w->win);

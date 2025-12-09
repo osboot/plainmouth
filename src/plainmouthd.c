@@ -179,7 +179,10 @@ static void release_instance(struct instance *instance)
 	}
 
 	if (instance->panel) {
-		del_panel(instance->panel);
+		if (IS_DEBUG())
+			warnx("destroy panel of instance '%s'", instance->id);
+		if (del_panel(instance->panel) == ERR)
+			warnx("unable to destroy panel of instance '%s'", instance->id);
 		instance->panel = NULL;
 	}
 
