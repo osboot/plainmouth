@@ -188,6 +188,7 @@ static void release_instance(struct instance *instance)
 		instance->root = NULL;
 	}
 
+	free((char *) instance->id);
 	free(instance);
 }
 
@@ -388,7 +389,7 @@ static int ui_process_task_create(struct ui_task *t)
 		return -1;
 	}
 
-	wnew->id = instance_id;
+	wnew->id = strdup(instance_id);
 	wnew->plugin = plugin;
 
 	if (plugin->p_create_instance) {
