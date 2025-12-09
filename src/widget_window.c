@@ -18,9 +18,14 @@ struct widget *make_window(void)
 	w->min_h      = 5;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
-	w->flex_h   = w->flex_w   = 1;
-	w->grow_h   = w->grow_w   = 1;
-	w->shrink_h = w->shrink_w = 1;
+	w->stretch_w = true;
+	w->stretch_h = true;
+
+	w->flex_w = 1;
+	w->flex_h = 1;
+
+	w->shrink_w = 1;
+	w->shrink_h = 1;
 
 	return w;
 }

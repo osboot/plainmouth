@@ -2,6 +2,7 @@
 
 #include <sys/queue.h>
 #include <unistd.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <wchar.h>
 #include <err.h>
@@ -37,14 +38,22 @@ void input_measure(struct widget *w)
 {
 	struct widget_input *state = w->state.input;
 
-	w->min_h = w->req_h ?: 1;
-	w->min_w = w->req_w ?: 1;
+	/* Minimum workable size */
+	w->min_h = 1;
+	w->min_w = 1;
 
+	/* Preferred size = size of placeholder or existing text */
 	if (state->placeholder) {
 		int len = (int) wcslen(state->placeholder);
-		if (w->min_w < len)
-			w->min_w = len;
+		w->pref_w = MAX(w->pref_w, len);
 	}
+
+	w->pref_w = MAX(w->pref_w, state->len);
+	w->pref_h = 1;
+
+	/* Max size: unlimited unless user overrides via API later */
+	w->max_w = INT_MAX;
+	w->max_h = 1;
 }
 
 void input_render(struct widget *w)
@@ -180,8 +189,15 @@ struct widget *make_input(const wchar_t *placeholder)
 	w->color_pair  = COLOR_PAIR_BUTTON;
 
 	w->show_cursor = true;
-	w->flex_h      = 1;
-	w->flex_w      = 1;
+
+	/* INPUT is normally stretched horizontally, but height stays fixed */
+	w->flex_w = 1;        /* expand width */
+	w->flex_h = 0;        /* no flex vertically */
+	w->stretch_w = true;  /* full width */
+	w->stretch_h = false; /* keep 1 line */
+
+	w->shrink_w = 0;
+	w->shrink_h = 0;
 
 	return w;
 }

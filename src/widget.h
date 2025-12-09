@@ -10,6 +10,50 @@
 
 #include "request.h"
 
+/*
+ * ---------------------------------------------------------------------------
+ *  Widget Sizing Model and Container Layout Semantics
+ * ---------------------------------------------------------------------------
+ *
+ * The layout engine follows a two-phase model:
+ *
+ * 1. measure()  → computes intrinsic size requirements
+ * 2. layout()   → assigns final geometry for each widget
+ *
+ * During measure(), each widget sets:
+ *
+ * min_w / min_h   - the smallest acceptable size
+ * pref_w / pref_h - the preferred (content-based) size
+ * max_w / max_h   - the largest acceptable size (INT_MAX = unlimited)
+ *
+ * During layout(), containers distribute the available space according to
+ * Flexbox-inspired rules:
+ *
+ * - The *main axis* is the direction in which children are arranged:
+ *   - HBOX: horizontal main axis
+ *   - VBOX: vertical main axis
+ *
+ * - The *cross axis* is perpendicular to the main axis.
+ *
+ * Containers use the following widget fields when distributing space:
+ *
+ * flex_w / flex_h
+ *  - Controls how a widget shares extra space along the main axis.
+ *  - If multiple children have flex > 0, free space is divided proportionally
+ *    to their flex values.
+ *
+ * shrink_w / shrink_h
+ *  - Controls how a widget gives up space when the container is smaller than
+ *    the sum of preferred sizes.
+ *  - If multiple children have shrink > 0, they reduce size proportionally
+ *    until reaching their min_* limits.
+ *
+ * stretch_w / stretch_h
+ *  - Controls whether a widget expands along the cross axis.
+ *  - If stretch is true, the widget receives the full cross-axis size of its
+ *    container; otherwise, it receives pref_* clamped to [min_*, max_*].
+ */
+
 enum color_pair {
 	COLOR_PAIR_MAIN = 1,
 	COLOR_PAIR_WINDOW,
@@ -109,17 +153,26 @@ struct widget {
 	/* Measured minimum size computed by measure() */
 	int min_w, min_h;
 
-	/* User fields to enforce values */
-	int req_w, req_h;
-
 	/* Flexbox-like behaviour: per-axis */
 	int flex_h;   // participates in distributing free height inside VBOX
 	int flex_w;   // participates in distributing free width  inside HBOX
-
-	int grow_h;   // how strongly widget grows if free height exists (default 1)
-	int grow_w;   // grow on width
 	int shrink_h; // how strongly it shrinks if space insufficient (default 1)
 	int shrink_w; // shrink on width
+
+	/*
+	 * Preferred size semantics:
+	 *   pref_* — preferred/base size used as starting point for flex grow/shrink.
+	 *            If pref == 0 it will be treated as pref = min.
+	 *   max_*  — optional maximum size (0 means unlimited).
+	 */
+	int pref_w, pref_h;
+	int max_w, max_h;
+
+	/*
+	 * Stretch flags (cross-axis):
+	 *   When true, this child stretches to fill the cross axis of the container.
+	 */
+	bool stretch_w, stretch_h;
 
 	/* ncurses objects */
 	WINDOW *win;                /* Associated window (root or derived) */

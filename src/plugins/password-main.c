@@ -63,9 +63,6 @@ static struct widget *p_pass_create(struct request *req)
 	}
 	input->w_id = INPUT_ID;
 
-	if (!top_text && !left_text)
-		input->req_w = 10;
-
 	widget_add(hbox, input);
 
 	widget_measure_tree(root);

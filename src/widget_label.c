@@ -57,5 +57,13 @@ struct widget *make_label(const wchar_t *line)
 	w->render      = label_render;
 	w->free_data   = label_free;
 
+	w->flex_w = 0;
+	w->flex_h = 0;
+	w->stretch_w = false; /* do not expand horizontally */
+	w->stretch_h = false; /* keep 1 line */
+
+	w->shrink_w = 1;
+	w->shrink_h = 1;
+
 	return w;
 }

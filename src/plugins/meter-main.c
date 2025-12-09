@@ -44,18 +44,16 @@ static struct widget *p_meter_create(struct request *req)
 	struct widget *meter = make_meter(total);
 
 	meter->w_id = METER_ID;
-	meter->req_h = 1;
-	meter->req_w = COLS - 4;
-
-	if (width > 0)
-		meter->req_w = width;
 
 	widget_add(parent, meter);
 
 	widget_measure_tree(root);
 
-	width = root->min_w;
-	height = root->min_h;
+	if (width < 0)
+		width = root->min_w;
+
+	if (height < 0)
+		height = root->min_h;
 
 	position_center(width, height, &begin_y, &begin_x);
 

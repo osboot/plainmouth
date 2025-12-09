@@ -8,7 +8,7 @@ export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock}"
 	label="qwerty asdfghjk: "
 
 ./plainmouth plugin=password action=create id=w2 x=20 y=4 text="(2) Enter password:"
-./plainmouth plugin=password action=create id=w3 x=36 y=6 border=true
+./plainmouth plugin=password action=create id=w3 width=20 x=36 y=6 border=true
 
 ./plainmouth action=wait-result id=w1
 ./plainmouth action=wait-result id=w2

@@ -99,8 +99,11 @@ struct widget *make_button(const wchar_t *text)
 	w->free_data    = button_free;
 	w->color_pair   = COLOR_PAIR_BUTTON;
 
-	w->flex_h   = w->flex_w   = 0;
-	w->grow_h   = w->grow_w   = 0;
+	/* Buttons do not stretch by default — natural size only */
+	w->flex_h = 0;
+	w->flex_w = 0;
+	w->stretch_h = false; /* stay 1 line tall */
+	w->stretch_w = false; /* do not expand horizontally */
 	w->shrink_h = w->shrink_w = 1;
 
 	return w;

@@ -204,5 +204,14 @@ struct widget *make_textview(const wchar_t *text)
 	w->flex_w = 1;
 	w->flex_h = 1;
 
+	/* Textview expands in both dimensions */
+	w->flex_w = 1;
+	w->flex_h = 1;
+	w->stretch_w = true;
+	w->stretch_h = true;
+
+	w->shrink_w = 1;
+	w->shrink_h = 1;
+
 	return w;
 }

@@ -68,7 +68,10 @@ struct widget *make_border(void)
 	w->free_data  = border_free;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
-	w->flex_h = w->flex_w = 1;
+	w->flex_h = 1;
+	w->flex_w = 1;
+	w->stretch_w = true;
+	w->stretch_h = true;
 
 	return w;
 }

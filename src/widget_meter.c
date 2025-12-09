@@ -38,8 +38,8 @@ void show_percent(WINDOW *win, struct widget_meter *state)
 
 void meter_measure(struct widget *w)
 {
-	w->min_h = MAX(1, w->req_h);
-	w->min_w = MAX(1, w->req_w);
+	w->min_h = 1;
+	w->min_w = 1;
 }
 
 void meter_render(struct widget *w)
@@ -135,6 +135,15 @@ struct widget *make_meter(int total)
 	w->getter      = meter_getter;
 	w->setter      = meter_setter;
 	w->color_pair  = COLOR_PAIR_WINDOW;
+
+	w->flex_w = 1;        /* expand horizontally */
+	w->flex_h = 0;        /* fixed height */
+
+	w->stretch_w = true;  /* fill horizontal space */
+	w->stretch_h = false; /* keep 1 line */
+
+	w->shrink_w = 1;
+	w->shrink_h = 1;
 
 	return w;
 }

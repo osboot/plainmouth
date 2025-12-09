@@ -106,7 +106,6 @@ struct widget *widget_create(enum widget_type type)
 	w->color_pair = COLOR_PAIR_MAIN;
 
 	w->flex_h   = w->flex_w   = 0;
-	w->grow_h   = w->grow_w   = 1;
 	w->shrink_h = w->shrink_w = 1;
 
 	return w;
@@ -168,6 +167,13 @@ void widget_measure_tree(struct widget *w)
 
 	if (w->measure)
 		w->measure(w);
+
+	/*
+	 * Ensure preferred sizes are at least minimum. If pref is unset (0),
+	 * treat pref as min. This makes preferred available for flex algs.
+	 */
+	w->pref_w = MAX(w->pref_w, w->min_w);
+	w->pref_h = MAX(w->pref_h, w->min_h);
 }
 
 /*
@@ -190,9 +196,6 @@ void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height)
 
 	if (width  > 0) w->w = width;
 	if (height > 0) w->h = height;
-
-	if (w->req_w > 0) w->w = MIN(w->w, w->req_w);
-	if (w->req_h > 0) w->h = MIN(w->h, w->req_h);
 
 	if (w->layout)
 		w->layout(w);
