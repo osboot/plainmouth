@@ -23,7 +23,7 @@ static void label_measure(struct widget *w)
 
 static void label_render(struct widget *w)
 {
-	mvwprintw(w->win, 0, 0, "%ls", w->state.label->text);
+	mvwaddwstr(w->win, 0, 0, w->state.label->text);
 }
 
 static void label_free(struct widget *w)

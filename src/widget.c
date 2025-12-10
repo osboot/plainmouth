@@ -68,9 +68,38 @@ bool get_abs_cursor(WINDOW *target, WINDOW *win, int *cursor_y, int *cursor_x)
 	return true;
 }
 
-/*
- * ############################################################################
- */
+int w_mvprintw(WINDOW *win, int y, int x, const wchar_t *fmt, ...)
+{
+	wchar_t *buf __free(ptr) = NULL;
+	size_t len = 0;
+
+	FILE *f = open_wmemstream(&buf, &len);
+	if (!f)
+		return ERR;
+
+	va_list ap;
+	va_start(ap, fmt);
+	int rc = vfwprintf(f, fmt, ap);
+	va_end(ap);
+
+	fclose(f);
+
+	if (rc == -1)
+		return ERR;
+
+	mvwaddwstr(win, y, x, buf);
+
+	return OK;
+}
+
+void w_addch(WINDOW *win, wchar_t wc)
+{
+	cchar_t cc;
+	wchar_t s[2] = { wc, L'\0' };
+
+	setcchar(&cc, s, 0, 0, NULL);
+	wadd_wch(win, &cc);
+}
 
 const char *widget_type(struct widget *w)
 {

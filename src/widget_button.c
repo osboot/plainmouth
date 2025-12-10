@@ -31,18 +31,10 @@ void button_measure(struct widget *w)
 
 void button_render(struct widget *w)
 {
-	const wchar_t *text = w->state.button->text ?: L"";
-	int tw = (int) wcslen(text);
-	int inner = tw + 2; /* brackets + text */
-	int px = 0;
-
-	if (w->w > inner)
-		px = (w->w - inner) / 2;
-
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
 	wbkgd(w->win, COLOR_PAIR(color));
-	mvwprintw(w->win, 0, px, "[%ls]", text);
+	w_mvprintw(w->win, 0, 0, L"[%ls]", w->state.button->text);
 }
 
 void button_free(struct widget *w)

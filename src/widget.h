@@ -64,6 +64,8 @@ enum color_pair {
 int simple_round(float number);
 void position_center(int width, int height, int *begin_y, int *begin_x);
 bool get_abs_cursor(WINDOW *target, WINDOW *win, int *cursor_y, int *cursor_x);
+int w_mvprintw(WINDOW *win, int y, int x, const wchar_t *fmt, ...);
+void w_addch(WINDOW *win, wchar_t wc);
 
 struct text_viewport {
 	wchar_t **lines;

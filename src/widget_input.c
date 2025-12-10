@@ -71,13 +71,13 @@ void input_render(struct widget *w)
 		int i;
 
 		for (i = 0; i < width; i++)
-			wprintw(w->win, "%lc", (state->force_chr ?: state->text[i]));
+			w_addch(w->win, (state->force_chr ?: state->text[i]));
 		if (i == w->w)
 			wmove(w->win, 0, w->w - 1);
 
 
 	} else if (state->placeholder) {
-		wprintw(w->win, "%ls", state->placeholder);
+		waddwstr(w->win, state->placeholder);
 	}
 
 	wnoutrefresh(w->win);
