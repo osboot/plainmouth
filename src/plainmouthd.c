@@ -91,12 +91,12 @@ static pthread_t ui_thread;
 
 static const char cmdopts_s[] = "S:Vh";
 static const struct option cmdopts[] = {
-	{ "debug-file",  required_argument, 0, 1   },
-	{ "tty",         required_argument, 0, 2   },
-	{ "socket-file", required_argument, 0, 'S' },
-	{ "version",     no_argument,       0, 'V' },
-	{ "help",        no_argument,       0, 'h' },
-	{ 0,             0,                 0, 0   },
+	{ "debug-file",  required_argument, NULL, 1   },
+	{ "tty",         required_argument, NULL, 2   },
+	{ "socket-file", required_argument, NULL, 'S' },
+	{ "version",     no_argument,       NULL, 'V' },
+	{ "help",        no_argument,       NULL, 'h' },
+	{ NULL,          no_argument,       NULL, 0   },
 };
 
 static void __attribute__((noreturn))

@@ -13,16 +13,16 @@
 
 static const char cmdopts_s[] = "S:Vh";
 static const struct option cmdopts[] = {
-	{ "has-active-vt", no_argument,       0, 1   },
-	{ "quit",          no_argument,       0, 2   },
-	{ "show-splash",   no_argument,       0, 3   },
-	{ "hide-splash",   no_argument,       0, 4   },
-	{ "ping",          no_argument,       0, 5   },
-	{ "result",        no_argument,       0, 6   },
-	{ "socket-file",   required_argument, 0, 'S' },
-	{ "version",       no_argument,       0, 'V' },
-	{ "help",          no_argument,       0, 'h' },
-	{ 0,               0,                 0, 0   },
+	{ "has-active-vt", no_argument,       NULL, 1   },
+	{ "quit",          no_argument,       NULL, 2   },
+	{ "show-splash",   no_argument,       NULL, 3   },
+	{ "hide-splash",   no_argument,       NULL, 4   },
+	{ "ping",          no_argument,       NULL, 5   },
+	{ "result",        no_argument,       NULL, 6   },
+	{ "socket-file",   required_argument, NULL, 'S' },
+	{ "version",       no_argument,       NULL, 'V' },
+	{ "help",          no_argument,       NULL, 'h' },
+	{ NULL,            no_argument,       NULL, 0   },
 };
 
 static void __attribute__((noreturn))
