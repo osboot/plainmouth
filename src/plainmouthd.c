@@ -201,11 +201,6 @@ static void free_instances(void)
 		release_instance(TAILQ_FIRST(&instances));
 }
 
-static inline struct instance *instance_focused(void)
-{
-	return TAILQ_FIRST(&instances);
-}
-
 static inline void ui_wakeup(void)
 {
 	uint64_t one = 1;
