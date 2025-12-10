@@ -7,7 +7,9 @@ valgrind_prog="$(type -p valgrind)"
 run()
 {
 	[ -z "$valgrind_prog" ] ||
-		exec valgrind --leak-check=full --show-leak-kinds=all --log-file=/tmp/valgrind.log "$@"
+		exec valgrind --leak-check=full --show-leak-kinds=all \
+			--suppressions=./tests/valgrind.supp \
+			--log-file=/tmp/valgrind.log "$@"
 	exec "$@"
 }
 

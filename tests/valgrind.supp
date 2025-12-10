@@ -1,0 +1,54 @@
+# valgrind --leak-check=full --show-leak-kinds=all --gen-suppressions=all ./your_program
+{
+   ignore_ncurses_newterm_sp_leak_1
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:_nc_first_db
+   fun:_nc_read_entry2
+   fun:_nc_setup_tinfo
+   fun:_nc_setupterm
+   fun:newterm_sp
+   fun:newterm
+   ...
+   fun:main
+}
+{
+   ignore_ncurses_newterm_sp_leak_2
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:calloc
+   fun:_nc_first_db
+   fun:_nc_read_entry2
+   fun:_nc_setup_tinfo
+   fun:_nc_setupterm
+   fun:newterm_sp
+   fun:newterm
+   ...
+   fun:main
+}
+{
+   ignore_ncurses_terminfo_leak_1
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:strdup
+   obj:*/libtinfow.so.*
+   fun:_nc_first_db
+   fun:_nc_read_entry2
+   fun:_nc_setup_tinfo
+   fun:_nc_setupterm
+   fun:newterm_sp
+   fun:newterm
+   ...
+   fun:main
+}
+{
+   ignore_ncurses_panel_leak_1
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:new_panel
+   ...
+   fun:main
+}
