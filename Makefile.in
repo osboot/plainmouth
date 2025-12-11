@@ -43,6 +43,7 @@ LDLIBS = -Wl,-rpath,'$$ORIGIN'
 
 COMMON_SO   = libplainmouth.so
 COMMON_SRC  = src/ipc.c src/request.c src/plugin.c \
+	      src/warray.c \
 	      src/widget.c \
 	      src/widget_border.c \
 	      src/widget_button.c \
@@ -129,7 +130,9 @@ VALGRIND = valgrind --error-exitcode=1 \
 	#
 
 TESTS := $(sort $(basename \
-	$(wildcard tests/ipc/ipc_*.c)))
+	$(wildcard tests/ipc/ipc_*.c) \
+	$(wildcard tests/warray/warray_*.c) \
+))
 
 GARBAGE += $(TESTS) $(addsuffix .chk,$(TESTS)) $(addsuffix .log,$(TESTS))
 
@@ -138,6 +141,9 @@ GARBAGE += $(TESTS) $(addsuffix .chk,$(TESTS)) $(addsuffix .log,$(TESTS))
 build-checks: $(TESTS)
 
 tests/ipc/%: tests/ipc/%.o src/ipc.o
+	$(call cmd_LINK,$^)
+
+tests/warray/%: tests/warray/%.o src/warray.o
 	$(call cmd_LINK,$^)
 
 tests/%.chk: tests/%

@@ -8,22 +8,13 @@
 #include <curses.h>
 
 #include "macros.h"
+#include "warray.h"
 #include "widget.h"
 
 struct widget_textview {
 	struct text_viewport text;
 	int vscroll_pos;
 };
-
-static wchar_t *wcsndup(const wchar_t *s, size_t n)
-{
-	wchar_t *t = calloc((n + 1), sizeof(wchar_t));
-	if (t) {
-		wmemcpy(t, s, n);
-		t[n] = L'\0';
-	}
-	return t;
-}
 
 void viewport_create(struct text_viewport *vp, const wchar_t *text)
 {
