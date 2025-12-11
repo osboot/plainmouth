@@ -12,78 +12,64 @@
 #include "widget.h"
 
 struct widget_textview {
-	struct text_viewport text;
+	struct warray text;
 	int vscroll_pos;
+	int nlines;
+	int ncols;
 };
 
-void viewport_create(struct text_viewport *vp, const wchar_t *text)
+static void viewport_create(struct widget_textview *wt, const wchar_t *text)                           __attribute__((nonnull(1,2)));
+static void viewport_draw(WINDOW *win, struct widget_textview *wt, int scroll_pos)                     __attribute__((nonnull(1,2)));
+static void draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height) __attribute__((nonnull(1)));
+static void textview_measure(struct widget *w)                                                         __attribute__((nonnull(1)));
+static void textview_render(struct widget *w)                                                          __attribute__((nonnull(1)));
+static void textview_free(struct widget *w)                                                            __attribute__((nonnull(1)));
+static int textview_input(const struct widget *w, wchar_t key)                                         __attribute__((nonnull(1)));
+
+
+void viewport_create(struct widget_textview *wt, const wchar_t *text)
 {
 	const wchar_t *s = text;
 	const wchar_t *e = text + wcslen(text);
 
-	int capacity = 128;
+	wt->ncols = 0;
+	wt->nlines = 0;
 
-	vp->ncols = 0;
-	vp->nlines = 0;
-	vp->lines = calloc((size_t) capacity, sizeof(wchar_t *));
-
-	if (!vp->lines) {
-		warn("calloc failed");
-		return;
-	}
+	warray_init(&wt->text);
 
 	while (s < e) {
 		const wchar_t *c = wcschr(s, L'\n') ?: e;
 		size_t len = (size_t) (c - s);
-		wchar_t *line = wcsndup(s, len);
 
-		if (!line) {
-			warnx("unable to duplicate string");
-			viewport_free(vp);
+		if (warray_push(&wt->text, s, len) < 0) {
+			warnx("unable to append string");
+			warray_free(&wt->text);
 			return;
 		}
 
-		if (vp->nlines == capacity) {
-			wchar_t **newlines;
-
-			capacity *= 2;
-			newlines = realloc(vp->lines, sizeof(wchar_t *) * (size_t) capacity);
-
-			if (!newlines) {
-				warn("realloc failed");
-				viewport_free(vp);
-				return;
-			}
-			vp->lines = newlines;
-		}
-
-		vp->lines[vp->nlines++] = line;
-		vp->ncols = MAX(vp->ncols, (int) len);
+		wt->ncols = MAX(wt->ncols, (int) len);
+		wt->nlines++;
 
 		s = (c == e) ? e : c + 1;
 	}
 }
 
-void viewport_free(struct text_viewport *vp)
-{
-	for (int i = 0; i < vp->nlines; i++)
-		free(vp->lines[i]);
-	free(vp->lines);
-}
-
-void viewport_draw(WINDOW *win, struct text_viewport *vp, int scroll_pos)
+void viewport_draw(WINDOW *win, struct widget_textview *wt, int scroll_pos)
 {
 	int nlines, ncols, y = 0;
 	getmaxyx(win, nlines, ncols);
 	werase(win);
 
-	for (int i = scroll_pos; i < vp->nlines && y < nlines; i++)
-		mvwaddnwstr(win, y++, 0, vp->lines[i], ncols);
+	for (int i = scroll_pos; i < wt->nlines && y < nlines; i++) {
+		const wchar_t *line = warray_get(&wt->text, (size_t) i);
+		if (line)
+			mvwaddnwstr(win, y++, 0, line, ncols);
+	}
 
 	wnoutrefresh(win);
 }
 
-static void draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height)
+void draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height)
 {
 	int view_width, view_height;
 	getmaxyx(scrollwin, view_height, view_width);
@@ -100,50 +86,54 @@ static void draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_po
 	wattroff(scrollwin, COLOR_PAIR(color) | A_NORMAL);
 
 	wattron(scrollwin, COLOR_PAIR(color) | A_REVERSE);
-	for (int i = 0; i < thumb_size; i++)
-		mvwaddch(scrollwin, thumb_pos + i, view_width - 1, ACS_VLINE);
+	for (int i = 0; i < thumb_size; i++) {
+		chtype c = ' ';
+		if (i == 0) c = '^';
+		else if (i == thumb_size - 1) c = 'v';
+		mvwaddch(scrollwin, thumb_pos + i, view_width - 1, c);
+	}
 	wattroff(scrollwin, COLOR_PAIR(color) | A_REVERSE);
 }
 
-static void textview_measure(struct widget *w)
+void textview_measure(struct widget *w)
 {
 	struct widget_textview *state = w->state.textview;
 
-	w->min_w = state->text.ncols;
-	w->min_h = state->text.nlines;
+	w->pref_w = state->ncols + 1; // text width + optional scrollbar
+	w->pref_h = state->nlines;
 
-	if (w->min_h > 5)
-		w->min_h = 5;
+	w->min_w = state->ncols;
+	w->min_h = 3;
 }
 
-static void textview_render(struct widget *w)
+void textview_render(struct widget *w)
 {
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 	struct widget_textview *state = w->state.textview;
 
-	viewport_draw(w->win, &state->text, state->vscroll_pos);
-	draw_vscroll(w->win, color, state->vscroll_pos, state->text.nlines);
+	viewport_draw(w->win, state, state->vscroll_pos);
+	draw_vscroll(w->win, color, state->vscroll_pos, state->nlines);
 
 	wmove(w->win, 0, 0);
 
-	if (getmaxy(w->win) < state->text.nlines) {
+	if (getmaxy(w->win) < state->nlines) {
 		w->attrs |= ATTR_CAN_FOCUS;
 	}
 }
 
-static void textview_free(struct widget *w)
+void textview_free(struct widget *w)
 {
 	if (w->state.textview) {
-		viewport_free(&w->state.textview->text);
+		warray_free(&w->state.textview->text);
 		free(w->state.textview);
 	}
 }
 
-static int textview_input(const struct widget *w, wchar_t key)
+int textview_input(const struct widget *w, wchar_t key)
 {
 	struct widget_textview *state = w->state.textview;
 
-	if ((state->text.nlines - w->h) <= 0)
+	if ((state->nlines - w->h) <= 0)
 		return 0;
 
 	switch (key) {
@@ -153,7 +143,7 @@ static int textview_input(const struct widget *w, wchar_t key)
 			break;
 
 		case KEY_DOWN:
-			if (state->vscroll_pos < state->text.nlines - w->h)
+			if (state->vscroll_pos < state->nlines - w->h)
 				state->vscroll_pos++;
 			break;
 
@@ -162,7 +152,7 @@ static int textview_input(const struct widget *w, wchar_t key)
 			break;
 
 		case KEY_NPAGE:
-			state->vscroll_pos = MIN(state->text.nlines - w->h, state->vscroll_pos + w->h);
+			state->vscroll_pos = MIN(state->nlines - w->h, state->vscroll_pos + w->h);
 			break;
 
 		default:
@@ -187,7 +177,7 @@ struct widget *make_textview(const wchar_t *text)
 		return NULL;
 	}
 
-	viewport_create(&state->text, text);
+	viewport_create(state, text);
 
 	w->state.textview = state;
 	w->color_pair     = COLOR_PAIR_WINDOW;

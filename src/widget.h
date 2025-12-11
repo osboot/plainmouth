@@ -67,16 +67,6 @@ bool get_abs_cursor(WINDOW *target, WINDOW *win, int *cursor_y, int *cursor_x);
 int w_mvprintw(WINDOW *win, int y, int x, const wchar_t *fmt, ...);
 void w_addch(WINDOW *win, wchar_t wc);
 
-struct text_viewport {
-	wchar_t **lines;
-	int nlines;
-	int ncols;
-};
-
-void viewport_create(struct text_viewport *vp, const wchar_t *text);
-void viewport_free(struct text_viewport *vp);
-void viewport_draw(WINDOW *win, struct text_viewport *vp, int scroll_pos);
-
 enum widget_type {
 	WIDGET_WINDOW,
 	WIDGET_BORDER,
