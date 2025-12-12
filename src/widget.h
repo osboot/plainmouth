@@ -76,6 +76,7 @@ enum widget_type {
 	WIDGET_METER,
 	WIDGET_VBOX,
 	WIDGET_HBOX,
+	WIDGET_TOOLTIP,
 };
 
 struct widget;
@@ -111,6 +112,7 @@ struct widget_input;
 struct widget_label;
 struct widget_meter;
 struct widget_textview;
+struct widget_tooltip;
 
 enum widget_flags {
 	FLAG_NONE    = 0, // Nothing has been set
@@ -199,6 +201,7 @@ struct widget {
 		struct widget_label    *label;
 		struct widget_meter    *meter;
 		struct widget_textview *textview;
+		struct widget_tooltip  *tooltip;
 	} state;
 
 	/*
@@ -215,6 +218,7 @@ const char *widget_type(struct widget *w);
 struct widget *widget_create(enum widget_type);
 void widget_add(struct widget *parent, struct widget *child);
 void widget_free(struct widget *w);
+bool widget_coordinates_yx(struct widget *w, int *w_abs_y, int *w_abs_x);
 
 static inline bool widget_get(struct widget *w, enum widget_property prop, void *value)
 {
@@ -244,6 +248,7 @@ struct widget *make_button(const wchar_t *label);
 struct widget *make_input(const wchar_t *placeholder);
 struct widget *make_input_password(const wchar_t *placeholder);
 struct widget *make_meter(int total);
+struct widget *make_tooltip(const wchar_t *line);
 
 struct widget *make_border(void);
 struct widget *make_border_vbox(struct widget *parent);

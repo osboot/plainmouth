@@ -104,14 +104,15 @@ void w_addch(WINDOW *win, wchar_t wc)
 const char *widget_type(struct widget *w)
 {
 	static const char *_widget_type[] = {
-		[WIDGET_WINDOW] = "window",
-		[WIDGET_BORDER] = "border",
-		[WIDGET_LABEL]  = "label",
-		[WIDGET_BUTTON] = "button",
-		[WIDGET_INPUT]  = "input",
-		[WIDGET_METER]  = "meter",
-		[WIDGET_VBOX]   = "vbox",
-		[WIDGET_HBOX]   = "hbox",
+		[WIDGET_WINDOW]  = "window",
+		[WIDGET_BORDER]  = "border",
+		[WIDGET_LABEL]   = "label",
+		[WIDGET_BUTTON]  = "button",
+		[WIDGET_INPUT]   = "input",
+		[WIDGET_METER]   = "meter",
+		[WIDGET_VBOX]    = "vbox",
+		[WIDGET_HBOX]    = "hbox",
+		[WIDGET_TOOLTIP] = "tooltip",
 	};
 	return _widget_type[w->type];
 }
@@ -364,4 +365,23 @@ struct widget *find_widget_by_id(struct widget *w, int id)
 	}
 
 	return NULL;
+}
+
+bool widget_coordinates_yx(struct widget *w, int *wy, int *wx)
+{
+	int y, x, ry, rx;
+	struct widget *root = w;
+
+	while (root->parent)
+		root = root->parent;
+
+	if (!get_abs_cursor(root->win, w->win, &y, &x))
+		return false;
+
+	getbegyx(root->win, ry, rx);
+
+	*wy = ry + y;
+	*wx = rx + x;
+
+	return true;
 }

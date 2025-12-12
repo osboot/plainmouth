@@ -2,7 +2,7 @@
 
 export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock}"
 
-./plainmouth plugin=msgbox action=create id=w1 \
+./plainmouth plugin=msgbox action=create id=w1 height=7 \
 	text="ВАЖНО!
 тут какое-то важное сообщение." \
 	button="OK" \

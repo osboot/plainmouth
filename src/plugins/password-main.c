@@ -65,6 +65,18 @@ static struct widget *p_pass_create(struct request *req)
 
 	widget_add(hbox, input);
 
+	wchar_t *tooltip_text __free(ptr) = req_get_wchars(req, "tooltip");
+
+	if (tooltip_text) {
+		struct widget *tooltip = make_tooltip(tooltip_text);
+		if (!tooltip) {
+			warnx("unable to create tooltip");
+			widget_free(root);
+			return NULL;
+		}
+		widget_add(hbox, tooltip);
+	}
+
 	widget_measure_tree(root);
 
 	if (width < 0)

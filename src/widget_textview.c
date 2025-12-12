@@ -103,7 +103,7 @@ void textview_measure(struct widget *w)
 	w->pref_h = state->nlines;
 
 	w->min_w = state->ncols;
-	w->min_h = 3;
+	w->min_h = 1;
 }
 
 void textview_render(struct widget *w)
