@@ -24,6 +24,12 @@ static struct widget *p_meter_create(struct request *req)
 
 	int total = req_get_int(req, "total", 0);
 
+	if (height < 0 || width < 0) {
+		ipc_send_string(req_fd(req), "RESPDATA %s ERR='width' and 'height' parameters must be specified",
+				req_id(req));
+		return NULL;
+	}
+
 	struct widget *root = make_window();
 	if (!root)
 		return NULL;
@@ -48,12 +54,6 @@ static struct widget *p_meter_create(struct request *req)
 	widget_add(parent, meter);
 
 	widget_measure_tree(root);
-
-	if (width < 0)
-		width = root->min_w;
-
-	if (height < 0)
-		height = root->min_h;
 
 	position_center(width, height, &begin_y, &begin_x);
 

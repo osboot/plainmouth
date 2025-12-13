@@ -2,7 +2,7 @@
 
 export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock}"
 
-./plainmouth plugin=password action=create id=w1 x=20 y=4 width=30 \
+./plainmouth plugin=password action=create id=w1 x=20 y=4 width=30 height=3 \
 	label="Enter password:" \
 	tooltip="Passwords must be at least 10 characters in length
 a minimum of 1 lower case letter [a-z]

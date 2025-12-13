@@ -24,6 +24,12 @@ static struct widget *p_checklist_create(struct request *req)
 	int height  = req_get_int(req, "height", -1);
 	int width   = req_get_int(req, "width",  -1);
 
+	if (height < 0 || width < 0) {
+		ipc_send_string(req_fd(req), "RESPDATA %s ERR='width' and 'height' parameters must be specified",
+				req_id(req));
+		return NULL;
+	}
+
 	struct widget *root = make_window();
 	if (!root)
 		return NULL;
