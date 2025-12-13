@@ -35,6 +35,7 @@ enum ui_task_type {
 	UI_TASK_RESULT,
 	UI_TASK_SHOW_SPLASH,
 	UI_TASK_HIDE_SPLASH,
+	UI_TASK_SET_TITLE,
 };
 
 struct ui_task {
@@ -534,6 +535,20 @@ static int ui_process_task_hide_splash(struct ui_task *t _UNUSED)
 	return 0;
 }
 
+static int ui_process_task_set_title(struct ui_task *t)
+{
+	wchar_t *message __free(ptr) = req_get_wchars(&t->req, "message");
+
+	if (message) {
+		wmove(stdscr, 0, 0);
+		werase(stdscr);
+		w_mvprintw(stdscr, 0, 0, L"%ls", message);
+		mvwhline(stdscr, getcury(stdscr) + 1, 0, ACS_HLINE, COLS);
+	}
+
+	return 0;
+}
+
 static int ui_process_task_unknown(struct ui_task *t)
 {
 	ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unknown action",
@@ -566,6 +581,7 @@ static void ui_process_tasks(void)
 			case UI_TASK_RESULT:		rc = ui_process_task_result(t);		break;
 			case UI_TASK_SHOW_SPLASH:	rc = ui_process_task_show_splash(t);	break;
 			case UI_TASK_HIDE_SPLASH:	rc = ui_process_task_hide_splash(t);	break;
+			case UI_TASK_SET_TITLE:		rc = ui_process_task_set_title(t);	break;
 			case UI_TASK_NONE:		rc = ui_process_task_unknown(t);	break;
 		}
 
@@ -658,12 +674,13 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 	else if (streq(action, "result"))	ttype = UI_TASK_RESULT;
 	else if (streq(action, "show-splash"))	ttype = UI_TASK_SHOW_SPLASH;
 	else if (streq(action, "hide-splash"))	ttype = UI_TASK_HIDE_SPLASH;
+	else if (streq(action, "set-title"))	ttype = UI_TASK_SET_TITLE;
 	else {
 		ipc_send_string(req_fd(&req), "RESPDATA %s ERR=unknown action", req_id(&req));
 		return -1;
 	}
 
-	if (ttype != UI_TASK_SHOW_SPLASH && ttype != UI_TASK_HIDE_SPLASH) {
+	if (ttype != UI_TASK_SHOW_SPLASH && ttype != UI_TASK_HIDE_SPLASH && ttype != UI_TASK_SET_TITLE) {
 		const char *instance_id = req_get_val(&req, "id");
 		if (!instance_id) {
 			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: id", req_id(&req));
