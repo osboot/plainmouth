@@ -54,6 +54,9 @@ static void distribute_flex_vbox(int count, const int *pref,
 		int rem = extra - allocated;
 
 		for (i = 0; i < count && rem > 0; i++) {
+			if (!grow[i])
+				continue;
+
 			if (max[i] == 0 || out[i] < max[i]) {
 				out[i]++;
 				rem--;
