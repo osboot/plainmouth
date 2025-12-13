@@ -20,7 +20,6 @@ struct widget_textview {
 
 static void viewport_create(struct widget_textview *wt, const wchar_t *text)                           __attribute__((nonnull(1,2)));
 static void viewport_draw(WINDOW *win, struct widget_textview *wt, int scroll_pos)                     __attribute__((nonnull(1,2)));
-static void draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height) __attribute__((nonnull(1)));
 static void textview_measure(struct widget *w)                                                         __attribute__((nonnull(1)));
 static void textview_render(struct widget *w)                                                          __attribute__((nonnull(1)));
 static void textview_free(struct widget *w)                                                            __attribute__((nonnull(1)));
@@ -69,32 +68,6 @@ void viewport_draw(WINDOW *win, struct widget_textview *wt, int scroll_pos)
 	wnoutrefresh(win);
 }
 
-void draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height)
-{
-	int view_width, view_height;
-	getmaxyx(scrollwin, view_height, view_width);
-
-	if ((content_height - view_height) <= 0)
-		return;
-
-	int thumb_size = MAX(1, (view_height * view_height) / content_height);
-	int thumb_pos = (scroll_pos * (view_height - thumb_size)) / (content_height - view_height);
-
-	wattron(scrollwin, COLOR_PAIR(color) | A_NORMAL);
-	for (int i = 0; i < view_height; i++)
-		mvwaddch(scrollwin, i, view_width - 1, ACS_CKBOARD);
-	wattroff(scrollwin, COLOR_PAIR(color) | A_NORMAL);
-
-	wattron(scrollwin, COLOR_PAIR(color) | A_REVERSE);
-	for (int i = 0; i < thumb_size; i++) {
-		chtype c = ' ';
-		if (i == 0) c = '^';
-		else if (i == thumb_size - 1) c = 'v';
-		mvwaddch(scrollwin, thumb_pos + i, view_width - 1, c);
-	}
-	wattroff(scrollwin, COLOR_PAIR(color) | A_REVERSE);
-}
-
 void textview_measure(struct widget *w)
 {
 	struct widget_textview *state = w->state.textview;
@@ -112,7 +85,7 @@ void textview_render(struct widget *w)
 	struct widget_textview *state = w->state.textview;
 
 	viewport_draw(w->win, state, state->vscroll_pos);
-	draw_vscroll(w->win, color, state->vscroll_pos, state->nlines);
+	widget_draw_vscroll(w->win, color, state->vscroll_pos, state->nlines);
 
 	wmove(w->win, 0, 0);
 
