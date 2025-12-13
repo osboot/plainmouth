@@ -78,6 +78,7 @@ enum widget_type {
 	WIDGET_VBOX,
 	WIDGET_HBOX,
 	WIDGET_TOOLTIP,
+	WIDGET_SELECT,
 };
 
 struct widget;
@@ -101,10 +102,14 @@ enum widget_property {
 	PROP_INPUT_VALUE,
 	PROP_METER_TOTAL,
 	PROP_METER_VALUE,
+	PROP_SELECT_OPTIONS_SIZE,
+	PROP_SELECT_OPTION_VALUE,
+	PROP_SELECT_CURSOR,
 };
 
 typedef bool (*setter_fn)(struct widget *, enum widget_property, const void *);
 typedef bool (*getter_fn)(struct widget *, enum widget_property, void *);
+typedef bool (*getter_index_fn)(struct widget *, enum widget_property, int, void *);
 
 /* Private widget-specific data */
 struct widget_border;
@@ -114,6 +119,7 @@ struct widget_label;
 struct widget_meter;
 struct widget_textview;
 struct widget_tooltip;
+struct widget_select;
 
 enum widget_flags {
 	FLAG_NONE    = 0, // Nothing has been set
@@ -189,6 +195,7 @@ struct widget {
 	input_fn input;         /* Handle keyboard input */
 	setter_fn setter;
 	getter_fn getter;
+	getter_index_fn getter_index;
 
 	/* Tree structure */
 	struct widget *parent;      /* Parent widget */
@@ -203,6 +210,7 @@ struct widget {
 		struct widget_meter    *meter;
 		struct widget_textview *textview;
 		struct widget_tooltip  *tooltip;
+		struct widget_select   *select;
 	} state;
 
 	/*
@@ -224,6 +232,11 @@ bool widget_coordinates_yx(struct widget *w, int *w_abs_y, int *w_abs_x);
 static inline bool widget_get(struct widget *w, enum widget_property prop, void *value)
 {
 	return (w->getter) ? w->getter(w, prop, value) : false;
+}
+
+static inline bool widget_get_index(struct widget *w, enum widget_property prop, int index, void *value)
+{
+	return (w->getter_index) ? w->getter_index(w, prop, index, value) : false;
 }
 
 static inline bool widget_set(struct widget *w, enum widget_property prop, const void *value)
@@ -252,6 +265,9 @@ struct widget *make_input(const wchar_t *placeholder);
 struct widget *make_input_password(const wchar_t *placeholder);
 struct widget *make_meter(int total);
 struct widget *make_tooltip(const wchar_t *line);
+
+struct widget *make_select(int max_selected, int view_rows);
+bool make_select_option(struct widget *select, const wchar_t *item);
 
 struct widget *make_border(void);
 struct widget *make_border_vbox(struct widget *parent);

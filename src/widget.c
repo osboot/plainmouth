@@ -113,6 +113,7 @@ const char *widget_type(struct widget *w)
 		[WIDGET_VBOX]    = "vbox",
 		[WIDGET_HBOX]    = "hbox",
 		[WIDGET_TOOLTIP] = "tooltip",
+		[WIDGET_SELECT]  = "select",
 	};
 	return _widget_type[w->type];
 }
