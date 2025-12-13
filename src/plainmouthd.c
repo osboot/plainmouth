@@ -401,6 +401,7 @@ static int ui_process_task_create(struct ui_task *t)
 					"RESPDATA %s ERR=unable to create instance",
 					req_id(&t->req));
 			free(wnew);
+			return -1;
 		}
 
 		wnew->panel = new_panel(wnew->root->win);
