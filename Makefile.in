@@ -52,6 +52,7 @@ COMMON_SRC  = src/ipc.c src/request.c src/plugin.c \
 	      src/widget_label.c \
 	      src/widget_meter.c \
 	      src/widget_select.c \
+	      src/widget_spinbox.c \
 	      src/widget_textview.c \
 	      src/widget_tooltip.c \
 	      src/widget_vbox.c \

@@ -114,6 +114,7 @@ const char *widget_type(struct widget *w)
 		[WIDGET_HBOX]    = "hbox",
 		[WIDGET_TOOLTIP] = "tooltip",
 		[WIDGET_SELECT]  = "select",
+		[WIDGET_SPINBOX] = "spinbox",
 	};
 	return _widget_type[w->type];
 }

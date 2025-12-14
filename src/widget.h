@@ -79,6 +79,7 @@ enum widget_type {
 	WIDGET_HBOX,
 	WIDGET_TOOLTIP,
 	WIDGET_SELECT,
+	WIDGET_SPINBOX,
 };
 
 struct widget;
@@ -105,6 +106,7 @@ enum widget_property {
 	PROP_SELECT_OPTIONS_SIZE,
 	PROP_SELECT_OPTION_VALUE,
 	PROP_SELECT_CURSOR,
+	PROP_SPINBOX_VALUE,
 };
 
 typedef bool (*setter_fn)(struct widget *, enum widget_property, const void *);
@@ -117,9 +119,10 @@ struct widget_button;
 struct widget_input;
 struct widget_label;
 struct widget_meter;
+struct widget_select;
+struct widget_spinbox;
 struct widget_textview;
 struct widget_tooltip;
-struct widget_select;
 
 enum widget_flags {
 	FLAG_NONE    = 0, // Nothing has been set
@@ -208,9 +211,10 @@ struct widget {
 		struct widget_input    *input;
 		struct widget_label    *label;
 		struct widget_meter    *meter;
+		struct widget_select   *select;
+		struct widget_spinbox  *spinbox;
 		struct widget_textview *textview;
 		struct widget_tooltip  *tooltip;
-		struct widget_select   *select;
 	} state;
 
 	/*
@@ -265,6 +269,7 @@ struct widget *make_input(const wchar_t *placeholder);
 struct widget *make_input_password(const wchar_t *placeholder);
 struct widget *make_meter(int total);
 struct widget *make_tooltip(const wchar_t *line);
+struct widget *make_spinbox(int min, int max, int step, int initial, int width);
 
 struct widget *make_select(int max_selected, int view_rows);
 bool make_select_option(struct widget *select, const wchar_t *item);
