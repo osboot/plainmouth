@@ -164,7 +164,7 @@ bool input_getter(struct widget *w, enum widget_property prop, void *value)
 	return false;
 }
 
-struct widget *make_input(const wchar_t *placeholder)
+struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder)
 {
 	struct widget *w = widget_create(WIDGET_INPUT);
 	if (!w)
@@ -177,8 +177,14 @@ struct widget *make_input(const wchar_t *placeholder)
 		return NULL;
 	}
 
+	if (initdata) {
+		state->text = wcsdup(initdata);
+		state->len = wcslen(initdata);
+		state->cap = state->len;
+	}
+
 	if (placeholder)
-		w->state.input->placeholder = wcsdup(placeholder);
+		state->placeholder = wcsdup(placeholder);
 
 	w->state.input = state;
 	w->measure     = input_measure;
@@ -201,9 +207,9 @@ struct widget *make_input(const wchar_t *placeholder)
 	return w;
 }
 
-struct widget *make_input_password(const wchar_t *placeholder)
+struct widget *make_input_password(const wchar_t *initdata, const wchar_t *placeholder)
 {
-	struct widget *w = make_input(placeholder);
+	struct widget *w = make_input(initdata, placeholder);
 	if (w) {
 		w->state.input->force_chr = L'*';
 	}

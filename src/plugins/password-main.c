@@ -61,7 +61,7 @@ static struct widget *p_pass_create(struct request *req)
 
 	wchar_t *placeholder __free(ptr) = req_get_wchars(req, "placeholder");
 
-	struct widget *input = make_input_password(placeholder);
+	struct widget *input = make_input_password(NULL, placeholder);
 	if (!input) {
 		warnx("unable to create input");
 		widget_free(root);
