@@ -36,6 +36,7 @@ enum ui_task_type {
 	UI_TASK_SHOW_SPLASH,
 	UI_TASK_HIDE_SPLASH,
 	UI_TASK_SET_TITLE,
+	UI_TASK_SET_STYLE,
 };
 
 struct ui_task {
@@ -549,6 +550,87 @@ static int ui_process_task_set_title(struct ui_task *t)
 	return 0;
 }
 
+static bool convert_color(struct request *req, const char *color, int *cnum)
+{
+	static const char *builtin_colors[8] = {
+		[COLOR_BLACK]   = "black",
+		[COLOR_RED]     = "red",
+		[COLOR_GREEN]   = "green",
+		[COLOR_YELLOW]  = "yellow",
+		[COLOR_BLUE]    = "blue",
+		[COLOR_MAGENTA] = "magenta",
+		[COLOR_CYAN]    = "cyan",
+		[COLOR_WHITE]   = "white",
+	};
+	int num;
+
+	if (!color) {
+		ipc_send_string(req_fd(req), "RESPDATA %s ERR=missing color name",
+				req_id(req));
+		return false;
+	}
+
+	for (num = 0; num < 8; num++)
+		if (builtin_colors[num] && streq(color, builtin_colors[num]))
+			goto has_number;
+
+	if (streq(color, "default")) {
+		num = -1;
+		goto has_number;
+	}
+
+	if (strlen(color) > 5 && strneq("color", color, 5)) {
+		num = atoi(color + 5);
+		goto has_number;
+	}
+
+	ipc_send_string(req_fd(req), "RESPDATA %s ERR=unknown color name: %s",
+			req_id(req), color);
+	return false;
+
+has_number:
+	if (num >= COLORS) {
+		ipc_send_string(req_fd(req), "RESPDATA %s ERR=color out of range: %s",
+				req_id(req), color);
+		return false;
+	}
+
+	*cnum = num;
+	return true;
+}
+
+static int ui_process_task_set_style(struct ui_task *t)
+{
+	const char *name, *fg_name, *bg_name;
+	int pair, fg, bg;
+
+	name    = req_get_val(&t->req, "name");
+	fg_name = req_get_val(&t->req, "fg");
+	bg_name = req_get_val(&t->req, "bg");
+
+	if (streq(name, "main"))        pair = COLOR_PAIR_MAIN;
+	else if (streq(name, "window")) pair = COLOR_PAIR_WINDOW;
+	else if (streq(name, "button")) pair = COLOR_PAIR_BUTTON;
+	else if (streq(name, "focus"))  pair = COLOR_PAIR_FOCUS;
+	else {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unknown style: %s",
+				req_id(&t->req), name);
+		return -1;
+	}
+
+	if (!convert_color(&t->req, fg_name, &fg) ||
+	    !convert_color(&t->req, bg_name, &bg))
+		return -1;
+
+	if (init_extended_pair(pair, fg, bg) == ERR) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unable to update color pair",
+				req_id(&t->req));
+		return -1;
+	}
+
+	return 0;
+}
+
 static int ui_process_task_unknown(struct ui_task *t)
 {
 	ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unknown action",
@@ -582,6 +664,7 @@ static void ui_process_tasks(void)
 			case UI_TASK_SHOW_SPLASH:	rc = ui_process_task_show_splash(t);	break;
 			case UI_TASK_HIDE_SPLASH:	rc = ui_process_task_hide_splash(t);	break;
 			case UI_TASK_SET_TITLE:		rc = ui_process_task_set_title(t);	break;
+			case UI_TASK_SET_STYLE:		rc = ui_process_task_set_style(t);	break;
 			case UI_TASK_NONE:		rc = ui_process_task_unknown(t);	break;
 		}
 
@@ -675,17 +758,24 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 	else if (streq(action, "show-splash"))	ttype = UI_TASK_SHOW_SPLASH;
 	else if (streq(action, "hide-splash"))	ttype = UI_TASK_HIDE_SPLASH;
 	else if (streq(action, "set-title"))	ttype = UI_TASK_SET_TITLE;
+	else if (streq(action, "set-style"))	ttype = UI_TASK_SET_STYLE;
 	else {
 		ipc_send_string(req_fd(&req), "RESPDATA %s ERR=unknown action", req_id(&req));
 		return -1;
 	}
 
-	if (ttype != UI_TASK_SHOW_SPLASH && ttype != UI_TASK_HIDE_SPLASH && ttype != UI_TASK_SET_TITLE) {
-		const char *instance_id = req_get_val(&req, "id");
-		if (!instance_id) {
-			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: id", req_id(&req));
-			return -1;
-		}
+	switch (ttype) {
+		case UI_TASK_SHOW_SPLASH:
+		case UI_TASK_HIDE_SPLASH:
+		case UI_TASK_SET_TITLE:
+		case UI_TASK_SET_STYLE:
+			break;
+		default:
+			if (!req_get_val(&req, "id")) {
+				ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: id", req_id(&req));
+				return -1;
+			}
+			break;
 	}
 
 	struct ui_task *t = ui_task_create(ttype, &req);
