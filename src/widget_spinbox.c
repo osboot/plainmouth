@@ -70,7 +70,7 @@ void spinbox_render(struct widget *w)
 
 void spinbox_free(struct widget *w)
 {
-	if (w && w->state.spinbox)
+	if (w->state.spinbox)
 		free(w->state.spinbox);
 }
 
