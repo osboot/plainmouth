@@ -10,16 +10,19 @@ PROGS =
 PLUGINS =
 GARBAGE =
 
-PTHREAD_CFLAGS = @PTHREAD_CFLAGS@
-PTHREAD_LIBS   = @PTHREAD_LIBS@
-
-NCURSES_CFLAGS := @NCURSES_CFLAGS@
-NCURSES_LIBS := @NCURSES_LIBS@
-
-PANEL_CFLAGS := @PANEL_CFLAGS@
-PANEL_LIBS := @PANEL_LIBS@
+bindir     = @bindir@
+libdir     = @libdir@
+libexecdir = @libexecdir@
+pluginsdir = @libexecdir@/@PACKAGE_NAME@
 
 PLUGINSDIR := $(CURDIR)/plugins
+
+PTHREAD_CFLAGS := @PTHREAD_CFLAGS@
+PTHREAD_LIBS   := @PTHREAD_LIBS@
+NCURSES_CFLAGS := @NCURSES_CFLAGS@
+NCURSES_LIBS   := @NCURSES_LIBS@
+PANEL_CFLAGS   := @PANEL_CFLAGS@
+PANEL_LIBS     := @PANEL_LIBS@
 
 WARNINGS = \
 	-Wall -W -Waggregate-return -Wconversion -Wdisabled-optimization \
@@ -32,14 +35,14 @@ CPPFLAGS = \
 	-std=gnu99 -D_GNU_SOURCE -I$(CURDIR)/src \
 	-DPACKAGE_NAME=\"$(PACKAGE_NAME)\" \
 	-DPACKAGE_VERSION=\"$(PACKAGE_VERSION)\" \
-	-DPLUGINSDIR=\"$(PLUGINSDIR)\" \
+	-DPLUGINSDIR=\"$(pluginsdir)\" \
 	#
 
 CFLAGS = -g -O0 -fPIC $(if $(DEBUG),-DDEBUG)
 CFLAGS += $(PTHREAD_CFLAGS) $(NCURSES_CFLAGS) $(PANEL_CFLAGS)
 
 override CFLAGS := $(WARNINGS) $(CFLAGS)
-LDLIBS = -Wl,-rpath,'$$ORIGIN'
+LDLIBS =
 
 COMMON_SO   = libplainmouth.so
 COMMON_SRC  = src/ipc.c src/request.c src/plugin.c \
@@ -78,9 +81,10 @@ PLUGINS = $(basename $(notdir $(wildcard src/plugins/*-main.c)))
 PLUGINS := $(PLUGINS:-main=)
 GARBAGE += $(PLUGINSDIR)
 
-quiet_cmd = $(if $(VERBOSE),$(3),$(Q)printf "  %-08s%s\n" "$(1)" $(2); $(3))
+quiet_cmd = $(if $(VERBOSE),$(3),$(Q)printf "  %-08s%s\n" "$(1)" "$(2)"; $(3))
 
 cmd_MKDIR = $(call quiet_cmd,MKDIR,$(patsubst $(CURDIR)/%,%,$(1))/,mkdir -p) -- $(1)
+cmd_COPY = $(call quiet_cmd,COPY,$(patsubst $(CURDIR)/%,%,$(1)),cp -a) -- $(1) $(2)
 cmd_LINK  = $(call quiet_cmd,LD,$(patsubst $(CURDIR)/%,%,$@),$(LINK.o)) $(1) $(LOADLIBES) $(LDLIBS) -o $@
 
 .PHONY: all clean
@@ -156,3 +160,13 @@ tests/%.chk: tests/%
 
 check: $(addsuffix .chk,$(TESTS))
 	@ret=0; ! grep -qsx fail -- $^ || ret=1; $(RM) -- $^; exit $$ret;
+
+.PHONY: install
+
+install: $(TARGETS)
+	$(call cmd_MKDIR,$(DESTDIR)$(bindir))
+	$(call cmd_MKDIR,$(DESTDIR)$(libdir))
+	$(call cmd_MKDIR,$(DESTDIR)$(pluginsdir))
+	$(call cmd_COPY,$(PROGS),$(DESTDIR)$(bindir))
+	$(call cmd_COPY,$(COMMON_SO),$(DESTDIR)$(libdir))
+	$(call cmd_COPY,$(PLUGINSDIR)/*.so,$(DESTDIR)$(pluginsdir))

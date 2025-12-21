@@ -4,6 +4,8 @@ progname="$(readlink -f "$0")"
 testsdir="${progname%/*}"
 topdir="${testsdir%/*}"
 
+export LD_LIBRARY_PATH="$topdir"
+
 export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock}"
 export PLAINMOUTH_PLUGINSDIR="$topdir/plugins"
 
