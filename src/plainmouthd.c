@@ -879,6 +879,7 @@ int main(int argc, char **argv)
 {
 	int c, r, retcode;
 	const char *socket_file = NULL;
+	const char *pluginsdir = NULL;
 
 	while ((c = getopt_long(argc, argv, cmdopts_s, cmdopts, NULL)) != -1) {
 		switch (c) {
@@ -918,7 +919,12 @@ int main(int argc, char **argv)
 
 	retcode = EXIT_SUCCESS;
 
-	load_plugins(PLUGINSDIR);
+	pluginsdir = getenv("PLAINMOUTH_PLUGINSDIR");
+
+	if (!pluginsdir || !*pluginsdir)
+		pluginsdir = PLUGINSDIR;
+
+	load_plugins(pluginsdir);
 
 	pthread_attr_t attr;
 

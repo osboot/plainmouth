@@ -1,6 +1,11 @@
 #!/bin/sh -efu
 
+progname="$(readlink -f "$0")"
+testsdir="${progname%/*}"
+topdir="${testsdir%/*}"
+
 export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock}"
+export PLAINMOUTH_PLUGINSDIR="$topdir/plugins"
 
 valgrind_prog="$(type -p valgrind)"
 
