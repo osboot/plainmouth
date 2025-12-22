@@ -36,7 +36,7 @@ static struct widget *p_meter_create(struct request *req)
 
 	struct widget *parent = root;
 
-	if (req_get_bool(req, "border", true)) {
+	if (req_get_bool(req, "border", false)) {
 		struct widget *border = make_border_hbox(parent);
 		parent = border;
 	}

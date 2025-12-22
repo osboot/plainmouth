@@ -27,7 +27,7 @@ plainmouthd -S /tmp/plainmouth.sock --debug-file=/tmp/server.log
 Create a message box:
 
 ```sh
-plainmouth plugin=msgbox action=create id=example \
+plainmouth plugin=msgbox action=create id=example width=30 height=7 border=true \
   text="Important message." \
   button="OK" \
   button="Cancel"
@@ -39,7 +39,8 @@ plainmouth --quit
 Create a password prompt:
 
 ```sh
-plainmouth plugin=password action=create id=pass1 x=1 y=1 text="Enter password:"
+plainmouth plugin=password action=create id=pass1 width=30 height=3 border=true \
+  label="Enter password:"
 plainmouth action=wait-result id=pass1
 plainmouth --quit
 ```

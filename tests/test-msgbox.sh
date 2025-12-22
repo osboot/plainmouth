@@ -1,10 +1,16 @@
 #!/bin/sh -efu
 
+progname="$(readlink -f "$0")"
+testsdir="${progname%/*}"
+topdir="${testsdir%/*}"
+
+export LD_LIBRARY_PATH="$topdir"
+
 export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock}"
 
 ./plainmouth action=set-title message="Unknown linux"
 
-./plainmouth plugin=msgbox action=create id=w1 width=40 height=7 \
+./plainmouth plugin=msgbox action=create id=w1 width=40 height=7 border=true \
 	text="ВАЖНО!
 тут какое-то важное сообщение." \
 	button="OK" \

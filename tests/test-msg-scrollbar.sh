@@ -1,9 +1,15 @@
 #!/bin/sh -efu
 
+progname="$(readlink -f "$0")"
+testsdir="${progname%/*}"
+topdir="${testsdir%/*}"
+
+export LD_LIBRARY_PATH="$topdir"
+
 export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock}"
 
 ./plainmouth plugin=msgbox action=create id=w1 \
-	height=30 width=100 \
+	height=30 width=100 border=true \
 	text="00 When I find my code in tons of trouble
 01 Friends and colleagues come to me
 02 Speaking words of wisdom

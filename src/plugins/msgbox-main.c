@@ -33,7 +33,7 @@ static struct widget *p_msgbox_create(struct request *req)
 
 	struct widget *parent = root;
 
-	if (req_get_bool(req, "border", true)) {
+	if (req_get_bool(req, "border", false)) {
 		struct widget *border = make_border_vbox(parent);
 		parent = border;
 	}
