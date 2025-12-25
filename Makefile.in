@@ -99,13 +99,16 @@ all: $(TARGETS)
 clean:
 	$(Q)$(RM) -r -- $(GARBAGE)
 
+plugins: Makefile
+	$(call cmd_MKDIR,$(PLUGINSDIR))
+
 %.o: %.c
 	$(call quiet_cmd,CC,$<,$(COMPILE.c)) $(CFLAGS) $(OUTPUT_OPTION) $<
 
 $(COMMON_SO): Makefile $(COMMON_OBJ)
 	$(call quiet_cmd,LD,$@,$(CC) -shared -o $@ $(COMMON_OBJ)) $(COMMON_LIBS)
 
-plainmouthd: Makefile $(COMMON_SO) $(OBJ_plainmouthd)
+plainmouthd: Makefile $(COMMON_SO) $(OBJ_plainmouthd) plugins
 	$(call cmd_LINK,$(OBJ_plainmouthd)) $(LIB_plainmouthd)
 
 plainmouth:  Makefile $(COMMON_SO) $(OBJ_plainmouth)
@@ -113,19 +116,21 @@ plainmouth:  Makefile $(COMMON_SO) $(OBJ_plainmouth)
 
 ### Plugins
 
-PLUGINS_SRC = $(wildcard src/plugins/*.c)
-PLUGINS_OBJ = $(PLUGINS_SRC:.c=.o)
+PLUGINS_LIBS  = -shared -ldl $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
+PLUGINS_SRC   = $(wildcard src/plugins/*.c)
+PLUGINS_OBJ   = $(PLUGINS_SRC:.c=.o)
+PLUGINS_NAMES = $(patsubst src/plugins/%-main.c,%,$(PLUGINS_SRC))
 GARBAGE += $(PLUGINS_OBJ)
 
-.PHONY: plugins-dest plugins-objs
+plugin_objs = $(filter src/plugins/$(1)-%.o,$(PLUGINS_OBJ))
 
-plugins-dest: Makefile plugins-objs
-	$(call cmd_MKDIR,$(PLUGINSDIR))
+define build_plugin =
+$(PLUGINSDIR)/$(1).so: $$(call plugin_objs,$(1))
+	$$(call cmd_LINK,$$^) $(PLUGINS_LIBS)
+endef
 
-plugins-objs: $(PLUGINS_OBJ) $(COMMON_SO)
-
-$(PLUGINSDIR)/%.so: plugins-dest plugins-objs
-	$(call cmd_LINK,$(wildcard src/plugins/$*-*.o)) -shared -ldl $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
+$(foreach n,$(PLUGINS_NAMES),\
+	$(eval $(call build_plugin,$(n))))
 
 ### Tests
 
