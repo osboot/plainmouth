@@ -909,9 +909,9 @@ static void handle_tasks(void)
 	ui_process_tasks();
 }
 
-static void curses_init(void)
+static void curses_init(FILE *inf, FILE *outf)
 {
-	scr = newterm(NULL, stdout, stdin);
+	scr = newterm(NULL, outf, inf);
 	if (!scr)
 		errx(EXIT_FAILURE, "newterm failed");
 
@@ -956,6 +956,7 @@ static void *thread_connection(void *arg)
 int main(int argc, char **argv)
 {
 	int c, r, retcode;
+	const char *tty_file = NULL;
 	const char *socket_file = NULL;
 	const char *pluginsdir = NULL;
 
@@ -965,6 +966,7 @@ int main(int argc, char **argv)
 				debug_file = optarg;
 				break;
 			case 2:		// --tty=TTYDevice
+				tty_file = optarg;
 				break;
 			case 'S':	// --socket-file=Filename
 				socket_file = optarg;
@@ -987,6 +989,16 @@ int main(int argc, char **argv)
 
 	if (debug_file)
 		stderr = freopen(debug_file, "w", stderr);
+
+	FILE *outf = stdout;
+	FILE *inf  = stdin;
+
+	if (tty_file && *tty_file) {
+		FILE *tty = fopen(tty_file, "w+");
+		if (!tty)
+			err(EXIT_FAILURE, "unable to open terminal device: %s", tty_file);
+		inf = outf = tty;
+	}
 
 	setlocale(LC_ALL, "");
 	setlocale(LC_CTYPE, "");
@@ -1022,7 +1034,7 @@ int main(int argc, char **argv)
 	ctx.event_loop_iter = event_loop_iter;
 	ctx.handle_message = handle_message;
 
-	curses_init();
+	curses_init(inf, outf);
 	//atexit(curses_finish);
 
 	ipc_listen(&ctx, socket_file, 42, 0);
@@ -1040,7 +1052,7 @@ int main(int argc, char **argv)
 			.events = POLLIN,
 		},
 		[POLL_STDIN] = {
-			.fd = fileno(stdin),
+			.fd = fileno(inf),
 			.events = POLLIN,
 		},
 		[POLL_EVENTFD] = {
