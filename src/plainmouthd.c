@@ -10,6 +10,7 @@
 #include <locale.h>
 #include <getopt.h>
 #include <poll.h>
+#include <wchar.h>
 #include <errno.h>
 #include <error.h>
 #include <err.h>
@@ -28,6 +29,7 @@
  */
 enum ui_task_type {
 	UI_TASK_NONE = 0,
+	UI_TASK_DUMP,
 	UI_TASK_CREATE,
 	UI_TASK_UPDATE,
 	UI_TASK_DELETE,
@@ -631,6 +633,80 @@ static int ui_process_task_set_style(struct ui_task *t)
 	return 0;
 }
 
+static int ui_process_task_dump(struct ui_task *t)
+{
+	if (!pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
+
+	struct instance *instance = ui_get_instance_by_id(t);
+	if (!instance)
+		return -1;
+
+	const char *outfile = req_get_val(&t->req, "filename");
+	if (!outfile)
+		outfile = "/tmp/plainmouthd.dump";
+
+	int x, y, w, h;
+	getmaxyx(instance->root->win, h, w);
+
+	FILE *fd = fopen(outfile, "a");
+
+	fputc('+', fd);
+	for (x = 0; x < w; x++)
+		fputc('-', fd);
+	fputc('+', fd);
+	fputc('\n', fd);
+
+	for (y = 0; y < h; y++) {
+		fputc('|', fd);
+
+		for (x = 0; x < w; x++) {
+			cchar_t cc;
+
+			if (mvwin_wch(instance->root->win, y, x, &cc) == ERR) {
+				fputc('?', fd);
+				continue;
+			}
+
+			attr_t attrs;
+			short pair;
+			wchar_t wc[CCHARW_MAX + 2];
+
+			if (getcchar(&cc, wc, &attrs, &pair, NULL) == OK && wc[0] != L'\0') {
+				if (attrs & A_ALTCHARSET) {
+					switch (wc[0]) {
+						case 'q': wc[0] = L'─'; break; /* ACS_HLINE */
+						case 'x': wc[0] = L'│'; break; /* ACS_VLINE */
+						case 'l': wc[0] = L'┌'; break;
+						case 'k': wc[0] = L'┐'; break;
+						case 'm': wc[0] = L'└'; break;
+						case 'j': wc[0] = L'┘'; break;
+						default:  wc[0] = L'#'; break;
+					}
+					wc[1] = L'\0';
+				}
+			} else {
+				wc[0] = L' ';
+				wc[1] = L'\0';
+			}
+			fprintf(fd, "%ls", wc);
+		}
+
+		fputc('|', fd);
+		fputc('\n', fd);
+	}
+
+	fputc('+', fd);
+	for (x = 0; x < w; x++)
+		fputc('-', fd);
+	fputc('+', fd);
+	fputc('\n', fd);
+
+	fclose(fd);
+
+	return 0;
+}
+
 static int ui_process_task_unknown(struct ui_task *t)
 {
 	ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unknown action",
@@ -656,6 +732,7 @@ static void ui_process_tasks(void)
 		struct ui_task *next = TAILQ_NEXT(t, entries);
 
 		switch (t->type) {
+			case UI_TASK_DUMP:		rc = ui_process_task_dump(t);		break;
 			case UI_TASK_CREATE:		rc = ui_process_task_create(t);		break;
 			case UI_TASK_UPDATE:		rc = ui_process_task_update(t);		break;
 			case UI_TASK_DELETE:		rc = ui_process_task_delete(t);		break;
@@ -759,6 +836,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 	else if (streq(action, "hide-splash"))	ttype = UI_TASK_HIDE_SPLASH;
 	else if (streq(action, "set-title"))	ttype = UI_TASK_SET_TITLE;
 	else if (streq(action, "set-style"))	ttype = UI_TASK_SET_STYLE;
+	else if (streq(action, "dump"))		ttype = UI_TASK_DUMP;
 	else {
 		ipc_send_string(req_fd(&req), "RESPDATA %s ERR=unknown action", req_id(&req));
 		return -1;
