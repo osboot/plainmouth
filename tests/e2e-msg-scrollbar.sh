@@ -1,16 +1,18 @@
 #!/bin/sh -efu
 
-progname="$(readlink -f "$0")"
-testsdir="${progname%/*}"
-topdir="${testsdir%/*}"
+progfile="$(readlink -f "$0")"
+testsdir="${progfile%/*}"
 
-export LD_LIBRARY_PATH="$topdir"
+. "$testsdir"/init-test
 
-export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock}"
+current_dump="/tmp/plainmouth-$$.dump"
+logfile="$testsdir/$progname.log"
 
-./plainmouth plugin=msgbox action=create id=w1 \
-	height=30 width=100 border=true \
-	text="00 When I find my code in tons of trouble
+draw_testcase()
+{
+	"$topdir"/plainmouth plugin=msgbox action=create id=w1 \
+		height=30 width=100 border=true \
+		text="00 When I find my code in tons of trouble
 01 Friends and colleagues come to me
 02 Speaking words of wisdom
 03 Write in C
@@ -72,8 +74,24 @@ export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock}"
 " \
 	button="OK" \
 	button="Cancel"
+}
 
-./plainmouth action=wait-result id=w1
+testcase_view()
+{
+	draw_testcase
+	"$topdir"/plainmouth action=wait-result id=w1
+	"$topdir"/plainmouth --quit
+}
 
-./plainmouth action=delete id=w1
-./plainmouth --quit
+testcase_dump()
+{
+	draw_testcase
+	"$topdir"/plainmouth action=dump id=w1 filename="$current_dump"
+	"$topdir"/plainmouth --quit
+}
+
+exec 2>"$logfile"
+run_test "testcase_${MODE:-dump}" &
+run_server
+verify_dump "$current_dump"
+clear_testdata "$current_dump"

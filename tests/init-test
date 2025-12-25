@@ -1,0 +1,52 @@
+#!/bin/sh -efu
+
+progfile="$(readlink -f "$0")"
+progname="${progfile##*/}"
+testsdir="${progfile%/*}"
+topdir="${testsdir%/*}"
+
+MODE="${MODE:-dump}"
+
+export LD_LIBRARY_PATH="$topdir"
+export PLAINMOUTH_PLUGINSDIR="$topdir/plugins"
+export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock.$$}"
+
+run_test()
+{
+	local i=0
+	while [ ! -e "$PLAINMOUTH_SOCKET" ] || ! "$topdir"/plainmouth --ping 2>/dev/null; do
+		[ $i -lt 600 ] ||
+			break
+		i=$(( $i + 1 ))
+		sleep 0.1
+	done
+	"$@"
+}
+
+run_server()
+{
+	case "${MODE-dump}" in
+		dump)
+			"$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET" \
+				--debug-file="$testsdir/$progname-server.log" \
+				< /dev/null > /dev/null
+			;;
+		view)
+			"$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET"
+			;;
+	esac
+	wait
+}
+
+verify_dump()
+{
+	[ "${MODE-dump}" = dump ] ||
+		return 0
+
+	diff -u "$testsdir/expected-${progname%.sh}" "$1"
+}
+
+clear_testdata()
+{
+	rm -f -- "$PLAINMOUTH_SOCKET" "$@"
+}

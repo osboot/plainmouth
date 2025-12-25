@@ -145,8 +145,14 @@ TESTS := $(sort $(basename \
 	$(wildcard tests/ipc/ipc_*.c) \
 	$(wildcard tests/warray/warray_*.c) \
 ))
+TESTS_E2E := $(sort $(basename \
+	$(wildcard tests/e2e-*.sh) \
+))
 
-GARBAGE += $(TESTS) $(addsuffix .chk,$(TESTS)) $(addsuffix .log,$(TESTS))
+GARBAGE += $(TESTS) \
+	$(wildcard tests/*.chk) \
+	$(wildcard tests/*.chk.e2e) \
+	$(wildcard tests/*.log)
 
 .NOTINTERMEDIATE: $(TESTS)
 
@@ -163,7 +169,12 @@ tests/%.chk: tests/%
 	flock -x $(CURDIR)/tests printf '%4s %s\n' "$$status" "$<"; \
 	echo $$status > $@
 
-check: $(addsuffix .chk,$(TESTS))
+tests/%.chk.e2e: tests/%.sh $(TARGETS)
+	@timeout -s KILL 5s "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \
+	flock -x $(CURDIR)/tests printf '%4s %s\n' "$$status" "$<"; \
+	echo $$status > $@
+
+check: $(addsuffix .chk,$(TESTS)) $(addsuffix .chk.e2e,$(TESTS_E2E))
 	@ret=0; ! grep -qsx fail -- $^ || ret=1; $(RM) -- $^; exit $$ret;
 
 .PHONY: install

@@ -14,6 +14,7 @@ config.status
 configure
 plainmouth
 plainmouthd
+tests/*.log
 tests/*/*.log
 tests/ipc/ipc_command_processing
 tests/ipc/ipc_handle_key_value_pairs
@@ -24,3 +25,4 @@ tests/ipc/ipc_recv_timeout
 tests/ipc/ipc_send_and_receive
 tests/ipc/ipc_send_key_value_pairs
 tests/ncurses-leaks/panel
+tests/warray/warray_test
