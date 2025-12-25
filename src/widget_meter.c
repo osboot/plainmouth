@@ -56,7 +56,7 @@ void meter_render(struct widget *w)
 	/* filled area */
 	wattron(w->win, A_REVERSE);
 	for (int i = 0; i < filled; i++)
-		mvwaddch(w->win, 0, i, ' ');
+		mvwaddch(w->win, 0, i, ACS_CKBOARD);
 	wattroff(w->win, A_REVERSE);
 
 	show_percent(w->win, state);
