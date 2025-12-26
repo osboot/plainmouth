@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-#ifndef _IPC_H_
-#define _IPC_H_
+#ifndef _PLAINMOUTH_IPC_H_
+#define _PLAINMOUTH_IPC_H_
 
 #include <sys/socket.h>
 #include <sys/queue.h>
@@ -89,4 +89,4 @@ void ipc_free_token(struct ipc_token *tok)              __attribute__((nonnull(1
 ssize_t ipc_recv_data(int fd, char *buf, size_t sz)                __attribute__((nonnull(2)));
 ssize_t ipc_recv_token(struct ipc_ctx *ctx, struct ipc_token *tok) __attribute__((nonnull(1, 2)));
 
-#endif /* _IPC_H_ */
+#endif /* _PLAINMOUTH_IPC_H_ */
