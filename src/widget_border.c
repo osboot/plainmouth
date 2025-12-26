@@ -5,6 +5,7 @@
  * plugin decides to surround certain elements with a border, it is better to
  * see this explicitly.
  */
+#include "config.h"
 
 #include <sys/queue.h>
 #include <unistd.h>

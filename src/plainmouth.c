@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include "config.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -51,9 +52,9 @@ static void __attribute__((noreturn))
 print_version(const char *progname)
 {
 	printf("%s version " PACKAGE_VERSION "\n"
-	       "Written by Alexey Gladkov <gladkov.alexey@gmail.com>\n"
+	       "Written by Alexey Gladkov <" PACKAGE_BUGREPORT ">\n"
 	       "\n"
-	       "Copyright (C) 2025  Alexey Gladkov <gladkov.alexey@gmail.com>\n"
+	       "Copyright (C) 2025  Alexey Gladkov <" PACKAGE_BUGREPORT ">\n"
 	       "This is free software; see the source for copying conditions.  There is NO\n"
 	       "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"
 	       "\n",

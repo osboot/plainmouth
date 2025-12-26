@@ -32,9 +32,7 @@ WARNINGS = \
 	#
 
 CPPFLAGS = \
-	-std=gnu99 -D_GNU_SOURCE -I$(CURDIR)/src \
-	-DPACKAGE_NAME=\"$(PACKAGE_NAME)\" \
-	-DPACKAGE_VERSION=\"$(PACKAGE_VERSION)\" \
+	-std=gnu99 -D_GNU_SOURCE -I$(CURDIR) -I$(CURDIR)/src \
 	-DPLUGINSDIR=\"$(pluginsdir)\" \
 	#
 

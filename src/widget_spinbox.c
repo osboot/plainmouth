@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include "config.h"
 
 #include <sys/cdefs.h>
 #include <sys/queue.h>
