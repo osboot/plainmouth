@@ -1,4 +1,5 @@
 #!/bin/sh -efu
+# SPDX-License-Identifier: GPL-2.0-or-later
 
 progname="$(readlink -f "$0")"
 testsdir="${progname%/*}"
@@ -20,4 +21,4 @@ run()
 	exec "$@"
 }
 
-run ./plainmouthd -S "$PLAINMOUTH_SOCKET" --debug-file=/tmp/server.log
+run "$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET" --debug-file=/tmp/server.log
