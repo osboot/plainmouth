@@ -24,7 +24,6 @@ struct plugin {
 	struct widget *(*p_create_instance)(struct request *req);
 	enum p_retcode (*p_delete_instance)(struct widget *root);
 	enum p_retcode (*p_update_instance)(struct request *req, struct widget *root);
-	enum p_retcode (*p_input)(struct widget *w, wchar_t code);
 	bool (*p_finished)(struct widget *root);
 	enum p_retcode (*p_result)(struct request *req, struct widget *root);
 	enum p_retcode (*p_plugin_free)(void);

@@ -104,6 +104,5 @@ struct plugin plugin = {
 	.p_delete_instance = NULL,
 	.p_update_instance = p_meter_update,
 	.p_finished        = p_meter_finished,
-	.p_input           = NULL,
 	.p_result          = NULL,
 };

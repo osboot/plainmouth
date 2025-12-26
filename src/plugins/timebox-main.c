@@ -194,7 +194,6 @@ struct plugin plugin = {
 	.p_create_instance = p_timebox_create,
 	.p_delete_instance = NULL,
 	.p_update_instance = NULL,
-	.p_input           = NULL,
 	.p_finished        = p_timebox_finished,
 	.p_result          = p_timebox_result,
 };

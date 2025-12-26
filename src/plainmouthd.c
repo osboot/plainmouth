@@ -426,11 +426,7 @@ static int ui_process_task_create(struct ui_task *t)
 	pthread_mutex_lock(&instances_mutex);
 
 	use_instance_widgets(wnew, wnew->root);
-
-	if (plugin->p_input)
-		TAILQ_INSERT_HEAD(&instances, wnew, entries);
-	else
-		TAILQ_INSERT_TAIL(&instances, wnew, entries);
+	TAILQ_INSERT_TAIL(&instances, wnew, entries);
 
 	pthread_mutex_unlock(&instances_mutex);
 

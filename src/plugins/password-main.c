@@ -135,7 +135,6 @@ struct plugin plugin = {
 	.p_create_instance = p_pass_create,
 	.p_delete_instance = NULL,
 	.p_update_instance = NULL,
-	.p_input           = NULL,
 	.p_finished        = p_pass_finished,
 	.p_result          = p_pass_result,
 };

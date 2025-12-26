@@ -136,7 +136,6 @@ struct plugin plugin = {
 	.p_create_instance = p_msgbox_create,
 	.p_delete_instance = NULL,
 	.p_update_instance = NULL,
-	.p_input           = NULL,
 	.p_finished        = p_msgbox_finished,
 	.p_result          = p_msgbox_result,
 };

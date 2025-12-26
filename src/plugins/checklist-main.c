@@ -177,7 +177,6 @@ struct plugin plugin = {
 	.p_create_instance = p_checklist_create,
 	.p_delete_instance = NULL,
 	.p_update_instance = NULL,
-	.p_input           = NULL,
 	.p_finished        = p_checklist_finished,
 	.p_result          = p_checklist_result,
 };
