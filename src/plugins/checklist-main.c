@@ -169,6 +169,7 @@ static bool p_checklist_finished(struct widget *root)
 	return is_finished;
 }
 
+PLUGIN_EXPORT
 struct plugin plugin = {
 	.name              = "checklist",
 	.p_plugin_init     = NULL,

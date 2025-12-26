@@ -7,6 +7,8 @@
 
 #include "request.h"
 
+#define PLUGIN_EXPORT _PUBLIC _USED
+
 enum p_retcode {
 	P_RET_OK  = 0,
 	P_RET_ERR = 1,

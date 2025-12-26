@@ -127,6 +127,7 @@ static bool p_pass_finished(struct widget *root)
 	return is_finished;
 }
 
+PLUGIN_EXPORT
 struct plugin plugin = {
 	.name              = "password",
 	.p_plugin_init     = NULL,

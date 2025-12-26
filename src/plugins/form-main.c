@@ -210,6 +210,7 @@ static bool p_form_finished(struct widget *root)
 	return is_finished;
 }
 
+PLUGIN_EXPORT
 struct plugin plugin = {
 	.name              = "form",
 	.p_plugin_init     = NULL,

@@ -128,6 +128,7 @@ static bool p_msgbox_finished(struct widget *root)
 	return is_finished;
 }
 
+PLUGIN_EXPORT
 struct plugin plugin = {
 	.name              = "msgbox",
 	.p_plugin_init     = NULL,

@@ -19,7 +19,9 @@
 
 #define IS_DEBUG()	__is_defined(DEBUG)
 
-#define _UNUSED __attribute__((unused))
+#define _UNUSED		__attribute__((unused))
+#define _USED		__attribute__((used))
+#define _PUBLIC		__attribute__((__visibility__("default")))
 
 /*
  * Clang prior to 17 is being silly and considers many __cleanup() variables

@@ -95,6 +95,7 @@ static bool p_meter_finished(struct widget *root)
 	return false;
 }
 
+PLUGIN_EXPORT
 struct plugin plugin = {
 	.name              = "meter",
 	.p_plugin_init     = NULL,
