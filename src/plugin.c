@@ -15,26 +15,32 @@ LIST_HEAD(plugins, plugin);
 
 static struct plugins plugins = LIST_HEAD_INITIALIZER(plugins);
 
+static int plugin_filter(const struct dirent *ent)
+{
+	size_t len = strlen(ent->d_name);
+	if (len >= 4)
+		return streq(ent->d_name + (len - 3), ".so");
+	return 0;
+}
+
 bool load_plugins(const char *dirpath)
 {
-	char path[PATH_MAX];
-
 	if (IS_DEBUG())
 		warnx("loading plugins ...");
 
-	DIR *dir = opendir(dirpath);
-	if (!dir) {
-		warn("opendir");
+	struct dirent **namelist;
+
+	int n = scandir(dirpath, &namelist, plugin_filter, versionsort);
+	if (n < 0) {
+		warn("scandir");
 		return false;
 	}
 
-	struct dirent *ent;
+	while (n--) {
+		char path[PATH_MAX];
 
-	while ((ent = readdir(dir)) != NULL) {
-		if (!strstr(ent->d_name, ".so"))
-			continue;
-
-		snprintf(path, sizeof(path), "%s/%s", dirpath, ent->d_name);
+		snprintf(path, sizeof(path), "%s/%s", dirpath, namelist[n]->d_name);
+		free(namelist[n]);
 
 		void *handle = dlopen(path, RTLD_NOW);
 		if (!handle) {
@@ -62,8 +68,7 @@ bool load_plugins(const char *dirpath)
 		if (IS_DEBUG())
 			warnx("loaded plugin: %s", p->name);
 	}
-
-	closedir(dir);
+	free(namelist);
 
 	return true;
 }
