@@ -131,6 +131,7 @@ static bool p_msgbox_finished(struct widget *root)
 PLUGIN_EXPORT
 struct plugin plugin = {
 	.name              = "msgbox",
+	.desc              = "The plugin displays a message with one or more buttons at the bottom.",
 	.p_plugin_init     = NULL,
 	.p_plugin_free     = NULL,
 	.p_create_instance = p_msgbox_create,

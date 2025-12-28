@@ -18,6 +18,7 @@ struct plugin {
 	LIST_ENTRY(plugin) entries;
 
 	const char *name;
+	const char *desc;
 	void *dl_handle;
 
 	enum p_retcode (*p_plugin_init)(void);
@@ -33,5 +34,6 @@ bool load_plugins(const char *dirpath);
 void unload_plugins(void);
 
 struct plugin *find_plugin(const char *name);
+struct plugin *list_plugin(struct plugin *plug);
 
 #endif /* _PLAINMOUTH_PLUGIN_H_ */

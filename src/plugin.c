@@ -78,6 +78,13 @@ struct plugin *find_plugin(const char *name)
 	return NULL;
 }
 
+struct plugin *list_plugin(struct plugin *plug)
+{
+	if (!plug)
+		return LIST_FIRST(&plugins);
+	return LIST_NEXT(plug, entries);
+}
+
 void unload_plugins(void)
 {
 	struct plugin *w1, *w2;

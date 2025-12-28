@@ -40,6 +40,7 @@ enum ui_task_type {
 	UI_TASK_HIDE_SPLASH,
 	UI_TASK_SET_TITLE,
 	UI_TASK_SET_STYLE,
+	UI_TASK_LIST_PLUGINS,
 };
 
 struct ui_task {
@@ -704,6 +705,21 @@ static int ui_process_task_dump(struct ui_task *t)
 	return 0;
 }
 
+static int ui_process_task_list_plugins(struct ui_task *t)
+{
+	int i = 1;
+
+	for (struct plugin *p = list_plugin(NULL); p; p = list_plugin(p)) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s PLUGIN_NAME_%d=%s",
+				req_id(&t->req), i, p->name);
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s PLUGIN_DESC_%d=%s",
+				req_id(&t->req), i, p->desc);
+		i++;
+	}
+
+	return 0;
+}
+
 static int ui_process_task_unknown(struct ui_task *t)
 {
 	ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unknown action",
@@ -739,6 +755,7 @@ static void ui_process_tasks(void)
 			case UI_TASK_HIDE_SPLASH:	rc = ui_process_task_hide_splash(t);	break;
 			case UI_TASK_SET_TITLE:		rc = ui_process_task_set_title(t);	break;
 			case UI_TASK_SET_STYLE:		rc = ui_process_task_set_style(t);	break;
+			case UI_TASK_LIST_PLUGINS:	rc = ui_process_task_list_plugins(t);	break;
 			case UI_TASK_NONE:		rc = ui_process_task_unknown(t);	break;
 		}
 
@@ -833,6 +850,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 	else if (streq(action, "hide-splash"))	ttype = UI_TASK_HIDE_SPLASH;
 	else if (streq(action, "set-title"))	ttype = UI_TASK_SET_TITLE;
 	else if (streq(action, "set-style"))	ttype = UI_TASK_SET_STYLE;
+	else if (streq(action, "list-plugins"))	ttype = UI_TASK_LIST_PLUGINS;
 	else if (streq(action, "dump"))		ttype = UI_TASK_DUMP;
 	else {
 		ipc_send_string(req_fd(&req), "RESPDATA %s ERR=unknown action", req_id(&req));
@@ -844,6 +862,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 		case UI_TASK_HIDE_SPLASH:
 		case UI_TASK_SET_TITLE:
 		case UI_TASK_SET_STYLE:
+		case UI_TASK_LIST_PLUGINS:
 			break;
 		default:
 			if (!req_get_val(&req, "id")) {

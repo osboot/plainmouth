@@ -189,6 +189,7 @@ static bool p_timebox_finished(struct widget *root)
 PLUGIN_EXPORT
 struct plugin plugin = {
 	.name              = "timebox",
+	.desc              = "A dialog is displayed which allows you to select hour, minute and second.",
 	.p_plugin_init     = NULL,
 	.p_plugin_free     = NULL,
 	.p_create_instance = p_timebox_create,

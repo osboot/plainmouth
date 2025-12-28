@@ -98,6 +98,7 @@ static bool p_meter_finished(struct widget *root)
 PLUGIN_EXPORT
 struct plugin plugin = {
 	.name              = "meter",
+	.desc              = "The plugin displays a progress box. The meter indicates the percentage.",
 	.p_plugin_init     = NULL,
 	.p_plugin_free     = NULL,
 	.p_create_instance = p_meter_create,

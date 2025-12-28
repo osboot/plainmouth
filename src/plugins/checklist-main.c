@@ -172,6 +172,7 @@ static bool p_checklist_finished(struct widget *root)
 PLUGIN_EXPORT
 struct plugin plugin = {
 	.name              = "checklist",
+	.desc              = "A checklist box. There are multiple entries presented in the form of a menu.",
 	.p_plugin_init     = NULL,
 	.p_plugin_free     = NULL,
 	.p_create_instance = p_checklist_create,
