@@ -125,15 +125,15 @@ struct widget_textview;
 struct widget_tooltip;
 
 enum widget_flags {
-	FLAG_NONE    = 0, // Nothing has been set
-	FLAG_CREATED = 1, // Rendering enabled flag
-	FLAG_INFOCUS = 2, // Is this subtree in focus
+	FLAG_NONE    = 0,        // Nothing has been set
+	FLAG_CREATED = (1 << 0), // Rendering enabled flag
+	FLAG_INFOCUS = (1 << 1), // Is this subtree in focus
 };
 
 enum widget_attributes {
-	ATTR_NONE       = 0, // Nothing has been set
-	ATTR_CAN_CURSOR = 1, // Cursor may be displayed in the widget
-	ATTR_CAN_FOCUS  = 2, // Widget can be in focus
+	ATTR_NONE       = 0,        // Nothing has been set
+	ATTR_CAN_CURSOR = (1 << 0), // Cursor may be displayed in the widget
+	ATTR_CAN_FOCUS  = (1 << 1), // Widget can be in focus
 };
 
 /*
