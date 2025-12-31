@@ -135,7 +135,7 @@ struct widget *widget_create(enum widget_type type)
 	w->type = type;
 	TAILQ_INIT(&w->children);
 
-	w->flags |= FLAG_VISIBLE;
+	w->flags |= FLAG_CREATED;
 	w->color_pair = COLOR_PAIR_MAIN;
 
 	w->flex_h   = w->flex_w   = 0;
@@ -236,6 +236,9 @@ void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height)
 
 static bool widget_maybe_recreate(struct widget *w)
 {
+	if (!(w->flags & FLAG_CREATED))
+		return false;
+
 	if (!w->win)
 		return true;
 
@@ -261,6 +264,7 @@ static void widget_create_window(struct widget *w)
 		if (!w->win) {
 			warnx("unable to create %s window (y=%d, x=%d, height=%d, width=%d)",
 				widget_type(w), w->ly, w->lx, w->h, w->w);
+			w->flags &= ~FLAG_CREATED;
 			return;
 		}
 	} else {
@@ -268,6 +272,7 @@ static void widget_create_window(struct widget *w)
 		if (!w->parent->win) {
 			warnx("unable to create %s subwindow without parent window (y=%d, x=%d, height=%d, width=%d)",
 				widget_type(w), w->ly, w->lx, w->h, w->w);
+			w->flags &= ~FLAG_CREATED;
 			return;
 		}
 
@@ -275,7 +280,7 @@ static void widget_create_window(struct widget *w)
 		if (!w->win) {
 			warnx("unable to create %s subwindow (y=%d, x=%d, height=%d, width=%d)",
 				widget_type(w), w->ly, w->lx, w->h, w->w);
-			w->flags &= ~FLAG_VISIBLE;
+			w->flags &= ~FLAG_CREATED;
 			return;
 		}
 	}
@@ -286,24 +291,7 @@ static void widget_create_window(struct widget *w)
 	if (w->color_pair)
 		wbkgd(w->win, COLOR_PAIR(w->color_pair));
 
-	w->flags |= FLAG_VISIBLE;
-}
-
-/*
- * Ensure that each widget's WINDOW matches the assigned geometry. If size or
- * position changed, recreate the window.
- */
-void widget_create_tree(struct widget *w)
-{
-	if (!w)
-		return;
-
-	if (widget_maybe_recreate(w))
-		widget_create_window(w);
-
-	struct widget *c;
-	TAILQ_FOREACH(c, &w->children, siblings)
-		widget_create_tree(c);
+	w->flags |= FLAG_CREATED;
 }
 
 /*
@@ -318,8 +306,11 @@ void widget_create_tree(struct widget *w)
  */
 void widget_render_tree(struct widget *w)
 {
-	if (!w || !(w->flags & FLAG_VISIBLE))
+	if (!w)
 		return;
+
+	if (widget_maybe_recreate(w))
+		widget_create_window(w);
 
 	if (w->win) {
 		werase(w->win);

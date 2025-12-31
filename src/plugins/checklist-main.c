@@ -102,7 +102,6 @@ static struct widget *p_checklist_create(struct request *req)
 	position_center(width, height, &begin_y, &begin_x);
 
 	widget_layout_tree(root, begin_x, begin_y, width, height);
-	widget_create_tree(root);
 	widget_render_tree(root);
 
 	return root;

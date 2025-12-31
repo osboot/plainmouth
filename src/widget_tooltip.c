@@ -37,7 +37,6 @@ struct widget *make_popup(const wchar_t *desc, int y, int x)
 
 	widget_measure_tree(root);
 	widget_layout_tree(root, x, y, text->pref_w + 2, text->pref_h + 2);
-	widget_create_tree(root);
 	widget_render_tree(root);
 
 	return root;
