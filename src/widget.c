@@ -105,17 +105,18 @@ void w_addch(WINDOW *win, wchar_t wc)
 const char *widget_type(struct widget *w)
 {
 	static const char *_widget_type[] = {
-		[WIDGET_WINDOW]  = "window",
-		[WIDGET_BORDER]  = "border",
-		[WIDGET_LABEL]   = "label",
-		[WIDGET_BUTTON]  = "button",
-		[WIDGET_INPUT]   = "input",
-		[WIDGET_METER]   = "meter",
-		[WIDGET_VBOX]    = "vbox",
-		[WIDGET_HBOX]    = "hbox",
-		[WIDGET_TOOLTIP] = "tooltip",
-		[WIDGET_SELECT]  = "select",
-		[WIDGET_SPINBOX] = "spinbox",
+		[WIDGET_WINDOW]      = "window",
+		[WIDGET_BORDER]      = "border",
+		[WIDGET_LABEL]       = "label",
+		[WIDGET_BUTTON]      = "button",
+		[WIDGET_INPUT]       = "input",
+		[WIDGET_METER]       = "meter",
+		[WIDGET_VBOX]        = "vbox",
+		[WIDGET_HBOX]        = "hbox",
+		[WIDGET_TOOLTIP]     = "tooltip",
+		[WIDGET_SELECT]      = "select",
+		[WIDGET_SPINBOX]     = "spinbox",
+		[WIDGET_SCROLL_VBOX] = "scroll_vbox",
 	};
 	return _widget_type[w->type];
 }
@@ -183,6 +184,27 @@ void widget_free(struct widget *w)
 	free(w);
 }
 
+void widget_noutrefresh(struct widget *w)
+{
+	if (!w->win)
+		return;
+
+	if (w->noutrefresh) {
+		w->noutrefresh(w);
+		return;
+	}
+
+	wnoutrefresh(w->win);
+}
+
+static void widget_refresh_upper_tree(struct widget *w)
+{
+	if (w) {
+		widget_noutrefresh(w);
+		widget_refresh_upper_tree(w->parent);
+	}
+}
+
 /*
  * Recursively compute minimum size for a widget subtree.
  *
@@ -234,28 +256,6 @@ void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height)
 		w->layout(w);
 }
 
-static bool widget_maybe_recreate(struct widget *w)
-{
-	if (!(w->flags & FLAG_CREATED))
-		return false;
-
-	if (!w->win)
-		return true;
-
-	int cur_h, cur_w, cur_y, cur_x;
-
-	getbegyx(w->win, cur_y, cur_x);
-	getmaxyx(w->win, cur_h, cur_w);
-
-	if (cur_h != w->h || cur_w != w->w || cur_y != w->ly || cur_x != w->lx) {
-		delwin(w->win);
-		w->win = NULL;
-		return true;
-	}
-
-	return false;
-}
-
 static void widget_create_window(struct widget *w)
 {
 	if (w->parent == NULL) {
@@ -264,29 +264,38 @@ static void widget_create_window(struct widget *w)
 		if (!w->win) {
 			warnx("unable to create %s window (y=%d, x=%d, height=%d, width=%d)",
 				widget_type(w), w->ly, w->lx, w->h, w->w);
-			w->flags &= ~FLAG_CREATED;
-			return;
 		}
+	} else if (w->create_win) {
+		w->create_win(w);
+
+		if (!w->win) {
+			warnx("unable to create %s custom window (y=%d, x=%d, height=%d, width=%d)",
+				widget_type(w), w->ly, w->lx, w->h, w->w);
+		}
+	} else if (!w->parent->win) {
+		warnx("unable to create %s subwindow without parent window (y=%d, x=%d, height=%d, width=%d)",
+			widget_type(w), w->ly, w->lx, w->h, w->w);
 	} else {
 		/* child: derived window */
-		if (!w->parent->win) {
-			warnx("unable to create %s subwindow without parent window (y=%d, x=%d, height=%d, width=%d)",
-				widget_type(w), w->ly, w->lx, w->h, w->w);
-			w->flags &= ~FLAG_CREATED;
-			return;
-		}
-
 		w->win = derwin(w->parent->win, w->h, w->w, w->ly, w->lx);
+
 		if (!w->win) {
 			warnx("unable to create %s subwindow (y=%d, x=%d, height=%d, width=%d)",
 				widget_type(w), w->ly, w->lx, w->h, w->w);
-			w->flags &= ~FLAG_CREATED;
-			return;
 		}
 	}
-	if (IS_DEBUG())
-		warnx("%s (%p) window was created (y=%d, x=%d, height=%d, width=%d)",
-			widget_type(w), w->win, w->ly, w->lx, w->h, w->w);
+
+	if (!w->win) {
+		w->flags &= ~FLAG_CREATED;
+		return;
+	}
+
+	if (IS_DEBUG()) {
+		const char *sub = (w->parent) ? "subwindow" : "window";
+
+		warnx("%s (%p) %s was created (y=%d, x=%d, height=%d, width=%d)",
+			widget_type(w), w->win, sub, w->ly, w->lx, w->h, w->w);
+	}
 
 	if (w->color_pair)
 		wbkgd(w->win, COLOR_PAIR(w->color_pair));
@@ -309,7 +318,7 @@ void widget_render_tree(struct widget *w)
 	if (!w)
 		return;
 
-	if (widget_maybe_recreate(w))
+	if (!w->win)
 		widget_create_window(w);
 
 	if (w->win) {
@@ -318,7 +327,7 @@ void widget_render_tree(struct widget *w)
 		if (w->render)
 			w->render(w);
 
-		wnoutrefresh(w->win);
+		widget_refresh_upper_tree(w);
 	}
 
 	struct widget *c;

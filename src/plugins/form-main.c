@@ -53,6 +53,9 @@ static struct widget *p_form_create(struct request *req)
 		txt->flex_h = 1;
 	}
 
+	struct widget *scroll = make_scroll_vbox();
+	widget_add(parent, scroll);
+
 	struct widget *current = NULL;
 	int input_id = 1;
 
@@ -64,13 +67,13 @@ static struct widget *p_form_create(struct request *req)
 					warnx("unable to create hbox");
 					goto fail;
 				}
-				widget_add(parent, hbox);
+				widget_add(scroll, hbox);
 
 				hbox->flex_h = 0;
 				current = hbox;
 
 			} else if (streq(p->kv[i].val, "end")) {
-				current = parent;
+				current = scroll;
 			}
 			continue;
 		}

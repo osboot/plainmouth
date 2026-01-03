@@ -80,6 +80,7 @@ enum widget_type {
 	WIDGET_TOOLTIP,
 	WIDGET_SELECT,
 	WIDGET_SPINBOX,
+	WIDGET_SCROLL_VBOX,
 };
 
 struct widget;
@@ -93,6 +94,8 @@ TAILQ_HEAD(widgethead, widget);
 typedef void (*measure_fn)(struct widget *);
 typedef void (*layout_fn)(struct widget *);
 typedef void (*render_fn)(struct widget *);
+typedef bool (*create_win_fn)(struct widget *);
+typedef void (*refresh_fn)(struct widget *);
 typedef void (*free_data_fn)(struct widget *);
 typedef int  (*input_fn)(const struct widget *, wchar_t);
 
@@ -123,6 +126,7 @@ struct widget_select;
 struct widget_spinbox;
 struct widget_textview;
 struct widget_tooltip;
+struct widget_svbox;
 
 enum widget_flags {
 	FLAG_NONE    = 0,        // Nothing has been set
@@ -155,10 +159,8 @@ struct widget {
 	enum widget_type type;
 
 	/* Geometry relative to the parent widget */
-	int lx; /* local X offset inside parent */
-	int ly; /* local Y offset inside parent */
-	int w;  /* allocated width */
-	int h;  /* allocated height */
+	int lx, ly; /* local X / Y offset inside parent */
+	int w, h;  /* allocated width / height */
 
 	/* Measured minimum size computed by measure() */
 	int min_w, min_h;
@@ -191,11 +193,13 @@ struct widget {
 	int flags;                  /* (widget_flags) */
 
 	/* Virtual methods */
-	free_data_fn free_data; /* Free widget-specific data */
-	measure_fn measure;     /* Compute intrinsic minimum size */
-	layout_fn layout;       /* Assign positions/sizes to children */
-	render_fn render;       /* Draw contents into win */
-	input_fn input;         /* Handle keyboard input */
+	free_data_fn free_data;   /* Free widget-specific data */
+	measure_fn measure;       /* Compute intrinsic minimum size */
+	layout_fn layout;         /* Assign positions/sizes to children */
+	create_win_fn create_win; /* Custom function to create window */
+	refresh_fn noutrefresh;   /* Custom function to refresh curses window */
+	render_fn render;         /* Draw contents into win */
+	input_fn input;           /* Handle keyboard input */
 	setter_fn setter;
 	getter_fn getter;
 	getter_index_fn getter_index;
@@ -215,6 +219,7 @@ struct widget {
 		struct widget_spinbox  *spinbox;
 		struct widget_textview *textview;
 		struct widget_tooltip  *tooltip;
+		struct widget_svbox    *svbox;
 	} state;
 
 	/*
@@ -232,6 +237,7 @@ struct widget *widget_create(enum widget_type);
 void widget_add(struct widget *parent, struct widget *child);
 void widget_free(struct widget *w);
 bool widget_coordinates_yx(struct widget *w, int *w_abs_y, int *w_abs_x);
+void widget_noutrefresh(struct widget *w);
 
 static inline bool widget_get(struct widget *w, enum widget_property prop, void *value)
 {
@@ -261,6 +267,7 @@ void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_po
 struct widget *make_window(void);
 struct widget *make_vbox(void);
 struct widget *make_hbox(void);
+struct widget *make_scroll_vbox(void);
 struct widget *make_label(const wchar_t *text);
 struct widget *make_textview(const wchar_t *text);
 struct widget *make_button(const wchar_t *label);

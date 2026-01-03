@@ -296,7 +296,7 @@ static void ui_update_cursor(void)
 	curs_set(1);
 
 	wmove(focused_ins->root->win, y, x);
-	wnoutrefresh(focused_ins->root->win);
+	widget_noutrefresh(focused_ins->root);
 }
 
 static void ui_update(void)
