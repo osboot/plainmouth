@@ -6,10 +6,6 @@ testsdir="${progfile%/*}"
 
 . "$testsdir"/init-test
 
-current_dump="/tmp/plainmouth-$$.dump"
-logfile="$testsdir/$progname.log"
-
-
 draw_testcase()
 {
 	"$topdir"/plainmouth \

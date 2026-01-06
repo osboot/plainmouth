@@ -151,7 +151,9 @@ TESTS_E2E := $(sort $(basename \
 GARBAGE += $(TESTS) \
 	$(wildcard tests/*.chk) \
 	$(wildcard tests/*.chk.e2e) \
-	$(wildcard tests/*.log)
+	$(wildcard tests/*.dump) \
+	$(wildcard tests/*.log) \
+	$(wildcard tests/*.sock)
 
 .NOTINTERMEDIATE: $(TESTS)
 

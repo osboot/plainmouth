@@ -10,7 +10,10 @@ MODE="${MODE:-dump}"
 
 export LD_LIBRARY_PATH="$topdir"
 export PLAINMOUTH_PLUGINSDIR="$topdir/plugins"
-export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock.$$}"
+export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-$testsdir/$progname.sock}"
+
+current_dump="$testsdir/$progname.dump"
+logfile="$testsdir/$progname.log"
 
 valgrind_prog="$(type -p valgrind)"
 
