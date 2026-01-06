@@ -238,6 +238,7 @@ void widget_add(struct widget *parent, struct widget *child);
 void widget_free(struct widget *w);
 bool widget_coordinates_yx(struct widget *w, int *w_abs_y, int *w_abs_x);
 void widget_noutrefresh(struct widget *w);
+void widget_dump(FILE *fd, struct widget *w);
 
 static inline bool widget_get(struct widget *w, enum widget_property prop, void *value)
 {

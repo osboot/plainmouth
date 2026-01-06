@@ -644,62 +644,8 @@ static int ui_process_task_dump(struct ui_task *t)
 	if (!outfile)
 		outfile = "/tmp/plainmouthd.dump";
 
-	int x, y, w, h;
-	getmaxyx(instance->root->win, h, w);
-
 	FILE *fd = fopen(outfile, "a");
-
-	fputc('+', fd);
-	for (x = 0; x < w; x++)
-		fputc('-', fd);
-	fputc('+', fd);
-	fputc('\n', fd);
-
-	for (y = 0; y < h; y++) {
-		fputc('|', fd);
-
-		for (x = 0; x < w; x++) {
-			cchar_t cc;
-
-			if (mvwin_wch(instance->root->win, y, x, &cc) == ERR) {
-				fputc('?', fd);
-				continue;
-			}
-
-			attr_t attrs;
-			short pair;
-			wchar_t wc[CCHARW_MAX + 2];
-
-			if (getcchar(&cc, wc, &attrs, &pair, NULL) == OK && wc[0] != L'\0') {
-				if (attrs & A_ALTCHARSET) {
-					switch (wc[0]) {
-						case 'q': wc[0] = L'─'; break; /* ACS_HLINE */
-						case 'x': wc[0] = L'│'; break; /* ACS_VLINE */
-						case 'l': wc[0] = L'┌'; break;
-						case 'k': wc[0] = L'┐'; break;
-						case 'm': wc[0] = L'└'; break;
-						case 'j': wc[0] = L'┘'; break;
-						default:  wc[0] = L'#'; break;
-					}
-					wc[1] = L'\0';
-				}
-			} else {
-				wc[0] = L' ';
-				wc[1] = L'\0';
-			}
-			fprintf(fd, "%ls", wc);
-		}
-
-		fputc('|', fd);
-		fputc('\n', fd);
-	}
-
-	fputc('+', fd);
-	for (x = 0; x < w; x++)
-		fputc('-', fd);
-	fputc('+', fd);
-	fputc('\n', fd);
-
+	widget_dump(fd, instance->root);
 	fclose(fd);
 
 	return 0;
