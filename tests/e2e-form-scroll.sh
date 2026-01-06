@@ -1,4 +1,4 @@
-#!/bin/sh -efu
+#!/bin/bash -efu
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 progfile="$(readlink -f "$0")"

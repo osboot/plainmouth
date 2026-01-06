@@ -1,5 +1,7 @@
-#!/bin/sh -efu
+#!/bin/bash -efu
 # SPDX-License-Identifier: GPL-2.0-or-later
+
+set -x
 
 progfile="$(readlink -f "$0")"
 testsdir="${progfile%/*}"
