@@ -184,6 +184,8 @@ struct widget {
 	void (*free_data)(struct widget *);            /* Free widget-specific data */
 	int  (*input)(const struct widget *, wchar_t); /* Handle keyboard input */
 
+	void (*ensure_visible)(struct widget *, struct widget *);
+
 	bool (*setter)(struct widget *, enum widget_property, const void *);
 	bool (*getter)(struct widget *, enum widget_property, void *);
 	bool (*getter_index)(struct widget *, enum widget_property, int, void *);

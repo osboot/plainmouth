@@ -207,6 +207,20 @@ static void free_instances(void)
 		release_instance(TAILQ_FIRST(&instances));
 }
 
+static void widget_ensure_visible(struct widget *w)
+{
+	struct widget *child = w;
+	struct widget *cur = w->parent;
+
+	while (cur) {
+		if (cur->ensure_visible)
+			cur->ensure_visible(cur, child);
+
+		child = cur;
+		cur = cur->parent;
+	}
+}
+
 static inline void ui_wakeup(void)
 {
 	uint64_t one = 1;
@@ -317,21 +331,23 @@ static void ui_focused(bool state)
 	if (!focused)
 		return;
 
-	if (state)
-		focused->flags |= FLAG_INFOCUS;
-	else
-		focused->flags &= ~FLAG_INFOCUS;
-
-	widget_render_tree(focused);
-
 	if (state) {
+		focused->flags |= FLAG_INFOCUS;
+
+		widget_ensure_visible(focused);
+
 		/*
 		 * This is necessary to ensure that the panel with the widget
 		 * in focus is on top of everything else.
 		 */
 		struct instance *ins = find_instance(focused->instance_id);
-		top_panel(ins->panel);
+		if (ins)
+			top_panel(ins->panel);
+	} else {
+		focused->flags &= ~FLAG_INFOCUS;
 	}
+
+	widget_render_tree(focused);
 }
 
 static void ui_next_focused(void)

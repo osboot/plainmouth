@@ -165,6 +165,34 @@ static int scroll_vbox_input(const struct widget *w, wchar_t key)
 	return 1;
 }
 
+static void scroll_vbox_ensure_visible(struct widget *container, struct widget *child)
+{
+	struct widget_svbox *state = container->state.svbox;
+
+	if (!state)
+		return;
+
+	int child_y = child->ly;
+	int child_h = child->h;
+
+	int view_top = state->scroll;
+	int view_bot = state->scroll + container->h;
+
+	if (child_y < view_top) {
+		state->scroll = child_y;
+	} else if (child_y + child_h > view_bot) {
+		state->scroll = child_y + child_h - container->h;
+	}
+
+	if (state->scroll < 0)
+		state->scroll = 0;
+
+	int max_scroll = state->content_h - container->h;
+
+	if (state->scroll > max_scroll)
+		state->scroll = max_scroll;
+}
+
 static void scroll_vbox_freedata(struct widget *w)
 {
 	struct widget_svbox *state = w->state.svbox;
@@ -187,15 +215,16 @@ struct widget *make_scroll_vbox(void)
 		return NULL;
 	}
 
-	w->state.svbox = state;
-	w->measure     = scroll_vbox_measure;
-	w->layout      = scroll_vbox_layout;
-	w->render      = scroll_vbox_render;
-	w->create_win  = scroll_vbox_createwin;
-	w->noutrefresh = scroll_vbox_refresh;
-	w->input       = scroll_vbox_input;
-	w->free_data   = scroll_vbox_freedata;
-	w->color_pair  = COLOR_PAIR_WINDOW;
+	w->state.svbox    = state;
+	w->measure        = scroll_vbox_measure;
+	w->layout         = scroll_vbox_layout;
+	w->render         = scroll_vbox_render;
+	w->create_win     = scroll_vbox_createwin;
+	w->noutrefresh    = scroll_vbox_refresh;
+	w->input          = scroll_vbox_input;
+	w->free_data      = scroll_vbox_freedata;
+	w->ensure_visible = scroll_vbox_ensure_visible;
+	w->color_pair     = COLOR_PAIR_WINDOW;
 
 	w->stretch_w = true;
 	w->stretch_h = true;
