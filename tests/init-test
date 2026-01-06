@@ -12,6 +12,8 @@ export LD_LIBRARY_PATH="$topdir"
 export PLAINMOUTH_PLUGINSDIR="$topdir/plugins"
 export PLAINMOUTH_SOCKET="${PLAINMOUTH_SOCKET:-/tmp/plainmouth.sock.$$}"
 
+valgrind_prog="$(type -p valgrind)"
+
 run_test()
 {
 	local i=0
@@ -24,16 +26,28 @@ run_test()
 	"$@"
 }
 
+_run()
+{
+	if [ -n "$valgrind_prog" ]; then
+		$valgrind_prog --leak-check=full --show-leak-kinds=all \
+			--error-exitcode=1 \
+			--suppressions="$testsdir"/valgrind.supp \
+			--log-file="$testsdir"/$progname-valgrind.log "$@"
+	else
+		"$@"
+	fi
+}
+
 run_server()
 {
 	case "${MODE-dump}" in
 		dump)
-			"$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET" \
+			_run "$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET" \
 				--debug-file="$testsdir/$progname-server.log" \
 				< /dev/null > /dev/null
 			;;
 		view)
-			"$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET"
+			_run "$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET"
 			;;
 	esac
 	wait
