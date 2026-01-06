@@ -86,19 +86,6 @@ enum widget_type {
 struct widget;
 TAILQ_HEAD(widgethead, widget);
 
-/*
- * Sizing model:
- *   measure() computes minimum size ONLY and must not depend on layout results.
- *   layout() assigns the final usable size and must not overwrite minimum sizes.
- */
-typedef void (*measure_fn)(struct widget *);
-typedef void (*layout_fn)(struct widget *);
-typedef void (*render_fn)(struct widget *);
-typedef bool (*create_win_fn)(struct widget *);
-typedef void (*refresh_fn)(struct widget *);
-typedef void (*free_data_fn)(struct widget *);
-typedef int  (*input_fn)(const struct widget *, wchar_t);
-
 enum widget_property {
 	PROP_NONE = 0,
 	PROP_BUTTON_STATE,
@@ -111,10 +98,6 @@ enum widget_property {
 	PROP_SELECT_CURSOR,
 	PROP_SPINBOX_VALUE,
 };
-
-typedef bool (*setter_fn)(struct widget *, enum widget_property, const void *);
-typedef bool (*getter_fn)(struct widget *, enum widget_property, void *);
-typedef bool (*getter_index_fn)(struct widget *, enum widget_property, int, void *);
 
 /* Private widget-specific data */
 struct widget_border;
@@ -193,16 +176,17 @@ struct widget {
 	int flags;                  /* (widget_flags) */
 
 	/* Virtual methods */
-	free_data_fn free_data;   /* Free widget-specific data */
-	measure_fn measure;       /* Compute intrinsic minimum size */
-	layout_fn layout;         /* Assign positions/sizes to children */
-	create_win_fn create_win; /* Custom function to create window */
-	refresh_fn noutrefresh;   /* Custom function to refresh curses window */
-	render_fn render;         /* Draw contents into win */
-	input_fn input;           /* Handle keyboard input */
-	setter_fn setter;
-	getter_fn getter;
-	getter_index_fn getter_index;
+	void (*measure)(struct widget *);              /* Compute intrinsic minimum size */
+	void (*layout)(struct widget *);               /* Assign positions/sizes to children */
+	void (*render)(struct widget *);               /* Draw contents into win */
+	bool (*create_win)(struct widget *);           /* Custom function to create window */
+	void (*noutrefresh)(struct widget *);          /* Custom function to refresh curses window */
+	void (*free_data)(struct widget *);            /* Free widget-specific data */
+	int  (*input)(const struct widget *, wchar_t); /* Handle keyboard input */
+
+	bool (*setter)(struct widget *, enum widget_property, const void *);
+	bool (*getter)(struct widget *, enum widget_property, void *);
+	bool (*getter_index)(struct widget *, enum widget_property, int, void *);
 
 	/* Tree structure */
 	struct widget *parent;      /* Parent widget */
