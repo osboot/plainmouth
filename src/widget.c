@@ -117,6 +117,7 @@ const char *widget_type(struct widget *w)
 		[WIDGET_SELECT]      = "select",
 		[WIDGET_SPINBOX]     = "spinbox",
 		[WIDGET_SCROLL_VBOX] = "scroll_vbox",
+		[WIDGET_VSCROLL]     = "vscroll",
 	};
 	return _widget_type[w->type];
 }

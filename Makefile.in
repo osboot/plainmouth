@@ -58,6 +58,7 @@ COMMON_SRC  = src/ipc.c src/request.c src/plugin.c src/dump.c \
 	      src/widget_textview.c \
 	      src/widget_tooltip.c \
 	      src/widget_vbox.c \
+	      src/widget_vscroll.c \
 	      src/widget_window.c \
 	      #
 COMMON_OBJ  = $(COMMON_SRC:.c=.o)

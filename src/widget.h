@@ -81,6 +81,7 @@ enum widget_type {
 	WIDGET_SELECT,
 	WIDGET_SPINBOX,
 	WIDGET_SCROLL_VBOX,
+	WIDGET_VSCROLL,
 };
 
 struct widget;
@@ -97,6 +98,9 @@ enum widget_property {
 	PROP_SELECT_OPTION_VALUE,
 	PROP_SELECT_CURSOR,
 	PROP_SPINBOX_VALUE,
+	PROP_SCROLL_CONTENT,
+	PROP_SCROLL_VIEWPORT,
+	PROP_SCROLL_OFFSET,
 };
 
 /* Private widget-specific data */
@@ -110,6 +114,7 @@ struct widget_spinbox;
 struct widget_textview;
 struct widget_tooltip;
 struct widget_svbox;
+struct widget_vscroll;
 
 enum widget_flags {
 	FLAG_NONE    = 0,        // Nothing has been set
@@ -206,6 +211,7 @@ struct widget {
 		struct widget_textview *textview;
 		struct widget_tooltip  *tooltip;
 		struct widget_svbox    *svbox;
+		struct widget_vscroll  *vscroll;
 	} state;
 
 	/*
@@ -254,6 +260,7 @@ void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_po
 struct widget *make_window(void);
 struct widget *make_vbox(void);
 struct widget *make_hbox(void);
+struct widget *make_vscroll(void);
 struct widget *make_scroll_vbox(void);
 struct widget *make_label(const wchar_t *text);
 struct widget *make_textview(const wchar_t *text);
