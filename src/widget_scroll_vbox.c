@@ -54,16 +54,13 @@ static void scroll_vbox_layout(struct widget *w)
 	if (state->scroll < 0)
 		state->scroll = 0;
 
-	if (max_scroll)
-		state->content_w -= 1;
-
 	int y = 0;
 
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		int ch = (c->pref_h > 0) ? c->pref_h : c->min_h;
 		int cw = c->stretch_w ? w->w : c->min_w;
 
-		widget_layout_tree(c, 0, y, cw - (max_scroll ? 1 : 0), ch);
+		widget_layout_tree(c, 0, y, cw, ch);
 		y += ch;
 	}
 }
@@ -104,15 +101,8 @@ static bool scroll_vbox_createwin(struct widget *w)
 
 static void scroll_vbox_render(struct widget *w)
 {
-	struct widget_svbox *state = w->state.svbox;
-
 	werase(w->win);
 	wbkgd(w->win, COLOR_PAIR(w->color_pair));
-
-	if (state->scrollwin) {
-		widget_draw_vscroll(state->scrollwin, COLOR_PAIR_FOCUS, state->scroll, state->content_h);
-		wnoutrefresh(state->scrollwin);
-	}
 }
 
 static void scroll_vbox_refresh(struct widget *w)
@@ -126,9 +116,16 @@ static void scroll_vbox_refresh(struct widget *w)
 	ay += w->ly;
 	ax += w->lx;
 
+	int viewport_w = w->w - (state->scrollwin ? 1 : 0);
+
 	pnoutrefresh(w->win, state->scroll, 0, ay, ax,
 			ay + w->h - 1,
-			ax + w->w - 1);
+			ax + viewport_w - 1);
+
+	if (state->scrollwin) {
+		widget_draw_vscroll(state->scrollwin, COLOR_PAIR_FOCUS, state->scroll, state->content_h);
+		wnoutrefresh(state->scrollwin);
+	}
 }
 
 static int scroll_vbox_input(const struct widget *w, wchar_t key)
@@ -197,8 +194,10 @@ static void scroll_vbox_freedata(struct widget *w)
 {
 	struct widget_svbox *state = w->state.svbox;
 
-	if (state->scrollwin)
+	if (state->scrollwin) {
 		delwin(state->scrollwin);
+		state->scrollwin = NULL;
+	}
 
 	free(w->state.svbox);
 	w->state.svbox = NULL;
