@@ -9,7 +9,7 @@ testsdir="${progfile%/*}"
 draw_testcase()
 {
 	"$topdir"/plainmouth plugin=msgbox action=create id=w1 \
-		height=30 width=100 border=true \
+		height=30 width=50 border=true \
 		text="00 When I find my code in tons of trouble
 01 Friends and colleagues come to me
 02 Speaking words of wisdom

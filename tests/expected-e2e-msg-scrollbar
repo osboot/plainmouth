@@ -1,32 +1,32 @@
-+----------------------------------------------------------------------------------------------------+
-|┌──────────────────────────────────────────────────────────────────────────────────────────────────┐|
-|│00 When I find my code in tons of trouble                                                        ^│|
-|│01 Friends and colleagues come to me                                                              │|
-|│02 Speaking words of wisdom                                                                       │|
-|│03 Write in C                                                                                     │|
-|│04                                                                                                │|
-|│05 As the deadline fast approaches                                                                │|
-|│06 And bugs are all I can see                                                                     │|
-|│07 Somewhere someone whispers                                                                     │|
-|│08 Write in C                                                                                     │|
-|│09                                                                                                │|
-|│10 Write in C, write in C                                                                         │|
-|│11 Write in C, write in C                                                                        v│|
-|│12 LISP is dead and buried                                                                       #│|
-|│13 Write in C                                                                                    #│|
-|│14                                                                                               #│|
-|│15 I used to write a lot of FORTRAN                                                              #│|
-|│16 For science it worked flawlessly                                                              #│|
-|│17 Try using it for graphics                                                                     #│|
-|│18 Write in C                                                                                    #│|
-|│19                                                                                               #│|
-|│20 If you just spent nearly 30 hours                                                             #│|
-|│21 Debugging some assembly                                                                       #│|
-|│22 Soon you'll be glad to                                                                        #│|
-|│23 Write in C                                                                                    #│|
-|│24                                                                                               #│|
-|│25 Write in C, write in C                                                                        #│|
-|│26 Write in C, yeah, write in C                                                                  #│|
-|│[OK][Cancel]                                                                                      │|
-|└──────────────────────────────────────────────────────────────────────────────────────────────────┘|
-+----------------------------------------------------------------------------------------------------+
++--------------------------------------------------+
+|┌────────────────────────────────────────────────┐|
+|│00 When I find my code in tons of trouble       │|
+|│01 Friends and colleagues come to me            │|
+|│02 Speaking words of wisdom                     │|
+|│03 Write in C                                   │|
+|│04                                              │|
+|│05 As the deadline fast approaches              │|
+|│06 And bugs are all I can see                   │|
+|│07 Somewhere someone whispers                   │|
+|│08 Write in C                                   │|
+|│09                                              │|
+|│10 Write in C, write in C                       │|
+|│11 Write in C, write in C                       │|
+|│12 LISP is dead and buried                      │|
+|│13 Write in C                                   │|
+|│14                                              │|
+|│15 I used to write a lot of FORTRAN             │|
+|│16 For science it worked flawlessly             │|
+|│17 Try using it for graphics                    │|
+|│18 Write in C                                   │|
+|│19                                              │|
+|│20 If you just spent nearly 30 hours            │|
+|│21 Debugging some assembly                      │|
+|│22 Soon you'll be glad to                       │|
+|│23 Write in C                                   │|
+|│24                                              │|
+|│25 Write in C, write in C                       │|
+|│26 Write in C, yeah, write in C                 │|
+|│[OK][Cancel]                                    │|
+|└────────────────────────────────────────────────┘|
++--------------------------------------------------+
