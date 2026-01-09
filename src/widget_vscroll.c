@@ -15,9 +15,8 @@ struct widget_vscroll {
 
 static void vscroll_measure(struct widget *w)
 {
-	w->min_w  = 1;
-	w->pref_w = 1;
-	w->min_h  = 1;
+	w->min_w = w->max_w = w->pref_w = 1;
+	w->min_h = 1;
 }
 
 static void vscroll_render(struct widget *w)
@@ -32,42 +31,6 @@ static void vscroll_render(struct widget *w)
 	widget_draw_vscroll(w->win, color, s->offset, s->content);
 }
 
-static int vscroll_input(const struct widget *w, wchar_t key)
-{
-	struct widget_vscroll *s = w->state.vscroll;
-
-	if (s->content <= s->viewport)
-		return 0;
-
-	int page = MAX(1, s->viewport / 2);
-
-	switch (key) {
-		case KEY_UP:
-			s->offset--;
-			break;
-		case KEY_DOWN:
-			s->offset++;
-			break;
-		case KEY_PPAGE:
-			s->offset -= page;
-			break;
-		case KEY_NPAGE:
-			s->offset += page;
-			break;
-		default:
-			return 0;
-	}
-
-	int max_scroll = s->content - s->viewport;
-
-	if (s->offset < 0)
-		s->offset = 0;
-	else if (s->offset > max_scroll)
-		s->offset = max_scroll;
-
-	return 1;
-}
-
 static bool vscroll_setter(struct widget *w, enum widget_property prop, const void *in)
 {
 	struct widget_vscroll *s = w->state.vscroll;
@@ -76,7 +39,7 @@ static bool vscroll_setter(struct widget *w, enum widget_property prop, const vo
 	case PROP_SCROLL_CONTENT:
 		s->content = *(const int *)in;
 		return true;
-	case PROP_SCROLL_VIEWPORT:
+	case PROP_SCROLL_VIEW:
 		s->viewport = *(const int *)in;
 		return true;
 	case PROP_SCROLL_OFFSET:
@@ -121,16 +84,15 @@ struct widget *make_vscroll(void)
 
 	w->measure = vscroll_measure;
 	w->render  = vscroll_render;
-	w->input   = vscroll_input;
 	w->setter  = vscroll_setter;
 	w->getter  = vscroll_getter;
 	w->free_data = vscroll_free;
-
 	w->color_pair = COLOR_PAIR_WINDOW;
-	w->attrs = ATTR_CAN_FOCUS;
 
-	w->stretch_h = true;
-	w->flex_h = 1;
+	w->stretch_h = 1;
+	w->stretch_w = 1;
+
+	w->flex_h = 0;
 	w->flex_w = 0;
 
 	return w;

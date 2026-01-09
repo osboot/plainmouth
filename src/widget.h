@@ -100,7 +100,7 @@ enum widget_property {
 	PROP_SELECT_CURSOR,
 	PROP_SPINBOX_VALUE,
 	PROP_SCROLL_CONTENT,
-	PROP_SCROLL_VIEWPORT,
+	PROP_SCROLL_VIEW,
 	PROP_SCROLL_OFFSET,
 };
 
@@ -191,6 +191,7 @@ struct widget {
 	void (*free_data)(struct widget *);            /* Free widget-specific data */
 	int  (*input)(const struct widget *, wchar_t); /* Handle keyboard input */
 
+	void (*add_child)(struct widget *parent, struct widget *child);
 	void (*ensure_visible)(struct widget *, struct widget *);
 
 	bool (*setter)(struct widget *, enum widget_property, const void *);
@@ -286,5 +287,8 @@ struct widget *find_widget_by_id(struct widget *w, int id);
 
 void vbox_measure(struct widget *w);
 void vbox_layout(struct widget *w);
+
+void pad_vbox_clamp_scroll(struct widget *pad, int delta);
+void pad_vbox_props(struct widget *pad, int *scroll, int *view, int *content);
 
 #endif /* _PLAINMOUTH_WIDGET_H_ */

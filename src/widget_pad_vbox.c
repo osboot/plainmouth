@@ -55,11 +55,7 @@ static void pad_vbox_layout(struct widget *w)
 		st->content_w = MAX(st->content_w, cw);
 	}
 
-	int max_scroll = st->content_h - w->h;
-	if (max_scroll < 0)
-		max_scroll = 0;
-
-	st->scroll = CLAMP(st->scroll, 0, max_scroll);
+	pad_vbox_clamp_scroll(w, 0);
 
 	int y = 0;
 	TAILQ_FOREACH(c, &w->children, siblings) {
@@ -78,12 +74,9 @@ static bool pad_vbox_createwin(struct widget *w)
 	w->win = newpad(st->content_h, st->content_w);
 	if (!w->win) {
 		warnx("unable to create %s pad window (y=%d, x=%d, height=%d, width=%d)",
-			widget_type(w), w->ly, w->lx, w->h, w->w);
+			widget_type(w), w->ly, w->lx, st->content_h, st->content_w);
 		return false;
 	}
-
-	if (w->h < st->content_h)
-		w->attrs |= ATTR_CAN_FOCUS;
 
 	return true;
 }
@@ -105,30 +98,6 @@ static void pad_vbox_refresh(struct widget *w)
 			ax + w->lx + w->w - 1);
 }
 
-static int pad_vbox_input(const struct widget *w, wchar_t key)
-{
-	struct widget_pad_vbox *st = w->state.pad_vbox;
-
-	if (w->h >= st->content_h)
-		return 0;
-
-	int page = w->h / 2;
-
-	switch (key) {
-		case KEY_UP:    st->scroll--; break;
-		case KEY_DOWN:  st->scroll++; break;
-		case KEY_PPAGE: st->scroll -= page; break;
-		case KEY_NPAGE: st->scroll += page; break;
-		default:
-			return 0;
-	}
-
-	int max = st->content_h - w->h;
-	st->scroll = CLAMP(st->scroll, 0, max);
-
-	return 1;
-}
-
 static void pad_vbox_ensure_visible(struct widget *container, struct widget *child)
 {
 	struct widget_pad_vbox *st = container->state.pad_vbox;
@@ -141,8 +110,7 @@ static void pad_vbox_ensure_visible(struct widget *container, struct widget *chi
 	else if (child->ly + child->h > bot)
 		st->scroll = child->ly + child->h - container->h;
 
-	int max = st->content_h - container->h;
-	st->scroll = CLAMP(st->scroll, 0, max);
+	pad_vbox_clamp_scroll(container, 0);
 }
 
 static void pad_vbox_free(struct widget *w)
@@ -168,12 +136,34 @@ struct widget *make_pad_vbox(void)
 	w->layout         = pad_vbox_layout;
 	w->create_win     = pad_vbox_createwin;
 	w->noutrefresh    = pad_vbox_refresh;
-	w->input          = pad_vbox_input;
 	w->ensure_visible = pad_vbox_ensure_visible;
 	w->free_data      = pad_vbox_free;
 
-	w->stretch_w = true;
-	w->stretch_h = true;
+	w->flex_w   = 1;
+	w->shrink_w = 0;
+
+	w->stretch_w = 0;
+	w->stretch_h = 1;
 
 	return w;
+}
+
+void pad_vbox_clamp_scroll(struct widget *pad, int delta)
+{
+	struct widget_pad_vbox *st = pad->state.pad_vbox;
+	int max_scroll = st->content_h - pad->h;
+
+	if (max_scroll < 0)
+		max_scroll = 0;
+
+	st->scroll += delta;
+	st->scroll = CLAMP(st->scroll, 0, max_scroll);
+}
+
+void pad_vbox_props(struct widget *pad, int *scroll, int *view, int *content)
+{
+	struct widget_pad_vbox *st = pad->state.pad_vbox;
+	if (view) *view = pad->h;
+	if (scroll)  *scroll  = st->scroll;
+	if (content) *content = st->content_h;
 }
