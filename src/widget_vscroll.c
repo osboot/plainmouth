@@ -36,13 +36,13 @@ static bool vscroll_setter(struct widget *w, enum widget_property prop, const vo
 	struct widget_vscroll *s = w->state.vscroll;
 
 	switch (prop) {
-	case PROP_SCROLL_CONTENT:
+	case PROP_SCROLL_CONTENT_H:
 		s->content = *(const int *)in;
 		return true;
-	case PROP_SCROLL_VIEW:
+	case PROP_SCROLL_VIEW_H:
 		s->viewport = *(const int *)in;
 		return true;
-	case PROP_SCROLL_OFFSET:
+	case PROP_SCROLL_Y:
 		s->offset = *(const int *)in;
 		return true;
 	default:
@@ -54,7 +54,7 @@ static bool vscroll_getter(struct widget *w, enum widget_property prop, void *ou
 {
 	struct widget_vscroll *s = w->state.vscroll;
 
-	if (prop == PROP_SCROLL_OFFSET) {
+	if (prop == PROP_SCROLL_Y) {
 		*(int *)out = s->offset;
 		return true;
 	}

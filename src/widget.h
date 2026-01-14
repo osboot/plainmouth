@@ -82,7 +82,7 @@ enum widget_type {
 	WIDGET_SPINBOX,
 	WIDGET_SCROLL_VBOX,
 	WIDGET_VSCROLL,
-	WIDGET_PAD_VBOX,
+	WIDGET_PAD_BOX,
 };
 
 struct widget;
@@ -99,9 +99,14 @@ enum widget_property {
 	PROP_SELECT_OPTION_VALUE,
 	PROP_SELECT_CURSOR,
 	PROP_SPINBOX_VALUE,
-	PROP_SCROLL_CONTENT,
-	PROP_SCROLL_VIEW,
-	PROP_SCROLL_OFFSET,
+	PROP_SCROLL_CONTENT_H,
+	PROP_SCROLL_CONTENT_W,
+	PROP_SCROLL_VIEW_W,
+	PROP_SCROLL_VIEW_H,
+	PROP_SCROLL_INC_X,
+	PROP_SCROLL_INC_Y,
+	PROP_SCROLL_X,
+	PROP_SCROLL_Y,
 };
 
 /* Private widget-specific data */
@@ -110,7 +115,7 @@ struct widget_button;
 struct widget_input;
 struct widget_label;
 struct widget_meter;
-struct widget_pad_vbox;
+struct widget_pad_box;
 struct widget_select;
 struct widget_spinbox;
 struct widget_svbox;
@@ -209,7 +214,7 @@ struct widget {
 		struct widget_input    *input;
 		struct widget_label    *label;
 		struct widget_meter    *meter;
-		struct widget_pad_vbox *pad_vbox;
+		struct widget_pad_box  *pad_box;
 		struct widget_select   *select;
 		struct widget_spinbox  *spinbox;
 		struct widget_svbox    *svbox;
@@ -266,7 +271,7 @@ struct widget *make_vbox(void);
 struct widget *make_hbox(void);
 struct widget *make_vscroll(void);
 struct widget *make_scroll_vbox(void);
-struct widget *make_pad_vbox(void);
+struct widget *make_pad_box(void);
 struct widget *make_label(const wchar_t *text);
 struct widget *make_textview(const wchar_t *text);
 struct widget *make_button(const wchar_t *label);
@@ -287,8 +292,5 @@ struct widget *find_widget_by_id(struct widget *w, int id);
 
 void vbox_measure(struct widget *w);
 void vbox_layout(struct widget *w);
-
-void pad_vbox_clamp_scroll(struct widget *pad, int delta);
-void pad_vbox_props(struct widget *pad, int *scroll, int *view, int *content);
 
 #endif /* _PLAINMOUTH_WIDGET_H_ */

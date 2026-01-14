@@ -19,13 +19,14 @@ static void scroll_vbox_sync(struct widget *sv)
 	if (!st || !st->pad || !st->vscroll)
 		return;
 
-	int scroll, view_h, content_h;
+	int scroll_y, content_h;
 
-	pad_vbox_props(st->pad, &scroll, &view_h, &content_h);
+	widget_get(st->pad, PROP_SCROLL_Y, &scroll_y);
+	widget_get(st->pad, PROP_SCROLL_CONTENT_H, &content_h);
 
-	widget_set(st->vscroll, PROP_SCROLL_OFFSET,  &scroll);
-	widget_set(st->vscroll, PROP_SCROLL_CONTENT, &content_h);
-	widget_set(st->vscroll, PROP_SCROLL_VIEW,    &view_h);
+	widget_set(st->vscroll, PROP_SCROLL_Y,  &scroll_y);
+	widget_set(st->vscroll, PROP_SCROLL_CONTENT_H, &content_h);
+	widget_set(st->vscroll, PROP_SCROLL_VIEW_H, &st->pad->h);
 }
 
 static void scroll_vbox_measure(struct widget *w)
@@ -99,7 +100,7 @@ static int scroll_vbox_input(const struct widget *w, wchar_t key)
 				return 0;
 	}
 
-	pad_vbox_clamp_scroll(st->pad, delta);
+	widget_set(st->pad, PROP_SCROLL_INC_Y, &delta);
 
 	return 1;
 }
@@ -120,7 +121,7 @@ struct widget *make_scroll_vbox(void)
 		return NULL;
 
 	struct widget *hbox = make_hbox();
-	struct widget *pad  = make_pad_vbox();
+	struct widget *pad  = make_pad_box();
 	struct widget *vs   = make_vscroll();
 
 	if (!hbox || !pad || !vs) {
