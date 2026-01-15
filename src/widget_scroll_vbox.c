@@ -10,23 +10,37 @@
 struct widget_svbox {
 	struct widget *pad;
 	struct widget *vscroll;
+	struct widget *hscroll;
 };
 
 static void scroll_vbox_sync(struct widget *sv)
 {
 	struct widget_svbox *st = sv->state.svbox;
 
-	if (!st || !st->pad || !st->vscroll)
+	if (!st || !st->pad)
 		return;
 
-	int scroll_y, content_h;
+	if (st->vscroll) {
+		int scroll_y, content_h;
 
-	widget_get(st->pad, PROP_SCROLL_Y, &scroll_y);
-	widget_get(st->pad, PROP_SCROLL_CONTENT_H, &content_h);
+		widget_get(st->pad, PROP_SCROLL_Y, &scroll_y);
+		widget_get(st->pad, PROP_SCROLL_CONTENT_H, &content_h);
 
-	widget_set(st->vscroll, PROP_SCROLL_Y,  &scroll_y);
-	widget_set(st->vscroll, PROP_SCROLL_CONTENT_H, &content_h);
-	widget_set(st->vscroll, PROP_SCROLL_VIEW_H, &st->pad->h);
+		widget_set(st->vscroll, PROP_SCROLL_Y,  &scroll_y);
+		widget_set(st->vscroll, PROP_SCROLL_CONTENT_H, &content_h);
+		widget_set(st->vscroll, PROP_SCROLL_VIEW_H, &st->pad->h);
+	}
+
+	if (st->hscroll) {
+		int scroll_x, content_w;
+
+		widget_get(st->pad, PROP_SCROLL_X, &scroll_x);
+		widget_get(st->pad, PROP_SCROLL_CONTENT_W, &content_w);
+
+		widget_set(st->hscroll, PROP_SCROLL_X,  &scroll_x);
+		widget_set(st->hscroll, PROP_SCROLL_CONTENT_W, &content_w);
+		widget_set(st->hscroll, PROP_SCROLL_VIEW_W, &st->pad->w);
+	}
 }
 
 static void scroll_vbox_measure(struct widget *w)
@@ -39,27 +53,28 @@ static void scroll_vbox_measure(struct widget *w)
 
 	pad->measure(pad);
 
-	w->min_h  = pad->min_h;
-	w->pref_h = pad->pref_h;
+	w->min_h  = 1;
+	w->pref_h = pad->pref_h + 1;
 
-	w->min_w  = pad->min_w + 1;
+	w->min_w  = 1;
 	w->pref_w = pad->pref_w + 1;
 }
 
 static void scroll_vbox_layout(struct widget *w)
 {
-	struct widget *hbox = TAILQ_FIRST(&w->children);
+	struct widget *vbox = TAILQ_FIRST(&w->children);
 
-	if (!hbox)
+	if (!vbox)
 		return;
 
-	widget_layout_tree(hbox, 0, 0, w->w, w->h);
+	widget_layout_tree(vbox, 0, 0, w->w, w->h);
 }
 
 static void scroll_vbox_render(struct widget *w)
 {
-	//struct widget *hbox = TAILQ_FIRST(&w->children);
-	//widget_render_tree(hbox);
+	struct widget *hbox = TAILQ_FIRST(&w->children);
+	if (hbox)
+		widget_render_tree(hbox);
 	scroll_vbox_sync(w);
 }
 
@@ -89,18 +104,25 @@ static int scroll_vbox_input(const struct widget *w, wchar_t key)
 {
 	struct widget_svbox *st = w->state.svbox;
 
-	int delta = 0;
+	int delta_y = 0;
+	int delta_x = 0;
 
 	switch (key) {
-		case KEY_UP:    delta = -1;    break;
-		case KEY_DOWN:  delta = +1;    break;
-		case KEY_PPAGE: delta = -w->h; break;
-		case KEY_NPAGE: delta = +w->h; break;
+		case KEY_UP:    delta_y = -1;    break;
+		case KEY_DOWN:  delta_y = +1;    break;
+		case KEY_PPAGE: delta_y = -w->h; break;
+		case KEY_NPAGE: delta_y = +w->h; break;
+		case KEY_LEFT:  delta_x = -1;    break;
+		case KEY_RIGHT: delta_x = +1;    break;
 		default:
 				return 0;
 	}
 
-	widget_set(st->pad, PROP_SCROLL_INC_Y, &delta);
+	if (delta_y)
+		widget_set(st->pad, PROP_SCROLL_INC_Y, &delta_y);
+
+	if (delta_x)
+		widget_set(st->pad, PROP_SCROLL_INC_X, &delta_x);
 
 	return 1;
 }
@@ -120,11 +142,13 @@ struct widget *make_scroll_vbox(void)
 	if (!root)
 		return NULL;
 
+	struct widget *vbox = make_vbox();
 	struct widget *hbox = make_hbox();
 	struct widget *pad  = make_pad_box();
 	struct widget *vs   = make_vscroll();
+	struct widget *hs   = make_hscroll();
 
-	if (!hbox || !pad || !vs) {
+	if (!hbox || !pad || !vs || !hs) {
 		widget_free(root);
 		return NULL;
 	}
@@ -138,12 +162,15 @@ struct widget *make_scroll_vbox(void)
 
 	st->pad     = pad;
 	st->vscroll = vs;
+	st->hscroll = hs;
 
 	root->state.svbox = st;
 
-	widget_add(root, hbox);
+	widget_add(root, vbox);
+	widget_add(vbox, hbox);
 	widget_add(hbox, pad);
 	widget_add(hbox, vs);
+	widget_add(vbox, hs);
 
 	root->add_child      = scroll_vbox_add_child;
 	root->measure        = scroll_vbox_measure;

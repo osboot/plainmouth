@@ -11,7 +11,7 @@ draw_testcase()
 	"$topdir"/plainmouth plugin=msgbox action=create id=w1 \
 		height=30 width=50 border=true \
 		text="00 When I find my code in tons of trouble
-01 Friends and colleagues come to me
+01 Friends and colleagues come to me (qwerty asdfgh zxcvbn 1234567890)
 02 Speaking words of wisdom
 03 Write in C
 04 

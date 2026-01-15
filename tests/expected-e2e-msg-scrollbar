@@ -1,7 +1,7 @@
 +--------------------------------------------------+
 |┌────────────────────────────────────────────────┐|
 |│00 When I find my code in tons of trouble      ^│|
-|│01 Friends and colleagues come to me            │|
+|│01 Friends and colleagues come to me (qwerty as │|
 |│02 Speaking words of wisdom                     │|
 |│03 Write in C                                   │|
 |│04                                              │|
@@ -10,8 +10,8 @@
 |│07 Somewhere someone whispers                   │|
 |│08 Write in C                                   │|
 |│09                                              │|
-|│10 Write in C, write in C                       │|
-|│11 Write in C, write in C                      v│|
+|│10 Write in C, write in C                      v│|
+|│11 Write in C, write in C                      #│|
 |│12 LISP is dead and buried                     #│|
 |│13 Write in C                                  #│|
 |│14                                             #│|
@@ -26,7 +26,7 @@
 |│23 Write in C                                  #│|
 |│24                                             #│|
 |│25 Write in C, write in C                      #│|
-|│26 Write in C, yeah, write in C                #│|
+|│<                              >################│|
 |│[OK][Cancel]                                    │|
 |└────────────────────────────────────────────────┘|
 +--------------------------------------------------+
