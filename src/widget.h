@@ -81,6 +81,7 @@ enum widget_type {
 	WIDGET_SELECT,
 	WIDGET_SPINBOX,
 	WIDGET_SCROLL_VBOX,
+	WIDGET_HSCROLL,
 	WIDGET_VSCROLL,
 	WIDGET_PAD_BOX,
 };
@@ -122,6 +123,7 @@ struct widget_svbox;
 struct widget_textview;
 struct widget_tooltip;
 struct widget_vscroll;
+struct widget_hscroll;
 
 enum widget_flags {
 	FLAG_NONE    = 0,        // Nothing has been set
@@ -221,6 +223,7 @@ struct widget {
 		struct widget_textview *textview;
 		struct widget_tooltip  *tooltip;
 		struct widget_vscroll  *vscroll;
+		struct widget_hscroll  *hscroll;
 	} state;
 
 	/*
@@ -270,6 +273,7 @@ struct widget *make_window(void);
 struct widget *make_vbox(void);
 struct widget *make_hbox(void);
 struct widget *make_vscroll(void);
+struct widget *make_hscroll(void);
 struct widget *make_scroll_vbox(void);
 struct widget *make_pad_box(void);
 struct widget *make_label(const wchar_t *text);

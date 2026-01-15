@@ -118,6 +118,7 @@ const char *widget_type(struct widget *w)
 		[WIDGET_SPINBOX]     = "spinbox",
 		[WIDGET_SCROLL_VBOX] = "scroll_vbox",
 		[WIDGET_VSCROLL]     = "vscroll",
+		[WIDGET_HSCROLL]     = "hscroll",
 		[WIDGET_PAD_BOX]     = "pad_box",
 	};
 	return _widget_type[w->type];
