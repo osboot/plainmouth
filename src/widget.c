@@ -260,8 +260,8 @@ void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height)
 	if (lx >= 0) w->lx = lx;
 	if (ly >= 0) w->ly = ly;
 
-	if (width  > 0) w->w = width;
-	if (height > 0) w->h = height;
+	if (width  >= 0) w->w = width;
+	if (height >= 0) w->h = height;
 
 	if (w->layout)
 		w->layout(w);
@@ -342,8 +342,10 @@ void widget_render_tree(struct widget *w)
 	}
 
 	struct widget *c;
-	TAILQ_FOREACH(c, &w->children, siblings)
-		widget_render_tree(c);
+	TAILQ_FOREACH(c, &w->children, siblings) {
+		if (c->h > 0 && c->w > 0)
+			widget_render_tree(c);
+	}
 }
 
 bool walk_widget_tree(struct widget *w, walk_fn handler, void *data)

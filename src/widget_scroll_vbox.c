@@ -53,6 +53,11 @@ static void scroll_vbox_measure(struct widget *w)
 
 	pad->measure(pad);
 
+	/*
+	 * scroll_vbox reserves space for scrollbars in measure(),
+	 * but may give this space back to pad in layout() if scrolling
+	 * is not required.
+	 */
 	w->min_h  = 1;
 	w->pref_h = pad->pref_h + 1;
 
@@ -62,12 +67,42 @@ static void scroll_vbox_measure(struct widget *w)
 
 static void scroll_vbox_layout(struct widget *w)
 {
+	struct widget_svbox *st = w->state.svbox;
 	struct widget *vbox = TAILQ_FIRST(&w->children);
-
 	if (!vbox)
 		return;
 
 	widget_layout_tree(vbox, 0, 0, w->w, w->h);
+
+	int content_h = 0, content_w = 0;
+	widget_get(st->pad, PROP_SCROLL_CONTENT_H, &content_h);
+	widget_get(st->pad, PROP_SCROLL_CONTENT_W, &content_w);
+
+	/*
+	 * We check whether the content fits into the widget without taking
+	 * scrollbars into account. If the content is larger than pad but not
+	 * larger than the size of scrollbar, then the scrollbar is not needed.
+	 */
+	bool need_vscroll = (content_h > w->h);
+	bool need_hscroll = (content_w > w->w);
+
+	bool relayout = false;
+
+	if (!need_vscroll && st->vscroll->min_w > 0) {
+		st->vscroll->min_h  = st->vscroll->min_w  = 0;
+		st->vscroll->pref_h = st->vscroll->pref_w = 0;
+		relayout = true;
+	}
+
+	if (!need_hscroll && st->hscroll->min_h > 0) {
+		st->hscroll->min_h  = st->hscroll->min_w  = 0;
+		st->hscroll->pref_h = st->hscroll->pref_w = 0;
+		relayout = true;
+	}
+
+	if (relayout) {
+		widget_layout_tree(vbox, 0, 0, w->w, w->h);
+	}
 }
 
 static void scroll_vbox_render(struct widget *w)
