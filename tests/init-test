@@ -45,6 +45,7 @@ run_server()
 {
 	case "${MODE-dump}" in
 		dump)
+			rm -f -- "$current_dump"
 			_run "$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET" \
 				--debug-file="$testsdir/$progname-server.log" \
 				< /dev/null > /dev/null
