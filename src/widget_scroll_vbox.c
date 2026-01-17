@@ -123,6 +123,7 @@ static void scroll_vbox_ensure_visible(struct widget *w,
 
 	st->pad->ensure_visible(st->pad, child);
 	scroll_vbox_sync(w);
+	widget_render_tree(w);
 }
 
 static void scroll_vbox_add_child(struct widget *sv, struct widget *child)

@@ -119,25 +119,48 @@ static void pad_box_refresh(struct widget *w)
 			ax + w->lx + w->w - 1);
 }
 
+static bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w,
+				      int *out_y, int *out_x)
+{
+	int y = 0, x = 0;
+
+	while (w && w != ancestor) {
+		y += w->ly;
+		x += w->lx;
+		w = w->parent;
+	}
+
+	if (w != ancestor)
+		return false;
+
+	*out_y = y;
+	*out_x = x;
+	return true;
+}
+
 static void pad_box_ensure_visible(struct widget *container, struct widget *child)
 {
 	struct widget_pad_box *st = container->state.pad_box;
 
-	int top_y = st->scroll_y;
-	int bot_y = st->scroll_y + container->h;
+	int cy, cx;
+	if (!widget_offset_in_ancestor(container, child, &cy, &cx))
+		return;
 
-	int left_x = st->scroll_x;
-	int right_x = st->scroll_x + container->w;
+	int view_top    = st->scroll_y;
+	int view_bottom = st->scroll_y + container->h;
 
-	if (child->ly < top_y)
-		st->scroll_y = child->ly;
-	else if (child->ly + child->h > bot_y)
-		st->scroll_y = child->ly + child->h - container->h;
+	int view_left   = st->scroll_x;
+	int view_right  = st->scroll_x + container->w;
 
-	if (child->lx < left_x)
-		st->scroll_x = child->lx;
-	else if (child->lx + child->w > right_x)
-		st->scroll_x = child->lx + child->w - container->w;
+	if (cy < view_top)
+		st->scroll_y = cy;
+	else if (cy + child->h > view_bottom)
+		st->scroll_y = cy + child->h - container->h;
+
+	if (cx < view_left)
+		st->scroll_x = cx;
+	else if (cx + child->w > view_right)
+		st->scroll_x = cx + child->w - container->w;
 
 	pad_box_clamp_scroll(container);
 }
