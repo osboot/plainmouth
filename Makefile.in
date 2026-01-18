@@ -48,6 +48,7 @@ COMMON_SRC  = src/ipc.c src/request.c src/plugin.c src/dump.c \
 	      src/widget.c \
 	      src/widget_border.c \
 	      src/widget_button.c \
+	      src/widget_checkbox.c \
 	      src/widget_hbox.c \
 	      src/widget_hscroll.c \
 	      src/widget_input.c \

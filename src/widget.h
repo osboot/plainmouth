@@ -73,6 +73,7 @@ enum widget_type {
 	WIDGET_BORDER,
 	WIDGET_LABEL,
 	WIDGET_BUTTON,
+	WIDGET_CHECKBOX,
 	WIDGET_INPUT,
 	WIDGET_METER,
 	WIDGET_VBOX,
@@ -92,6 +93,7 @@ TAILQ_HEAD(widgethead, widget);
 enum widget_property {
 	PROP_NONE = 0,
 	PROP_BUTTON_STATE,
+	PROP_CHECKBOX_STATE,
 	PROP_INPUT_STATE,
 	PROP_INPUT_VALUE,
 	PROP_METER_TOTAL,
@@ -113,6 +115,7 @@ enum widget_property {
 /* Private widget-specific data */
 struct widget_border;
 struct widget_button;
+struct widget_checkbox;
 struct widget_input;
 struct widget_label;
 struct widget_meter;
@@ -213,6 +216,7 @@ struct widget {
 	union {
 		struct widget_border   *border;
 		struct widget_button   *button;
+		struct widget_checkbox *checkbox;
 		struct widget_input    *input;
 		struct widget_label    *label;
 		struct widget_meter    *meter;
@@ -279,6 +283,7 @@ struct widget *make_pad_box(void);
 struct widget *make_label(const wchar_t *text);
 struct widget *make_textview(const wchar_t *text);
 struct widget *make_button(const wchar_t *label);
+struct widget *make_checkbox(bool checked, bool is_radio);
 struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder);
 struct widget *make_input_password(const wchar_t *initdata, const wchar_t *placeholder);
 struct widget *make_meter(int total);

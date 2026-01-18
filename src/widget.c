@@ -109,6 +109,7 @@ const char *widget_type(struct widget *w)
 		[WIDGET_BORDER]      = "border",
 		[WIDGET_LABEL]       = "label",
 		[WIDGET_BUTTON]      = "button",
+		[WIDGET_CHECKBOX]    = "checkbox",
 		[WIDGET_INPUT]       = "input",
 		[WIDGET_METER]       = "meter",
 		[WIDGET_VBOX]        = "vbox",
