@@ -59,6 +59,9 @@ static void label_render(struct widget *w)
 {
 	struct widget_label *state = w->state.label;
 
+	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
+	wbkgd(w->win, COLOR_PAIR(color));
+
 	int maxy = getmaxy(w->win);
 	int maxx = getmaxx(w->win);
 
