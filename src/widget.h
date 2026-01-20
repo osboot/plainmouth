@@ -133,6 +133,7 @@ enum widget_flags {
 	FLAG_NONE    = 0,        // Nothing has been set
 	FLAG_CREATED = (1 << 0), // Rendering enabled flag
 	FLAG_INFOCUS = (1 << 1), // Is this subtree in focus
+	FLAG_VISIBLE = (1 << 2),
 };
 
 enum widget_attributes {
@@ -270,6 +271,7 @@ bool walk_widget_tree(struct widget *w, walk_fn handler, void *data);
 
 void widget_measure_tree(struct widget *w);
 void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height);
+void widget_hide_tree(struct widget *w);
 void widget_render_tree(struct widget *w);
 
 void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height);

@@ -141,7 +141,7 @@ struct widget *widget_create(enum widget_type type)
 	w->type = type;
 	TAILQ_INIT(&w->children);
 
-	w->flags |= FLAG_CREATED;
+	w->flags |= FLAG_CREATED | FLAG_VISIBLE;
 	w->color_pair = COLOR_PAIR_MAIN;
 
 	w->flex_h   = w->flex_w   = 0;
@@ -168,6 +168,8 @@ void widget_add(struct widget *parent, struct widget *child)
 	TAILQ_INSERT_TAIL(&parent->children, child, siblings);
 }
 
+static void widget_destroy_window(struct widget *w);
+
 /*
  * Recursively destroy a widget and all its descendants.
  */
@@ -182,14 +184,7 @@ void widget_free(struct widget *w)
 		widget_free(c);
 	}
 
-	if (IS_DEBUG())
-		warnx("destroy widget %s (%p) (y=%d, x=%d, height=%d, width=%d)",
-			widget_type(w), w->win, w->ly, w->lx, w->h, w->w);
-
-	if (w->win) {
-		delwin(w->win);
-		w->win = NULL;
-	}
+	widget_destroy_window(w);
 
 	if (w->free_data)
 		w->free_data(w);
@@ -316,6 +311,25 @@ static void widget_create_window(struct widget *w)
 	w->flags |= FLAG_CREATED;
 }
 
+static void widget_destroy_window(struct widget *w)
+{
+	if (!w || !w->win)
+		return;
+
+	if (delwin(w->win) == ERR) {
+		warnx("unable to destroy ncurses win of widget %s (%p) (y=%d, x=%d, height=%d, width=%d)",
+			widget_type(w), w->win, w->ly, w->lx, w->h, w->w);
+		return;
+	}
+
+	if (IS_DEBUG())
+		warnx("destroy ncurses win of widget %s (%p) (y=%d, x=%d, height=%d, width=%d)",
+			widget_type(w), w->win, w->ly, w->lx, w->h, w->w);
+
+	w->win = NULL;
+	w->flags &= ~FLAG_CREATED;
+}
+
 /*
  * Draw the widget subtree.
  *
@@ -331,23 +345,40 @@ void widget_render_tree(struct widget *w)
 	if (!w)
 		return;
 
-	if (!w->win)
+	if (!(w->flags & FLAG_VISIBLE))
+		return;
+
+	if (!w->win) {
 		widget_create_window(w);
-
-	if (w->win) {
-		werase(w->win);
-
-		if (w->render)
-			w->render(w);
-
-		widget_refresh_upper_tree(w);
+		if (!w->win)
+			return;
 	}
+
+	werase(w->win);
+
+	if (w->render)
+		w->render(w);
+
+	widget_refresh_upper_tree(w);
 
 	struct widget *c;
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		if (c->h > 0 && c->w > 0)
 			widget_render_tree(c);
 	}
+}
+
+void widget_hide_tree(struct widget *w)
+{
+	if (!w)
+		return;
+
+	struct widget *c;
+	TAILQ_FOREACH(c, &w->children, siblings) {
+		widget_hide_tree(c);
+	}
+
+	widget_destroy_window(w);
 }
 
 bool walk_widget_tree(struct widget *w, walk_fn handler, void *data)
