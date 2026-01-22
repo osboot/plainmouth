@@ -67,9 +67,10 @@ static struct widget *p_checklist_create(struct request *req)
 
 	for (size_t i = 0; i < p->num_kv; i++) {
 		if (streq(p->kv[i].key, "option")) {
-			wchar_t *opt = req_get_kv_wchars(p->kv + i);
-			make_select_option(select, opt);
-			free(opt);
+			wchar_t *txt = req_get_kv_wchars(p->kv + i);
+			struct widget *option = make_select_option(txt, false, (maxsel > 1));
+			free(txt);
+			widget_add(select, option);
 		}
 	}
 

@@ -40,6 +40,10 @@
 #define MIN(a, b)	(((a) < (b)) ? (a) : (b))
 #define MAX(a, b)	(((a) > (b)) ? (a) : (b))
 
+#ifndef CLAMP
+#define CLAMP(x, lo, hi) ((x) < (lo) ? (lo) : ((x) > (hi) ? (hi) : (x)))
+#endif
+
 #include <string.h>
 
 #define streq(a, b)		(strcmp((a), (b)) == 0)

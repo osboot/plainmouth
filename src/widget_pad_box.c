@@ -11,10 +11,6 @@
 #include "macros.h"
 #include "widget.h"
 
-#ifndef CLAMP
-#define CLAMP(x, lo, hi) ((x) < (lo) ? (lo) : ((x) > (hi) ? (hi) : (x)))
-#endif
-
 struct widget_pad_box {
 	int content_h, content_w;
 	int scroll_y, scroll_x;

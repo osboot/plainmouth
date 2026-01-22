@@ -79,6 +79,7 @@ enum widget_type {
 	WIDGET_VBOX,
 	WIDGET_HBOX,
 	WIDGET_TOOLTIP,
+	WIDGET_LIST_VBOX,
 	WIDGET_SELECT,
 	WIDGET_SELECT_OPT,
 	WIDGET_SPINBOX,
@@ -117,8 +118,10 @@ enum widget_property {
 struct widget_border;
 struct widget_button;
 struct widget_checkbox;
+struct widget_hscroll;
 struct widget_input;
 struct widget_label;
+struct widget_list_vbox;
 struct widget_meter;
 struct widget_pad_box;
 struct widget_select;
@@ -127,7 +130,6 @@ struct widget_svbox;
 struct widget_textview;
 struct widget_tooltip;
 struct widget_vscroll;
-struct widget_hscroll;
 
 enum widget_flags {
 	FLAG_NONE    = 0,        // Nothing has been set
@@ -216,20 +218,21 @@ struct widget {
 
 	/* Widget-specific state */
 	union {
-		struct widget_border   *border;
-		struct widget_button   *button;
-		struct widget_checkbox *checkbox;
-		struct widget_input    *input;
-		struct widget_label    *label;
-		struct widget_meter    *meter;
-		struct widget_pad_box  *pad_box;
-		struct widget_select   *select;
-		struct widget_spinbox  *spinbox;
-		struct widget_svbox    *svbox;
-		struct widget_textview *textview;
-		struct widget_tooltip  *tooltip;
-		struct widget_vscroll  *vscroll;
-		struct widget_hscroll  *hscroll;
+		struct widget_border    *border;
+		struct widget_button    *button;
+		struct widget_checkbox  *checkbox;
+		struct widget_hscroll   *hscroll;
+		struct widget_input     *input;
+		struct widget_label     *label;
+		struct widget_list_vbox *list_vbox;
+		struct widget_meter     *meter;
+		struct widget_pad_box   *pad_box;
+		struct widget_select    *select;
+		struct widget_spinbox   *spinbox;
+		struct widget_svbox     *svbox;
+		struct widget_textview  *textview;
+		struct widget_tooltip   *tooltip;
+		struct widget_vscroll   *vscroll;
 	} state;
 
 	/*
@@ -292,10 +295,10 @@ struct widget *make_input_password(const wchar_t *initdata, const wchar_t *place
 struct widget *make_meter(int total);
 struct widget *make_tooltip(const wchar_t *line);
 struct widget *make_spinbox(int min, int max, int step, int initial, int width);
+struct widget *make_list_vbox(int view_rows);
 
 struct widget *make_select(int max_selected, int view_rows);
-bool make_select_option(struct widget *select, const wchar_t *item);
-struct widget *make_select_opt(const wchar_t *text, bool checked, bool is_radio);
+struct widget *make_select_option(const wchar_t *text, bool checked, bool is_radio);
 
 struct widget *make_border(void);
 struct widget *make_border_vbox(struct widget *parent);

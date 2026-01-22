@@ -1,265 +1,280 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "config.h"
 
-#include <sys/queue.h>
-#include <unistd.h>
-#include <stdbool.h>
-#include <wchar.h>
+#include <stdlib.h>
 #include <err.h>
 
-#include <curses.h>
-
 #include "macros.h"
-#include "warray.h"
 #include "widget.h"
 
 struct widget_select {
-	struct warray items;
-
-	bool *selected;
 	int max_selected;
-	int nselected;
-
-	int cursor;
-	int vscroll;
-
-	int view_rows;
+	int selected;
+	struct widget *focus;
+	struct widget *list;
+	struct widget *vscroll;
 };
 
-static void select_measure(struct widget *w) __attribute__((nonnull(1)));
-static void select_render(struct widget *w) __attribute__((nonnull(1)));
-static void select_free(struct widget *w) __attribute__((nonnull(1)));
-static int select_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
-static bool select_getter(struct widget *w, enum widget_property prop, void *out) __attribute__((nonnull(1,3)));
-static bool select_getter_index(struct widget *w, enum widget_property prop, int index, void *out) __attribute__((nonnull(1,4)));
-
-
-void select_measure(struct widget *w)
+static void select_sync(struct widget *sv)
 {
-        struct widget_select *s = w->state.select;
+	struct widget_select *st = sv->state.select;
 
-        int maxlen = 0;
-        for (size_t i = 0; i < s->items.size; i++) {
-                const wchar_t *line = warray_get(&s->items, i);
-                if (line)
-                        maxlen = MAX(maxlen, (int) wcslen(line));
-        }
+	int scroll_y, content_h;
 
-        w->min_h  = 1;
-        w->min_w  = maxlen + 4; // "[x] " + text
+	widget_get(st->list, PROP_SCROLL_Y, &scroll_y);
+	widget_get(st->list, PROP_SCROLL_CONTENT_H, &content_h);
 
-        w->pref_h = s->view_rows ? s->view_rows : MIN(5, (int) s->items.size);
-        w->pref_w = w->min_w;
+	widget_set(st->vscroll, PROP_SCROLL_Y,  &scroll_y);
+	widget_set(st->vscroll, PROP_SCROLL_CONTENT_H, &content_h);
+	widget_set(st->vscroll, PROP_SCROLL_VIEW_H, &st->list->h);
+
+	widget_render_tree(st->vscroll);
 }
 
-void select_render(struct widget *w)
+static void select_measure(struct widget *w)
 {
-	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
-	struct widget_select *s = w->state.select;
-	int height, width;
+	struct widget_select *st = w->state.select;
 
-	getmaxyx(w->win, height, width);
-	werase(w->win);
+	st->list->measure(st->list);
 
-	int items_size = (int) s->items.size;
-	int last = MIN(items_size, s->vscroll + height);
+	w->min_h  = 1;
+	w->pref_h = st->list->pref_h;
 
-	for (int i = s->vscroll, row = 0; i < last; i++, row++) {
-		const wchar_t *item = warray_get(&s->items, (size_t) i);
-
-		if (i == s->cursor)
-			wattron(w->win, A_REVERSE);
-
-		if (item) {
-			char buf[5];
-
-			snprintf(buf, sizeof(buf),
-					(s->max_selected > 1 ? "[%c] " : "(%c) "),
-					(s->selected[i] ? '*' : ' '));
-
-			wmove(w->win, row, 0);
-			waddnstr(w->win, buf, sizeof(buf) - 1);
-			waddnwstr(w->win, item, width - 4);
-		}
-
-		if (i == s->cursor) {
-			for (int j = 4 + (int) wcslen(item); j < width; j++)
-				waddch(w->win, ' ');
-
-			wattroff(w->win, A_REVERSE);
-		}
-	}
-
-	/* scrollbar */
-	if (items_size > height)
-		widget_draw_vscroll(w->win, color, s->vscroll, items_size);
-
-	wnoutrefresh(w->win);
+	w->min_w  = 1;
+	w->pref_w = st->list->pref_w + 1;
 }
 
-void select_free(struct widget *w)
+static void select_layout(struct widget *w)
 {
-	if (w->state.select) {
-		warray_free(&w->state.select->items);
-		free(w->state.select->selected);
-		free(w->state.select);
-	}
+	struct widget *hbox = TAILQ_FIRST(&w->children);
+
+	widget_layout_tree(hbox, 0, 0, w->w, w->h);
 }
 
-int select_input(const struct widget *w, wchar_t key)
+static void select_render(struct widget *w)
 {
-	struct widget_select *s = w->state.select;
-	int count = (int) s->items.size;
+	struct widget_select *st = w->state.select;
+
+	if (w->flags & FLAG_INFOCUS)
+		st->vscroll->flags |= FLAG_INFOCUS;
+	else
+		st->vscroll->flags &= ~FLAG_INFOCUS;
+
+	select_sync(w);
+}
+
+static void select_ensure_visible(struct widget *w, struct widget *child)
+{
+	struct widget_select *st = w->state.select;
+
+	st->list->ensure_visible(st->list, child);
+
+	select_sync(w);
+}
+
+static int select_input(const struct widget *w, wchar_t key)
+{
+	struct widget_select *st = w->state.select;
+	int delta_y = 0;
 
 	switch (key) {
+		case L' ':
+			if (st->focus) {
+				bool clicked = false;
+
+				widget_get(st->focus, PROP_CHECKBOX_STATE, &clicked);
+
+				if (clicked)
+					st->selected--;
+				else if (st->selected < st->max_selected)
+					st->selected++;
+				else
+					return 1;
+
+				clicked = !clicked;
+				widget_set(st->focus, PROP_CHECKBOX_STATE, &clicked);
+			}
+			break;
+
 		case KEY_UP:
-			if (s->cursor > 0)
-				s->cursor--;
+			st->focus->flags &= ~FLAG_INFOCUS;
+			st->focus = TAILQ_PREV(st->focus, widgethead, siblings);
+
+			if (!st->focus)
+				st->focus = TAILQ_FIRST(&st->list->children);
+
+			st->focus->flags |= FLAG_INFOCUS;
+			st->list->ensure_visible(st->list, st->focus);
 			break;
 
 		case KEY_DOWN:
-			if (s->cursor < count - 1)
-				s->cursor++;
+			st->focus->flags &= ~FLAG_INFOCUS;
+			st->focus = TAILQ_NEXT(st->focus, siblings);
+
+			if (!st->focus)
+				st->focus = TAILQ_FIRST(&st->list->children);
+
+			st->focus->flags |= FLAG_INFOCUS;
+			st->list->ensure_visible(st->list, st->focus);
 			break;
 
 		case KEY_PPAGE:
-			s->cursor = MAX(0, s->cursor - w->h);
+			delta_y = -w->h;
 			break;
 
 		case KEY_NPAGE:
-			s->cursor = MIN(count - 1, s->cursor + w->h);
-			break;
-
-		case L' ':
-			if (s->selected[s->cursor]) {
-				s->selected[s->cursor] = false;
-				s->nselected--;
-
-			} else if (s->max_selected == 1) {
-				memset(s->selected, 0, sizeof(bool) * (size_t) count);
-
-				s->selected[s->cursor] = true;
-				s->nselected = 1;
-
-			} else if (s->nselected < s->max_selected) {
-				if (s->max_selected == 1) {
-					memset(s->selected, 0, sizeof(bool) * (size_t) count);
-					s->nselected = 0;
-				}
-				s->selected[s->cursor] = true;
-				s->nselected++;
-			}
+			delta_y = +w->h;
 			break;
 
 		default:
 			return 0;
 	}
-
-	if (s->cursor < s->vscroll)
-		s->vscroll = s->cursor;
-
-	else if (s->cursor >= s->vscroll + w->h)
-		s->vscroll = s->cursor - w->h + 1;
+	if (delta_y)
+		widget_set(st->list, PROP_SCROLL_INC_Y, &delta_y);
 
 	return 1;
 }
 
-bool select_getter(struct widget *w, enum widget_property prop, void *out)
+static bool select_getter(struct widget *w, enum widget_property prop, void *value)
 {
-	struct widget_select *s = w->state.select;
+	struct widget_select *st = w->state.select;
 
-	switch (prop) {
-		case PROP_SELECT_OPTIONS_SIZE:
-			*(int *) out = (int) s->items.size;
-			return true;
-		case PROP_SELECT_CURSOR:
-			*(int *) out = s->cursor;
-			return true;
-		default:
-			break;
+	if (prop == PROP_SELECT_OPTIONS_SIZE) {
+		int size = 0;
+
+		warnx("XXX select_getter PROP_SELECT_OPTIONS_SIZE");
+
+		struct widget *c;
+		TAILQ_FOREACH(c, &st->list->children, siblings) {
+			if (c->type != WIDGET_SELECT_OPT)
+				continue;
+
+			size++;
+		}
+		*(int *) value = size;
+		return true;
 	}
+
+	if (prop == PROP_SELECT_CURSOR) {
+		int index = 0;
+
+		struct widget *c;
+		TAILQ_FOREACH(c, &st->list->children, siblings) {
+			if (c->type != WIDGET_SELECT_OPT)
+				continue;
+
+			if (c == st->focus)
+				break;
+
+			index++;
+		}
+		*(int *) value = index;
+		return true;
+	}
+
 	return false;
 }
 
-bool select_getter_index(struct widget *w, enum widget_property prop, int index, void *out)
+static bool select_getter_index(struct widget *w, enum widget_property prop, int index, void *value)
 {
-	struct widget_select *s = w->state.select;
+	struct widget_select *st = w->state.select;
 
-	switch (prop) {
-		case PROP_SELECT_OPTION_VALUE:
-			if (index >= 0 && index < (int) s->items.size) {
-				*(bool *) out = s->selected[index];
-				return true;
+	if (prop == PROP_SELECT_OPTION_VALUE) {
+		int i = 0;
+		bool clicked = false;
+
+		struct widget *c;
+		TAILQ_FOREACH(c, &st->list->children, siblings) {
+			if (c->type != WIDGET_SELECT_OPT)
+				continue;
+
+			if (i == index) {
+				widget_get(c, PROP_CHECKBOX_STATE, &clicked);
+				break;
 			}
-			break;
-		default:
-			break;
+			i++;
+		}
+
+		*(bool *) value = clicked;
+		return true;
 	}
+
 	return false;
+}
+
+static void select_add_child(struct widget *sv, struct widget *child)
+{
+	struct widget_select *st = sv->state.select;
+
+	if (!st->focus) {
+		st->focus = child;
+		child->flags |= FLAG_INFOCUS;
+	}
+
+	child->attrs &= ~ATTR_CAN_FOCUS;
+	widget_add(st->list, child);
+}
+
+static void select_free(struct widget *w)
+{
+	if (!w || !w->state.select)
+		return;
+
+	free(w->state.select);
+	w->state.select = NULL;
 }
 
 struct widget *make_select(int max_selected, int view_rows)
 {
-	struct widget *w = widget_create(WIDGET_SELECT);
-	if (!w)
-		return NULL;
+	struct widget *root = widget_create(WIDGET_SELECT);
+	struct widget *hbox = make_hbox();
+	struct widget *list = make_list_vbox(view_rows);
+	struct widget *vs   = make_vscroll();
 
-	struct widget_select *state = calloc(1, sizeof(*state));
-	if (!state) {
-		warn("make_select: calloc");
-		widget_free(w);
-		return NULL;
+	if (!root || !hbox || !list || !vs) {
+		goto fail;
 	}
 
-	warray_init(&state->items);
-
-	state->max_selected = MAX(1, max_selected);
-	state->view_rows = view_rows;
-
-	w->state.select = state;
-	w->measure      = select_measure;
-	w->render       = select_render;
-	w->input        = select_input;
-	w->free_data    = select_free;
-	w->getter       = select_getter;
-	w->getter_index = select_getter_index;
-	w->color_pair   = COLOR_PAIR_WINDOW;
-	w->attrs        = ATTR_CAN_FOCUS;
-
-	w->flex_w = 1;
-	w->flex_h = 1;
-	w->stretch_w = true;
-	w->stretch_h = true;
-
-	return w;
-}
-
-bool make_select_option(struct widget *w, const wchar_t *item)
-{
-	bool *selected;
-	struct widget_select *s;
-
-	if (!w || !w->state.select) {
-		warnx("bad select widget");
-		return false;
+	struct widget_select *st = calloc(1, sizeof(*st));
+	if (!st) {
+		warn("make_select_box: calloc");
+		goto fail;
 	}
 
-	s = w->state.select;
+	st->max_selected = max_selected;
+	st->list         = list;
+	st->vscroll      = vs;
 
-	selected = realloc(s->selected, sizeof(bool) * (s->items.size + 1));
-	if (!selected) {
-		warn("unable to extend selected");
-		return false;
-	}
-	selected[s->items.size] = false;
+	root->state.select = st;
 
-	if (warray_push(&s->items, item, 0) < 0) {
-		warnx("unable to push new item");
-		free(selected);
-		return false;
-	}
+	widget_add(root, hbox);
+	widget_add(hbox, list);
+	widget_add(hbox, vs);
 
-	s->selected = selected;
+	root->add_child      = select_add_child;
+	root->measure        = select_measure;
+	root->layout         = select_layout;
+	root->render         = select_render;
+	root->ensure_visible = select_ensure_visible;
+	root->input          = select_input;
+	root->getter         = select_getter;
+	root->getter_index   = select_getter_index;
+	root->free_data      = select_free;
+	root->color_pair     = COLOR_PAIR_WINDOW;
+	root->attrs          = ATTR_CAN_FOCUS;
 
-	return true;
+	root->stretch_w = true;
+	root->stretch_h = true;
+
+	root->flex_w = 1;
+	root->flex_h = 1;
+
+	return root;
+fail:
+	widget_free(list);
+	widget_free(vs);
+	widget_free(hbox);
+	widget_free(root);
+
+	return NULL;
 }

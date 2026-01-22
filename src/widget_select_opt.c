@@ -64,7 +64,37 @@ static int selopt_input(const struct widget *w, wchar_t key)
 	return 0;
 }
 
-struct widget *make_select_opt(const wchar_t *text, bool checked, bool is_radio)
+static bool selopt_getter(struct widget *w, enum widget_property prop, void *value)
+{
+	if (prop == PROP_CHECKBOX_STATE) {
+		struct widget *hbox = TAILQ_FIRST(&w->children);
+
+		struct widget *c;
+		TAILQ_FOREACH(c, &hbox->children, siblings) {
+			if (c->type == WIDGET_CHECKBOX && c->getter) {
+				return c->getter(c, prop, value);
+			}
+		}
+	}
+	return false;
+}
+
+static bool selopt_setter(struct widget *w, enum widget_property prop, const void *value)
+{
+	if (prop == PROP_CHECKBOX_STATE) {
+		struct widget *hbox = TAILQ_FIRST(&w->children);
+
+		struct widget *c;
+		TAILQ_FOREACH(c, &hbox->children, siblings) {
+			if (c->type == WIDGET_CHECKBOX && c->getter) {
+				return c->setter(c, prop, value);
+			}
+		}
+	}
+	return false;
+}
+
+struct widget *make_select_option(const wchar_t *text, bool checked, bool is_radio)
 {
 	struct widget *w = widget_create(WIDGET_SELECT_OPT);
 	struct widget *hbox = make_hbox();
@@ -90,6 +120,8 @@ struct widget *make_select_opt(const wchar_t *text, bool checked, bool is_radio)
 	w->layout     = selopt_layout;
 	w->render     = selopt_render;
 	w->input      = selopt_input;
+	w->getter     = selopt_getter;
+	w->setter     = selopt_setter;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->attrs |= ATTR_CAN_FOCUS;
