@@ -341,13 +341,12 @@ static void ui_focused(bool state)
 		 * in focus is on top of everything else.
 		 */
 		struct instance *ins = find_instance(focused->instance_id);
-		if (ins)
-			top_panel(ins->panel);
+		widget_render_tree(ins->root);
+		top_panel(ins->panel);
 	} else {
 		focused->flags &= ~FLAG_INFOCUS;
+		widget_render_tree(focused);
 	}
-
-	widget_render_tree(focused);
 }
 
 static void ui_next_focused(void)
