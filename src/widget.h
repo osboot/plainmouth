@@ -80,6 +80,7 @@ enum widget_type {
 	WIDGET_HBOX,
 	WIDGET_TOOLTIP,
 	WIDGET_SELECT,
+	WIDGET_SELECT_OPT,
 	WIDGET_SPINBOX,
 	WIDGET_SCROLL_VBOX,
 	WIDGET_HSCROLL,
@@ -292,6 +293,7 @@ struct widget *make_spinbox(int min, int max, int step, int initial, int width);
 
 struct widget *make_select(int max_selected, int view_rows);
 bool make_select_option(struct widget *select, const wchar_t *item);
+struct widget *make_select_opt(const wchar_t *text, bool checked, bool is_radio);
 
 struct widget *make_border(void);
 struct widget *make_border_vbox(struct widget *parent);
