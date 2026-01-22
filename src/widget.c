@@ -288,8 +288,8 @@ static void widget_create_window(struct widget *w)
 		w->win = derwin(w->parent->win, w->h, w->w, w->ly, w->lx);
 
 		if (!w->win) {
-			warnx("unable to create %s subwindow (y=%d, x=%d, height=%d, width=%d)",
-				widget_type(w), w->ly, w->lx, w->h, w->w);
+			warnx("unable to create %s subwindow (y=%d, x=%d, height=%d, width=%d) in parent win %p",
+				widget_type(w), w->ly, w->lx, w->h, w->w, w->parent->win);
 		}
 	}
 
@@ -299,10 +299,12 @@ static void widget_create_window(struct widget *w)
 	}
 
 	if (IS_DEBUG()) {
-		const char *sub = (w->parent) ? "subwindow" : "window";
-
-		warnx("%s (%p) %s was created (y=%d, x=%d, height=%d, width=%d)",
-			widget_type(w), w->win, sub, w->ly, w->lx, w->h, w->w);
+		if (w->parent)
+			warnx("%s (%p) subwindow was created (y=%d, x=%d, height=%d, width=%d) in parent win %p",
+				widget_type(w), w->win, w->ly, w->lx, w->h, w->w, w->parent->win);
+		else
+			warnx("%s (%p) window was created (y=%d, x=%d, height=%d, width=%d)",
+				widget_type(w), w->win, w->ly, w->lx, w->h, w->w);
 	}
 
 	if (w->color_pair)
