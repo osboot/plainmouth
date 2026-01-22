@@ -350,6 +350,19 @@ void widget_render_tree(struct widget *w)
 	if (!(w->flags & FLAG_VISIBLE))
 		return;
 
+	if (w->win && w->parent) {
+		int wy, wx;
+		getparyx(w->win, wy, wx);
+
+		if (w->ly != wy || w->lx != wx) {
+			/*
+			 * mvderwin does not work for some reason. There are no
+			 * errors, but the window does not move.
+			 */
+			widget_hide_tree(w);
+		}
+	}
+
 	if (!w->win) {
 		widget_create_window(w);
 		if (!w->win)
