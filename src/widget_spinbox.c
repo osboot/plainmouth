@@ -64,7 +64,7 @@ void spinbox_render(struct widget *w)
 	werase(w->win);
 	wbkgd(w->win, COLOR_PAIR(color));
 
-	mvwprintw(w->win, 0, 0, "[%0*d]", s->width, s->value);
+	w_mvprintw(w->win, 0, 0, L"[%0*d]", s->width, s->value);
 
 	wnoutrefresh(w->win);
 }

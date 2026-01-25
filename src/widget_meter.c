@@ -33,8 +33,8 @@ void show_percent(WINDOW *win, struct widget_meter *state)
 	if (max_x < 4)
 		return;
 
-	mvwprintw(win, 0, (max_x / 2) - 1,
-		  "%3d%%", simple_round(((float) state->value * 100) / (float) state->total));
+	w_mvprintw(win, 0, (max_x / 2) - 1,
+		   L"%3d%%", simple_round(((float) state->value * 100) / (float) state->total));
 }
 
 void meter_measure(struct widget *w)
