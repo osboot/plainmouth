@@ -277,8 +277,6 @@ void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height)
 void widget_hide_tree(struct widget *w);
 void widget_render_tree(struct widget *w);
 
-void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height);
-
 struct widget *make_window(void);
 struct widget *make_vbox(void);
 struct widget *make_hbox(void);
