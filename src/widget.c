@@ -160,12 +160,13 @@ void widget_add(struct widget *parent, struct widget *child)
 	if (!parent || !child)
 		return;
 
+	child->parent = parent;
+
 	if (parent->add_child) {
 		parent->add_child(parent, child);
 		return;
 	}
 
-	child->parent = parent;
 	TAILQ_INSERT_TAIL(&parent->children, child, siblings);
 }
 
