@@ -87,6 +87,7 @@ enum widget_type {
 	WIDGET_HSCROLL,
 	WIDGET_VSCROLL,
 	WIDGET_PAD_BOX,
+	WIDGET_COUNTS,
 };
 
 struct widget;

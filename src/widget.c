@@ -124,7 +124,11 @@ const char *widget_type(struct widget *w)
 		[WIDGET_HSCROLL]     = "hscroll",
 		[WIDGET_PAD_BOX]     = "pad_box",
 	};
-	return _widget_type[w->type];
+	if (!w)
+		return "NULL";
+	if (w->type >= 0 || w->type < WIDGET_COUNTS)
+		return _widget_type[w->type];
+	return "unknown";
 }
 
 /*
