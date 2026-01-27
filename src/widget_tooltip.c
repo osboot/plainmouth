@@ -20,11 +20,11 @@ struct widget_tooltip {
 	PANEL *panel;
 };
 
-static void tooltip_measure(struct widget *w);
-static void tooltip_render(struct widget *w);
+static void tooltip_measure(struct widget *w) __attribute__((nonnull(1)));
+static void tooltip_render(struct widget *w) __attribute__((nonnull(1)));
+static int tooltip_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
+static struct widget *make_popup(const wchar_t *desc, int y, int x) __attribute__((nonnull(1)));
 static void tooltip_free(struct widget *w);
-static int tooltip_input(const struct widget *w, wchar_t key);
-static struct widget *make_popup(const wchar_t *desc, int y, int x);
 
 
 struct widget *make_popup(const wchar_t *desc, int y, int x)

@@ -13,7 +13,17 @@ struct widget_svbox {
 	struct widget *hscroll;
 };
 
-static void scroll_vbox_sync(struct widget *sv)
+static void scroll_vbox_sync(struct widget *w) __attribute__((nonnull(1)));
+static void scroll_vbox_measure(struct widget *w) __attribute__((nonnull(1)));
+static void scroll_vbox_layout(struct widget *w) __attribute__((nonnull(1)));
+static void scroll_vbox_render(struct widget *w) __attribute__((nonnull(1)));
+static void scroll_vbox_ensure_visible(struct widget *w, struct widget *child) __attribute__((nonnull(1,2)));
+static void scroll_vbox_add_child(struct widget *sv, struct widget *child)  __attribute__((nonnull(1,2)));
+static int scroll_vbox_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
+static void scroll_vbox_free(struct widget *w);
+
+
+void scroll_vbox_sync(struct widget *sv)
 {
 	struct widget_svbox *st = sv->state.svbox;
 
@@ -43,7 +53,7 @@ static void scroll_vbox_sync(struct widget *sv)
 	}
 }
 
-static void scroll_vbox_measure(struct widget *w)
+void scroll_vbox_measure(struct widget *w)
 {
 	struct widget_svbox *st = w->state.svbox;
 	struct widget *pad = st->pad;
@@ -65,7 +75,7 @@ static void scroll_vbox_measure(struct widget *w)
 	w->pref_w = pad->pref_w + 1;
 }
 
-static void scroll_vbox_layout(struct widget *w)
+void scroll_vbox_layout(struct widget *w)
 {
 	struct widget_svbox *st = w->state.svbox;
 	struct widget *vbox = TAILQ_FIRST(&w->children);
@@ -105,7 +115,7 @@ static void scroll_vbox_layout(struct widget *w)
 	}
 }
 
-static void scroll_vbox_render(struct widget *w)
+void scroll_vbox_render(struct widget *w)
 {
 	struct widget *hbox = TAILQ_FIRST(&w->children);
 	if (hbox)
@@ -113,8 +123,7 @@ static void scroll_vbox_render(struct widget *w)
 	scroll_vbox_sync(w);
 }
 
-static void scroll_vbox_ensure_visible(struct widget *w,
-                                       struct widget *child)
+void scroll_vbox_ensure_visible(struct widget *w, struct widget *child)
 {
 	struct widget_svbox *st = w->state.svbox;
 
@@ -126,7 +135,7 @@ static void scroll_vbox_ensure_visible(struct widget *w,
 	widget_render_tree(w);
 }
 
-static void scroll_vbox_add_child(struct widget *sv, struct widget *child)
+void scroll_vbox_add_child(struct widget *sv, struct widget *child)
 {
 	struct widget_svbox *st = sv->state.svbox;
 
@@ -136,7 +145,7 @@ static void scroll_vbox_add_child(struct widget *sv, struct widget *child)
 	widget_add(st->pad, child);
 }
 
-static int scroll_vbox_input(const struct widget *w, wchar_t key)
+int scroll_vbox_input(const struct widget *w, wchar_t key)
 {
 	struct widget_svbox *st = w->state.svbox;
 
@@ -163,7 +172,7 @@ static int scroll_vbox_input(const struct widget *w, wchar_t key)
 	return 1;
 }
 
-static void scroll_vbox_free(struct widget *w)
+void scroll_vbox_free(struct widget *w)
 {
 	if (!w || !w->state.svbox)
 		return;

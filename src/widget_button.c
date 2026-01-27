@@ -13,9 +13,9 @@
 #include "plugin.h"
 #include "widget.h"
 
-static void button_measure(struct widget *w)                                        __attribute__((nonnull(1)));
-static void button_render(struct widget *w)                                         __attribute__((nonnull(1)));
-static int button_input(const struct widget *w, wchar_t key)                        __attribute__((nonnull(1)));
+static void button_measure(struct widget *w) __attribute__((nonnull(1)));
+static void button_render(struct widget *w) __attribute__((nonnull(1)));
+static int button_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
 static bool button_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1)));
 static void button_free(struct widget *w);
 

@@ -18,7 +18,13 @@ struct widget_label {
 	int ncols;
 };
 
-static void label_init_lines(struct widget_label *st, const wchar_t *text)
+static void label_init_lines(struct widget_label *st, const wchar_t *text) __attribute__((nonnull(1)));
+static void label_measure(struct widget *w) __attribute__((nonnull(1)));
+static void label_render(struct widget *w) __attribute__((nonnull(1)));
+static void label_free(struct widget *w);
+
+
+void label_init_lines(struct widget_label *st, const wchar_t *text)
 {
 	warray_init(&st->lines);
 	st->ncols = 0;
@@ -47,7 +53,7 @@ static void label_init_lines(struct widget_label *st, const wchar_t *text)
 		warray_push(&st->lines, L"", 0);
 }
 
-static void label_measure(struct widget *w)
+void label_measure(struct widget *w)
 {
 	struct widget_label *state = w->state.label;
 
@@ -55,7 +61,7 @@ static void label_measure(struct widget *w)
 	w->min_w = state->ncols;
 }
 
-static void label_render(struct widget *w)
+void label_render(struct widget *w)
 {
 	struct widget_label *state = w->state.label;
 
@@ -74,12 +80,14 @@ static void label_render(struct widget *w)
 	}
 }
 
-static void label_free(struct widget *w)
+void label_free(struct widget *w)
 {
-	struct widget_label *state = w->state.label;
-	if (state) {
-		warray_free(&state->lines);
-		free(state);
+	if (!w)
+		return;
+
+	if (w->state.label) {
+		warray_free(&w->state.label->lines);
+		free(w->state.label);
 	}
 }
 

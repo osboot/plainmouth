@@ -15,12 +15,26 @@ struct widget_list_vbox {
 	int content_h;
 };
 
+static void list_vbox_measure(struct widget *w) __attribute__((nonnull(1)));
+static void list_vbox_layout(struct widget *w) __attribute__((nonnull(1)));
+static void list_vbox_render(struct widget *w) __attribute__((nonnull(1)));
+static void get_visible_range(struct widget *w, struct widget **first, struct widget **last) __attribute__((nonnull(1,2,3)));
+static void set_visible_range(struct widget *w, struct widget *first, struct widget *last) __attribute__((nonnull(1,2,3)));
+static void shift_window_anchor_first(struct widget *w, struct widget *focused) __attribute__((nonnull(1,2)));
+static void shift_window_anchor_last(struct widget *w, struct widget *focused) __attribute__((nonnull(1,2)));
+static void list_vbox_ensure_visible(struct widget *w, struct widget *focused) __attribute__((nonnull(1,2)));
+static bool list_vbox_getter(struct widget *w, enum widget_property prop, void *val) __attribute__((nonnull(1,3)));
+static struct widget *list_vbox_find_anchor_by_scroll_y(struct widget *w, int scroll_y) __attribute__((nonnull(1)));
+static bool list_vbox_setter(struct widget *w, enum widget_property prop, const void *val) __attribute__((nonnull(1,3)));
+static void list_vbox_free(struct widget *w);
+
+
 static inline int widget_height(const struct widget *c)
 {
 	return MAX(1, c->pref_h ? c->pref_h : c->min_h);
 }
 
-static void list_vbox_measure(struct widget *w)
+void list_vbox_measure(struct widget *w)
 {
 	struct widget *c;
 	int max_w = 0;
@@ -35,7 +49,7 @@ static void list_vbox_measure(struct widget *w)
 	w->pref_h = w->state.list_vbox->view_rows ?: 5;
 }
 
-static void list_vbox_layout(struct widget *w)
+void list_vbox_layout(struct widget *w)
 {
 	int y = 0;
 
@@ -52,7 +66,7 @@ static void list_vbox_layout(struct widget *w)
 	}
 }
 
-static void list_vbox_render(struct widget *w)
+void list_vbox_render(struct widget *w)
 {
 	werase(w->win);
 	wbkgd(w->win, COLOR_PAIR(w->color_pair));
@@ -73,7 +87,7 @@ static void list_vbox_render(struct widget *w)
 	}
 }
 
-static void get_visible_range(struct widget *w, struct widget **first, struct widget **last)
+void get_visible_range(struct widget *w, struct widget **first, struct widget **last)
 {
 	*first = *last = NULL;
 
@@ -87,7 +101,7 @@ static void get_visible_range(struct widget *w, struct widget **first, struct wi
 	}
 }
 
-static void set_visible_range(struct widget *w, struct widget *first, struct widget *last)
+void set_visible_range(struct widget *w, struct widget *first, struct widget *last)
 {
 	struct widget_list_vbox *st = w->state.list_vbox;
 	bool first_found = false;
@@ -108,7 +122,7 @@ static void set_visible_range(struct widget *w, struct widget *first, struct wid
 	}
 }
 
-static void shift_window_anchor_first(struct widget *w, struct widget *focused)
+void shift_window_anchor_first(struct widget *w, struct widget *focused)
 {
 	struct widget *c, *first, *last;
 
@@ -126,7 +140,7 @@ static void shift_window_anchor_first(struct widget *w, struct widget *focused)
 	set_visible_range(w, first, last);
 }
 
-static void shift_window_anchor_last(struct widget *w, struct widget *focused)
+void shift_window_anchor_last(struct widget *w, struct widget *focused)
 {
 	struct widget *c, *first, *last;
 
@@ -155,7 +169,7 @@ static void shift_window_anchor_last(struct widget *w, struct widget *focused)
 	set_visible_range(w, first, last);
 }
 
-static void list_vbox_ensure_visible(struct widget *w, struct widget *focused)
+void list_vbox_ensure_visible(struct widget *w, struct widget *focused)
 {
 	struct widget *c, *first, *last;
 
@@ -183,7 +197,7 @@ static void list_vbox_ensure_visible(struct widget *w, struct widget *focused)
 	}
 }
 
-static bool list_vbox_getter(struct widget *w, enum widget_property prop, void *val)
+bool list_vbox_getter(struct widget *w, enum widget_property prop, void *val)
 {
 	struct widget_list_vbox *st = w->state.list_vbox;
 
@@ -200,7 +214,7 @@ static bool list_vbox_getter(struct widget *w, enum widget_property prop, void *
 	return false;
 }
 
-static struct widget *list_vbox_find_anchor_by_scroll_y(struct widget *w, int scroll_y)
+struct widget *list_vbox_find_anchor_by_scroll_y(struct widget *w, int scroll_y)
 {
 	int acc = 0;
 	struct widget *c;
@@ -217,8 +231,7 @@ static struct widget *list_vbox_find_anchor_by_scroll_y(struct widget *w, int sc
 	return TAILQ_LAST(&w->children, widgethead);
 }
 
-
-static bool list_vbox_setter(struct widget *w, enum widget_property prop, const void *val)
+bool list_vbox_setter(struct widget *w, enum widget_property prop, const void *val)
 {
 	struct widget_list_vbox *st = w->state.list_vbox;
 	int target_y = 0;
@@ -244,13 +257,15 @@ static bool list_vbox_setter(struct widget *w, enum widget_property prop, const 
 	return true;
 }
 
-static void list_vbox_free(struct widget *w)
+void list_vbox_free(struct widget *w)
 {
-	if (!w || !w->state.list_vbox)
+	if (!w)
 		return;
 
-	free(w->state.list_vbox);
-	w->state.list_vbox = NULL;
+	if (w->state.list_vbox) {
+		free(w->state.list_vbox);
+		w->state.list_vbox = NULL;
+	}
 }
 
 struct widget *make_list_vbox(int view_rows)

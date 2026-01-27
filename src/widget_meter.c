@@ -12,13 +12,12 @@
 #include "plugin.h"
 #include "widget.h"
 
-static void show_percent(WINDOW *win, struct widget_meter *state)                        __attribute__((nonnull(1,2)));
-static void meter_measure(struct widget *w)                                              __attribute__((nonnull(1)));
-static void meter_render(struct widget *w)                                               __attribute__((nonnull(1)));
-static bool meter_getter(struct widget *w, enum widget_property prop, void *value)       __attribute__((nonnull(1)));
-static bool meter_setter(struct widget *w, enum widget_property prop, const void *value) __attribute__((nonnull(1)));
+static void show_percent(WINDOW *win, struct widget_meter *state) __attribute__((nonnull(1,2)));
+static void meter_measure(struct widget *w) __attribute__((nonnull(1)));
+static void meter_render(struct widget *w) __attribute__((nonnull(1)));
+static bool meter_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
+static bool meter_setter(struct widget *w, enum widget_property prop, const void *value) __attribute__((nonnull(1,3)));
 static void meter_free(struct widget *w);
-
 
 struct widget_meter {
 	bool percent;

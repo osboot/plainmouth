@@ -8,12 +8,18 @@
 #include "macros.h"
 #include "widget.h"
 
+static void hbox_measure(struct widget *w) __attribute__((nonnull(1)));
+static void distribute_flex_hbox(int count, const int *pref,
+		const int *min, const int *max, const int *grow,
+		const int *shrink, int available, int *out) __attribute__((nonnull(2,3,4,5,6,8)));
+static void hbox_layout(struct widget *w) __attribute__((nonnull(1)));
+
 /*
  * Compute horizontal container minimum size:
  *   min_w = sum of child min_w
  *   min_h = max child min_h
  */
-static void hbox_measure(struct widget *w)
+void hbox_measure(struct widget *w)
 {
 	struct widget *c;
 
@@ -30,7 +36,7 @@ static void hbox_measure(struct widget *w)
 }
 
 /* Iterative distribution helper for one axis (HBOX main axis) */
-static void distribute_flex_hbox(int count, const int *pref,
+void distribute_flex_hbox(int count, const int *pref,
 		const int *min, const int *max, const int *grow,
 		const int *shrink, int available, int *out)
 {
@@ -131,7 +137,7 @@ static void distribute_flex_hbox(int count, const int *pref,
 	}
 }
 
-static void hbox_layout(struct widget *w)
+void hbox_layout(struct widget *w)
 {
 	struct widget *c;
 	int x;

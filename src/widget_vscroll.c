@@ -13,7 +13,15 @@ struct widget_vscroll {
 	int offset;    /* current scroll */
 };
 
-static void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height)
+static void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height) __attribute__((nonnull(1)));
+static void vscroll_measure(struct widget *w) __attribute__((nonnull(1)));
+static void vscroll_render(struct widget *w) __attribute__((nonnull(1)));
+static bool vscroll_setter(struct widget *w, enum widget_property prop, const void *in) __attribute__((nonnull(1,3)));
+static bool vscroll_getter(struct widget *w, enum widget_property prop, void *out) __attribute__((nonnull(1,3)));
+static void vscroll_free(struct widget *w);
+
+
+void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height)
 {
 	int view_width, view_height;
 	getmaxyx(scrollwin, view_height, view_width);
@@ -45,13 +53,13 @@ static void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int sc
 	wattroff(scrollwin, COLOR_PAIR(color) | A_REVERSE);
 }
 
-static void vscroll_measure(struct widget *w)
+void vscroll_measure(struct widget *w)
 {
 	w->min_w = w->max_w = w->pref_w = 1;
 	w->min_h = 1;
 }
 
-static void vscroll_render(struct widget *w)
+void vscroll_render(struct widget *w)
 {
 	struct widget_vscroll *s = w->state.vscroll;
 
@@ -63,7 +71,7 @@ static void vscroll_render(struct widget *w)
 	widget_draw_vscroll(w->win, color, s->offset, s->content);
 }
 
-static bool vscroll_setter(struct widget *w, enum widget_property prop, const void *in)
+bool vscroll_setter(struct widget *w, enum widget_property prop, const void *in)
 {
 	struct widget_vscroll *s = w->state.vscroll;
 
@@ -82,7 +90,7 @@ static bool vscroll_setter(struct widget *w, enum widget_property prop, const vo
 	}
 }
 
-static bool vscroll_getter(struct widget *w, enum widget_property prop, void *out)
+bool vscroll_getter(struct widget *w, enum widget_property prop, void *out)
 {
 	struct widget_vscroll *s = w->state.vscroll;
 
@@ -93,10 +101,15 @@ static bool vscroll_getter(struct widget *w, enum widget_property prop, void *ou
 	return false;
 }
 
-static void vscroll_free(struct widget *w)
+void vscroll_free(struct widget *w)
 {
-	free(w->state.vscroll);
-	w->state.vscroll = NULL;
+	if (!w)
+		return;
+
+	if (w->state.vscroll) {
+		free(w->state.vscroll);
+		w->state.vscroll = NULL;
+	}
 }
 
 struct widget *make_vscroll(void)

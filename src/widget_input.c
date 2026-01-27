@@ -14,14 +14,6 @@
 #include "plugin.h"
 #include "widget.h"
 
-static void input_measure(struct widget *w)                                        __attribute__((nonnull(1)));
-static void input_render(struct widget *w)                                         __attribute__((nonnull(1)));
-static int input_input(const struct widget *w, wchar_t key)                        __attribute__((nonnull(1)));
-static bool input_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1)));
-static void input_free(struct widget *w);
-static bool __input_unchr(struct widget_input *state)                              __attribute__((nonnull(1)));
-static bool __input_append(struct widget_input *state, wchar_t c)                  __attribute__((nonnull(1)));
-
 
 struct widget_input {
 	wchar_t force_chr;
@@ -37,6 +29,15 @@ struct widget_input {
 
 	bool finished;
 };
+
+static void input_measure(struct widget *w) __attribute__((nonnull(1)));
+static void input_render(struct widget *w) __attribute__((nonnull(1)));
+static int input_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
+static bool input_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
+static void input_free(struct widget *w);
+static bool __input_unchr(struct widget_input *state) __attribute__((nonnull(1)));
+static bool __input_append(struct widget_input *state, wchar_t c) __attribute__((nonnull(1)));
+
 
 void input_measure(struct widget *w)
 {

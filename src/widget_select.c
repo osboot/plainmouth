@@ -15,7 +15,19 @@ struct widget_select {
 	struct widget *vscroll;
 };
 
-static void select_sync(struct widget *sv)
+static void select_sync(struct widget *w) __attribute__((nonnull(1)));
+static void select_measure(struct widget *w) __attribute__((nonnull(1)));
+static void select_layout(struct widget *w) __attribute__((nonnull(1)));
+static void select_render(struct widget *w) __attribute__((nonnull(1)));
+static void select_ensure_visible(struct widget *w, struct widget *child) __attribute__((nonnull(1,2)));
+static int select_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
+static bool select_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
+static bool select_getter_index(struct widget *w, enum widget_property prop, int index, void *value) __attribute__((nonnull(1,4)));
+static void select_add_child(struct widget *sv, struct widget *child) __attribute__((nonnull(1,2)));
+static void select_free(struct widget *w);
+
+
+void select_sync(struct widget *sv)
 {
 	struct widget_select *st = sv->state.select;
 
@@ -31,7 +43,7 @@ static void select_sync(struct widget *sv)
 	widget_render_tree(st->vscroll);
 }
 
-static void select_measure(struct widget *w)
+void select_measure(struct widget *w)
 {
 	struct widget_select *st = w->state.select;
 
@@ -44,14 +56,14 @@ static void select_measure(struct widget *w)
 	w->pref_w = st->list->pref_w + 1;
 }
 
-static void select_layout(struct widget *w)
+void select_layout(struct widget *w)
 {
 	struct widget *hbox = TAILQ_FIRST(&w->children);
 
 	widget_layout_tree(hbox, 0, 0, w->w, w->h);
 }
 
-static void select_render(struct widget *w)
+void select_render(struct widget *w)
 {
 	struct widget_select *st = w->state.select;
 
@@ -63,7 +75,7 @@ static void select_render(struct widget *w)
 	select_sync(w);
 }
 
-static void select_ensure_visible(struct widget *w, struct widget *child)
+void select_ensure_visible(struct widget *w, struct widget *child)
 {
 	struct widget_select *st = w->state.select;
 
@@ -72,7 +84,7 @@ static void select_ensure_visible(struct widget *w, struct widget *child)
 	select_sync(w);
 }
 
-static int select_input(const struct widget *w, wchar_t key)
+int select_input(const struct widget *w, wchar_t key)
 {
 	struct widget_select *st = w->state.select;
 	int delta_y = 0;
@@ -135,7 +147,7 @@ static int select_input(const struct widget *w, wchar_t key)
 	return 1;
 }
 
-static bool select_getter(struct widget *w, enum widget_property prop, void *value)
+bool select_getter(struct widget *w, enum widget_property prop, void *value)
 {
 	struct widget_select *st = w->state.select;
 
@@ -175,7 +187,7 @@ static bool select_getter(struct widget *w, enum widget_property prop, void *val
 	return false;
 }
 
-static bool select_getter_index(struct widget *w, enum widget_property prop, int index, void *value)
+bool select_getter_index(struct widget *w, enum widget_property prop, int index, void *value)
 {
 	struct widget_select *st = w->state.select;
 
@@ -202,7 +214,7 @@ static bool select_getter_index(struct widget *w, enum widget_property prop, int
 	return false;
 }
 
-static void select_add_child(struct widget *sv, struct widget *child)
+void select_add_child(struct widget *sv, struct widget *child)
 {
 	struct widget_select *st = sv->state.select;
 
@@ -215,7 +227,7 @@ static void select_add_child(struct widget *sv, struct widget *child)
 	widget_add(st->list, child);
 }
 
-static void select_free(struct widget *w)
+void select_free(struct widget *w)
 {
 	if (!w || !w->state.select)
 		return;

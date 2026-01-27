@@ -13,7 +13,14 @@ struct widget_hscroll {
 	int offset;    /* current scroll */
 };
 
-static void widget_draw_hscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_width)
+static void widget_draw_hscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_width) __attribute__((nonnull(1)));
+static void hscroll_measure(struct widget *w) __attribute__((nonnull(1)));
+static void hscroll_render(struct widget *w) __attribute__((nonnull(1)));
+static bool hscroll_setter(struct widget *w, enum widget_property prop, const void *in) __attribute__((nonnull(1,3)));
+static bool hscroll_getter(struct widget *w, enum widget_property prop, void *out) __attribute__((nonnull(1,3)));
+static void hscroll_free(struct widget *w);
+
+void widget_draw_hscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_width)
 {
 	int view_width, view_height;
 	getmaxyx(scrollwin, view_height, view_width);
@@ -45,17 +52,15 @@ static void widget_draw_hscroll(WINDOW *scrollwin, enum color_pair color, int sc
 	wattroff(scrollwin, COLOR_PAIR(color) | A_REVERSE);
 }
 
-static void hscroll_measure(struct widget *w)
+void hscroll_measure(struct widget *w)
 {
 	w->min_h = w->max_h = w->pref_h = 1;
 	w->min_w = 1;
 }
 
-static void hscroll_render(struct widget *w)
+void hscroll_render(struct widget *w)
 {
 	struct widget_hscroll *s = w->state.hscroll;
-
-	warnx("XXX hscroll_render content=%d viewport=%d", s->content, s->viewport);
 
 	if (s->content <= s->viewport)
 		return;
@@ -65,7 +70,7 @@ static void hscroll_render(struct widget *w)
 	widget_draw_hscroll(w->win, color, s->offset, s->content);
 }
 
-static bool hscroll_setter(struct widget *w, enum widget_property prop, const void *in)
+bool hscroll_setter(struct widget *w, enum widget_property prop, const void *in)
 {
 	struct widget_hscroll *s = w->state.hscroll;
 
@@ -84,7 +89,7 @@ static bool hscroll_setter(struct widget *w, enum widget_property prop, const vo
 	}
 }
 
-static bool hscroll_getter(struct widget *w, enum widget_property prop, void *out)
+bool hscroll_getter(struct widget *w, enum widget_property prop, void *out)
 {
 	struct widget_hscroll *s = w->state.hscroll;
 
@@ -95,8 +100,10 @@ static bool hscroll_getter(struct widget *w, enum widget_property prop, void *ou
 	return false;
 }
 
-static void hscroll_free(struct widget *w)
+void hscroll_free(struct widget *w)
 {
+	if (!w)
+		return;
 	free(w->state.hscroll);
 	w->state.hscroll = NULL;
 }

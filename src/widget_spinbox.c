@@ -28,10 +28,10 @@ static int spinbox_clamp(int v, int min, int max);
 static void spinbox_commit(struct widget_spinbox *s) __attribute__((nonnull(1)));
 static void spinbox_measure(struct widget *w) __attribute__((nonnull(1)));
 static void spinbox_render(struct widget *w) __attribute__((nonnull(1)));
-static void spinbox_free(struct widget *w) __attribute__((nonnull(1)));
 static int spinbox_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
 static bool spinbox_getter(struct widget *w, enum widget_property prop, void *out) __attribute__((nonnull(1,3)));
 static bool spinbox_setter(struct widget *w, enum widget_property prop, const void *in) __attribute__((nonnull(1,3)));
+static void spinbox_free(struct widget *w);
 
 
 int spinbox_clamp(int v, int min, int max)
@@ -71,8 +71,13 @@ void spinbox_render(struct widget *w)
 
 void spinbox_free(struct widget *w)
 {
-	if (w->state.spinbox)
+	if (!w)
+		return;
+
+	if (w->state.spinbox) {
 		free(w->state.spinbox);
+		w->state.spinbox = NULL;
+	}
 }
 
 int spinbox_input(const struct widget *w, wchar_t key)

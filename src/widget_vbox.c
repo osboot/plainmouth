@@ -8,6 +8,10 @@
 #include "macros.h"
 #include "widget.h"
 
+static void distribute_flex_vbox(int count, const int *pref,
+		const int *min, const int *max, const int *grow,
+		const int *shrink, int available, int *out) __attribute__((nonnull(2,3,4,5,6,8)));
+
 void vbox_measure(struct widget *w)
 {
 	struct widget *c;
@@ -23,7 +27,7 @@ void vbox_measure(struct widget *w)
 	w->min_w = max_w;
 }
 
-static void distribute_flex_vbox(int count, const int *pref,
+void distribute_flex_vbox(int count, const int *pref,
 		const int *min, const int *max, const int *grow,
 		const int *shrink, int available, int *out)
 {

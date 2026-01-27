@@ -16,7 +16,18 @@ struct widget_pad_box {
 	int scroll_y, scroll_x;
 };
 
-static void pad_box_clamp_scroll(struct widget *pad)
+static void pad_box_clamp_scroll(struct widget *pad) __attribute__((nonnull(1)));
+static void pad_box_measure(struct widget *w) __attribute__((nonnull(1)));
+static void pad_box_layout(struct widget *w) __attribute__((nonnull(1)));
+static bool pad_box_createwin(struct widget *w) __attribute__((nonnull(1)));
+static void pad_box_refresh(struct widget *w) __attribute__((nonnull(1)));
+static bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w, int *out_y, int *out_x) __attribute__((nonnull(1,2,3,4)));
+static void pad_box_ensure_visible(struct widget *container, struct widget *child) __attribute__((nonnull(1,2)));
+static bool pad_box_getter(struct widget *w, enum widget_property prop, void *val) __attribute__((nonnull(1,3)));
+static bool pad_box_setter(struct widget *w, enum widget_property prop, const void *val) __attribute__((nonnull(1,3)));
+static void pad_box_free(struct widget *w);
+
+void pad_box_clamp_scroll(struct widget *pad)
 {
 	struct widget_pad_box *st = pad->state.pad_box;
 
@@ -30,7 +41,7 @@ static void pad_box_clamp_scroll(struct widget *pad)
 	st->scroll_x = CLAMP(st->scroll_x, 0, max_scroll_x);
 }
 
-static void pad_box_measure(struct widget *w)
+void pad_box_measure(struct widget *w)
 {
 	struct widget_pad_box *st = w->state.pad_box;
 
@@ -56,7 +67,7 @@ static void pad_box_measure(struct widget *w)
 	w->pref_w = content_w;
 }
 
-static void pad_box_layout(struct widget *w)
+void pad_box_layout(struct widget *w)
 {
 	struct widget_pad_box *st = w->state.pad_box;
 
@@ -84,7 +95,7 @@ static void pad_box_layout(struct widget *w)
 	}
 }
 
-static bool pad_box_createwin(struct widget *w)
+bool pad_box_createwin(struct widget *w)
 {
 	struct widget_pad_box *st = w->state.pad_box;
 
@@ -98,7 +109,7 @@ static bool pad_box_createwin(struct widget *w)
 	return true;
 }
 
-static void pad_box_refresh(struct widget *w)
+void pad_box_refresh(struct widget *w)
 {
 	struct widget_pad_box *st = w->state.pad_box;
 	int ay, ax;
@@ -115,8 +126,7 @@ static void pad_box_refresh(struct widget *w)
 			ax + w->lx + w->w - 1);
 }
 
-static bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w,
-				      int *out_y, int *out_x)
+bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w, int *out_y, int *out_x)
 {
 	int y = 0, x = 0;
 
@@ -134,7 +144,7 @@ static bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w,
 	return true;
 }
 
-static void pad_box_ensure_visible(struct widget *container, struct widget *child)
+void pad_box_ensure_visible(struct widget *container, struct widget *child)
 {
 	struct widget_pad_box *st = container->state.pad_box;
 
@@ -161,7 +171,7 @@ static void pad_box_ensure_visible(struct widget *container, struct widget *chil
 	pad_box_clamp_scroll(container);
 }
 
-static bool pad_box_getter(struct widget *w, enum widget_property prop, void *val)
+bool pad_box_getter(struct widget *w, enum widget_property prop, void *val)
 {
 	struct widget_pad_box *st = w->state.pad_box;
 
@@ -184,7 +194,7 @@ static bool pad_box_getter(struct widget *w, enum widget_property prop, void *va
 	return false;
 }
 
-static bool pad_box_setter(struct widget *w, enum widget_property prop, const void *val)
+bool pad_box_setter(struct widget *w, enum widget_property prop, const void *val)
 {
 	struct widget_pad_box *st = w->state.pad_box;
 
@@ -215,7 +225,7 @@ static bool pad_box_setter(struct widget *w, enum widget_property prop, const vo
 	return false;
 }
 
-static void pad_box_free(struct widget *w)
+void pad_box_free(struct widget *w)
 {
 	free(w->state.pad_box);
 	w->state.pad_box = NULL;

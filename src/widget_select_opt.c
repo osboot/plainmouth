@@ -8,7 +8,15 @@
 #include "macros.h"
 #include "widget.h"
 
-static void selopt_measure(struct widget *w)
+static void selopt_measure(struct widget *w) __attribute__((nonnull(1)));
+static void selopt_layout(struct widget *w) __attribute__((nonnull(1)));
+static void selopt_render(struct widget *w) __attribute__((nonnull(1)));
+static int selopt_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
+static bool selopt_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
+static bool selopt_setter(struct widget *w, enum widget_property prop, const void *value) __attribute__((nonnull(1,3)));
+
+
+void selopt_measure(struct widget *w)
 {
 	w->min_w = w->min_h = 0;
 
@@ -19,7 +27,7 @@ static void selopt_measure(struct widget *w)
 	}
 }
 
-static void selopt_layout(struct widget *w)
+void selopt_layout(struct widget *w)
 {
 	struct widget *c;
 	int i, x;
@@ -34,7 +42,7 @@ static void selopt_layout(struct widget *w)
 	}
 }
 
-static void selopt_render(struct widget *w)
+void selopt_render(struct widget *w)
 {
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 	wbkgd(w->win, COLOR_PAIR(color));
@@ -51,7 +59,7 @@ static void selopt_render(struct widget *w)
 	widget_render_tree(hbox);
 }
 
-static int selopt_input(const struct widget *w, wchar_t key)
+int selopt_input(const struct widget *w, wchar_t key)
 {
 	struct widget *hbox = TAILQ_FIRST(&w->children);
 
@@ -64,7 +72,7 @@ static int selopt_input(const struct widget *w, wchar_t key)
 	return 0;
 }
 
-static bool selopt_getter(struct widget *w, enum widget_property prop, void *value)
+bool selopt_getter(struct widget *w, enum widget_property prop, void *value)
 {
 	if (prop == PROP_CHECKBOX_STATE) {
 		struct widget *hbox = TAILQ_FIRST(&w->children);
@@ -79,7 +87,7 @@ static bool selopt_getter(struct widget *w, enum widget_property prop, void *val
 	return false;
 }
 
-static bool selopt_setter(struct widget *w, enum widget_property prop, const void *value)
+bool selopt_setter(struct widget *w, enum widget_property prop, const void *value)
 {
 	if (prop == PROP_CHECKBOX_STATE) {
 		struct widget *hbox = TAILQ_FIRST(&w->children);

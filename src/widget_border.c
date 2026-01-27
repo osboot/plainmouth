@@ -15,10 +15,9 @@
 #include "widget.h"
 
 static void border_measure(struct widget *w) __attribute__((nonnull(1)));
-static void border_layout(struct widget *w)  __attribute__((nonnull(1)));
-static void border_render(struct widget *w)  __attribute__((nonnull(1)));
+static void border_layout(struct widget *w) __attribute__((nonnull(1)));
+static void border_render(struct widget *w) __attribute__((nonnull(1)));
 static void border_free(struct widget *w);
-
 
 void border_measure(struct widget *w)
 {
