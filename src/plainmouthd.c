@@ -332,6 +332,9 @@ static void ui_focused(bool state)
 		return;
 
 	if (state) {
+		if (IS_DEBUG())
+			warnx("%s (%p) in focus", widget_type(focused), focused->win);
+
 		focused->flags |= FLAG_INFOCUS;
 
 		widget_ensure_visible(focused);
@@ -344,6 +347,9 @@ static void ui_focused(bool state)
 		widget_render_tree(ins->root);
 		top_panel(ins->panel);
 	} else {
+		if (IS_DEBUG())
+			warnx("%s (%p) lost focus", widget_type(focused), focused->win);
+
 		focused->flags &= ~FLAG_INFOCUS;
 		widget_render_tree(focused);
 	}
