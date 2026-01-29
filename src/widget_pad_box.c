@@ -12,6 +12,7 @@
 #include "widget.h"
 
 struct widget_pad_box {
+	WINDOW *pad;
 	int content_h, content_w;
 	int scroll_y, scroll_x;
 };
@@ -19,8 +20,8 @@ struct widget_pad_box {
 static void pad_box_clamp_scroll(struct widget *pad) __attribute__((nonnull(1)));
 static void pad_box_measure(struct widget *w) __attribute__((nonnull(1)));
 static void pad_box_layout(struct widget *w) __attribute__((nonnull(1)));
-static bool pad_box_createwin(struct widget *w) __attribute__((nonnull(1)));
-static void pad_box_refresh(struct widget *w) __attribute__((nonnull(1)));
+static void pad_box_render(struct widget *w) __attribute__((nonnull(1)));
+static void copy_pad_to_window(WINDOW *pad, WINDOW *win, int scroll_y, int scroll_x, int view_h, int view_w) __attribute__((nonnull(1,2)));
 static bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w, int *out_y, int *out_x) __attribute__((nonnull(1,2,3,4)));
 static void pad_box_ensure_visible(struct widget *container, struct widget *child) __attribute__((nonnull(1,2)));
 static bool pad_box_getter(struct widget *w, enum widget_property prop, void *val) __attribute__((nonnull(1,3)));
@@ -43,28 +44,20 @@ void pad_box_clamp_scroll(struct widget *pad)
 
 void pad_box_measure(struct widget *w)
 {
-	struct widget_pad_box *st = w->state.pad_box;
+	w->min_h  = 1;
+	w->min_w  = 1;
 
-	int content_h = 0;
-	int content_w = 0;
+	w->pref_h = 0;
+	w->pref_w = 0;
 
 	struct widget *c;
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		int ch = (c->pref_h > 0) ? c->pref_h : c->min_h;
 		int cw = (c->pref_w > 0) ? c->pref_w : c->min_w;
 
-		content_h += ch;
-		content_w = MAX(content_w, cw);
+		w->pref_h += ch;
+		w->pref_w = MAX(w->pref_w, cw);
 	}
-
-	st->content_h = content_h;
-	st->content_w = content_w;
-
-	w->min_h  = 1;
-	w->min_w  = 1;
-
-	w->pref_h = content_h;
-	w->pref_w = content_w;
 }
 
 void pad_box_layout(struct widget *w)
@@ -74,56 +67,72 @@ void pad_box_layout(struct widget *w)
 	st->content_h = 0;
 	st->content_w = 0;
 
-	struct widget *c;
-	TAILQ_FOREACH(c, &w->children, siblings) {
-		int ch = (c->pref_h > 0) ? c->pref_h : c->min_h;
-		int cw = c->stretch_w ? w->w : (c->pref_w > 0 ? c->pref_w : c->min_w);
-
-		st->content_h += ch;
-		st->content_w = MAX(st->content_w, cw);
-	}
-
-	pad_box_clamp_scroll(w);
-
 	int y = 0;
+	struct widget *c;
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		int ch = (c->pref_h > 0) ? c->pref_h : c->min_h;
 		int cw = c->stretch_w ? w->w : (c->pref_w > 0 ? c->pref_w : c->min_w);
 
 		widget_layout_tree(c, 0, y, cw, ch);
 		y += ch;
+
+		st->content_h += ch;
+		st->content_w = MAX(st->content_w, cw);
 	}
+
+	pad_box_clamp_scroll(w);
 }
 
-bool pad_box_createwin(struct widget *w)
+static WINDOW *pad_box_child_render_win(struct widget *w)
 {
 	struct widget_pad_box *st = w->state.pad_box;
 
-	w->win = newpad(st->content_h, st->content_w);
-	if (!w->win) {
-		warnx("unable to create %s pad window (y=%d, x=%d, height=%d, width=%d)",
-			widget_type(w), w->ly, w->lx, st->content_h, st->content_w);
-		return false;
+	if (!st->pad) {
+		st->pad = newpad(MAX(1, st->content_h), MAX(1, st->content_w));
+		if (!st->pad) {
+			warnx("unable to create %s pad window (y=%d, x=%d, height=%d, width=%d)",
+				widget_type(w), w->ly, w->lx, st->content_h, st->content_w);
+			return NULL;
+		}
+
+		if (IS_DEBUG())
+			warnx("%s (%p) pad screen created (y=%d, x=%d, height=%d, width=%d) for window %p",
+				widget_type(w), st->pad, w->ly, w->lx, st->content_h, st->content_w, w->win);
 	}
 
-	return true;
+	return st->pad;
 }
 
-void pad_box_refresh(struct widget *w)
+void copy_pad_to_window(WINDOW *pad, WINDOW *win, int scroll_y, int scroll_x, int view_h, int view_w)
 {
-	struct widget_pad_box *st = w->state.pad_box;
-	int ay, ax;
-
-	if (!widget_coordinates_yx(w->parent, &ay, &ax)) {
-		warnx("unable to get scrollbar coordinates");
+	cchar_t *row __free(ptr) = malloc(sizeof(cchar_t) * (size_t) (view_w + 1));
+	if (!row)
 		return;
-	}
 
-	pnoutrefresh(w->win, st->scroll_y, st->scroll_x,
-			ay + w->ly,
-			ax + w->lx,
-			ay + w->ly + w->h - 1,
-			ax + w->lx + w->w - 1);
+	for (int y = 0; y < view_h; y++) {
+		int py = scroll_y + y;
+
+		if (mvwin_wchnstr(pad, py, scroll_x, row, view_w) == ERR) {
+			for (int i = 0; i < view_w; i++)
+				setcchar(&row[i], L" ", 0, 0, NULL);
+		}
+
+		wmove(win, y, 0);
+		mvwadd_wchnstr(win, y, 0, row, view_w);
+	}
+}
+
+void pad_box_render(struct widget *w)
+{
+	struct widget_pad_box *st = w->state.pad_box;
+
+	/*
+	 * Impotant:
+	 *  - pad is fully redrawn on each render()
+	 *  - copy_pad_to_window overwrites entire viewport
+	 * Therefore no werase() needed for pad or window.
+	 */
+	copy_pad_to_window(st->pad, w->win, st->scroll_y, st->scroll_x, w->h, w->w);
 }
 
 bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w, int *out_y, int *out_x)
@@ -152,24 +161,29 @@ void pad_box_ensure_visible(struct widget *container, struct widget *child)
 	if (!widget_offset_in_ancestor(container, child, &cy, &cx))
 		return;
 
-	int view_top    = st->scroll_y;
-	int view_bottom = st->scroll_y + container->h;
+	bool changed = false;
 
-	int view_left   = st->scroll_x;
-	int view_right  = st->scroll_x + container->w;
-
-	if (cy < view_top)
+	if (cy < st->scroll_y) {
 		st->scroll_y = cy;
-	else if (cy + child->h > view_bottom)
+		changed = true;
+	} else if (cy + child->h > st->scroll_y + container->h) {
 		st->scroll_y = cy + child->h - container->h;
+		changed = true;
+	}
 
-	if (cx < view_left)
+	if (cx < st->scroll_x) {
 		st->scroll_x = cx;
-	else if (cx + child->w > view_right)
+		changed = true;
+	} else if (cx + child->w > st->scroll_x + container->w) {
 		st->scroll_x = cx + child->w - container->w;
+		changed = true;
+	}
 
-	pad_box_clamp_scroll(container);
+	if (changed) {
+		pad_box_clamp_scroll(container);
+	}
 }
+
 
 bool pad_box_getter(struct widget *w, enum widget_property prop, void *val)
 {
@@ -227,7 +241,12 @@ bool pad_box_setter(struct widget *w, enum widget_property prop, const void *val
 
 void pad_box_free(struct widget *w)
 {
-	free(w->state.pad_box);
+	struct widget_pad_box *st = w->state.pad_box;
+
+	if (st->pad)
+		delwin(st->pad);
+
+	free(st);
 	w->state.pad_box = NULL;
 }
 
@@ -244,14 +263,16 @@ struct widget *make_pad_box(void)
 
 	w->state.pad_box = st;
 
-	w->measure        = pad_box_measure;
-	w->layout         = pad_box_layout;
-	w->create_win     = pad_box_createwin;
-	w->noutrefresh    = pad_box_refresh;
-	w->ensure_visible = pad_box_ensure_visible;
-	w->free_data      = pad_box_free;
-	w->getter         = pad_box_getter;
-	w->setter         = pad_box_setter;
+	w->measure          = pad_box_measure;
+	w->layout           = pad_box_layout;
+	w->child_render_win = pad_box_child_render_win;
+	w->render           = pad_box_render;
+	w->finalize_render  = pad_box_render;
+	w->ensure_visible   = pad_box_ensure_visible;
+	w->free_data        = pad_box_free;
+	w->getter           = pad_box_getter;
+	w->setter           = pad_box_setter;
+	w->color_pair       = COLOR_PAIR_WINDOW;
 
 	w->flex_w = 1;
 	w->flex_h = 1;
