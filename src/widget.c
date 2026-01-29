@@ -267,6 +267,8 @@ void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height)
 
 static void widget_create_window(struct widget *w)
 {
+	WINDOW *parent_win = NULL;
+
 	if (w->parent == NULL) {
 		/* root: absolute coords */
 		w->win = newwin(w->h, w->w, w->ly, w->lx);
@@ -279,11 +281,15 @@ static void widget_create_window(struct widget *w)
 			widget_type(w), w->ly, w->lx, w->h, w->w);
 	} else {
 		/* child: derived window */
-		w->win = derwin(w->parent->win, w->h, w->w, w->ly, w->lx);
+		parent_win = (w->parent->child_render_win)
+			? w->parent->child_render_win(w->parent)
+			: w->parent->win;
+
+		w->win = derwin(parent_win, w->h, w->w, w->ly, w->lx);
 
 		if (!w->win) {
 			warnx("unable to create %s subwindow (y=%d, x=%d, height=%d, width=%d) in parent win %p",
-				widget_type(w), w->ly, w->lx, w->h, w->w, w->parent->win);
+				widget_type(w), w->ly, w->lx, w->h, w->w, parent_win);
 		}
 	}
 
@@ -295,7 +301,7 @@ static void widget_create_window(struct widget *w)
 	if (IS_DEBUG()) {
 		if (w->parent)
 			warnx("%s (%p) subwindow was created (y=%d, x=%d, height=%d, width=%d) in parent win %p",
-				widget_type(w), w->win, w->ly, w->lx, w->h, w->w, w->parent->win);
+				widget_type(w), w->win, w->ly, w->lx, w->h, w->w, parent_win);
 		else
 			warnx("%s (%p) window was created (y=%d, x=%d, height=%d, width=%d)",
 				widget_type(w), w->win, w->ly, w->lx, w->h, w->w);
