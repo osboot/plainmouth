@@ -6,9 +6,10 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include "macros.h"
 #include "ipc.h"
 
-static int print_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data)
+static int print_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data _UNUSED)
 {
 	(void) ctx;
 

@@ -6,11 +6,12 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include "macros.h"
 #include "ipc.h"
 
 #define N_MSGS 5
 
-static int print_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data)
+static int print_message(struct ipc_ctx *ctx _UNUSED, struct ipc_message *m, void *data)
 {
 	int *counter = data;
 	fprintf(stderr, "Message %s:\n", m->id);
