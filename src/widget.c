@@ -203,11 +203,6 @@ void widget_noutrefresh(struct widget *w)
 	if (!w->win)
 		return;
 
-	if (w->noutrefresh) {
-		w->noutrefresh(w);
-		return;
-	}
-
 	wnoutrefresh(w->win);
 }
 
@@ -277,13 +272,6 @@ static void widget_create_window(struct widget *w)
 		w->win = newwin(w->h, w->w, w->ly, w->lx);
 		if (!w->win) {
 			warnx("unable to create %s window (y=%d, x=%d, height=%d, width=%d)",
-				widget_type(w), w->ly, w->lx, w->h, w->w);
-		}
-	} else if (w->create_win) {
-		w->create_win(w);
-
-		if (!w->win) {
-			warnx("unable to create %s custom window (y=%d, x=%d, height=%d, width=%d)",
 				widget_type(w), w->ly, w->lx, w->h, w->w);
 		}
 	} else if (!w->parent->win) {

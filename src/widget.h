@@ -201,8 +201,6 @@ struct widget {
 	void (*measure)(struct widget *);              /* Compute intrinsic minimum size */
 	void (*layout)(struct widget *);               /* Assign positions/sizes to children */
 	void (*render)(struct widget *);               /* Draw contents into win */
-	bool (*create_win)(struct widget *);           /* Custom function to create window */
-	void (*noutrefresh)(struct widget *);          /* Custom function to refresh curses window */
 	void (*free_data)(struct widget *);            /* Free widget-specific data */
 	int  (*input)(const struct widget *, wchar_t); /* Handle keyboard input */
 
