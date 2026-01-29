@@ -381,6 +381,9 @@ void widget_render_tree(struct widget *w)
 		if (c->h > 0 && c->w > 0)
 			widget_render_tree(c);
 	}
+
+	if (w->finalize_render)
+		w->finalize_render(w);
 }
 
 void widget_hide_tree(struct widget *w)
