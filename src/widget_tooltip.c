@@ -50,7 +50,7 @@ void tooltip_measure(struct widget *w)
 
 void tooltip_render(struct widget *w)
 {
-	struct widget_tooltip *state = w->state.tooltip;
+	struct widget_tooltip *st = w->state;
 
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 	wbkgd(w->win, COLOR_PAIR(color));
@@ -58,54 +58,56 @@ void tooltip_render(struct widget *w)
 	mvwaddwstr(w->win, 0, 0, L"[?]");
 	wmove(w->win, 0, 0);
 
-	if (state->clicked) {
+	if (st->clicked) {
 		int y, x;
 		widget_coordinates_yx(w, &y, &x);
 
 		// Place popup under marker.
 		y += 1;
 
-		if (!state->panel) {
-			state->popup = make_popup(state->text, y, x);
-			state->panel = new_panel(state->popup->win);
+		if (!st->panel) {
+			st->popup = make_popup(st->text, y, x);
+			st->panel = new_panel(st->popup->win);
 		}
-		show_panel(state->panel);
-		top_panel(state->panel);
+		show_panel(st->panel);
+		top_panel(st->panel);
 
-		state->clicked = false;
+		st->clicked = false;
 
-	} else if (state->popup) {
-		hide_panel(state->panel);
+	} else if (st->popup) {
+		hide_panel(st->panel);
 	}
 	update_panels();
 }
 
 void tooltip_free(struct widget *w)
 {
-	if (!w->state.tooltip)
+	if (!w)
 		return;
 
-	if (w->state.tooltip->panel)
-		del_panel(w->state.tooltip->panel);
+	struct widget_tooltip *st = w->state;
 
-	widget_free(w->state.tooltip->popup);
+	if (st->panel)
+		del_panel(st->panel);
 
-	free(w->state.tooltip->text);
-	free(w->state.tooltip);
+	widget_free(st->popup);
+
+	free(st->text);
+	free(st);
 }
 
 int tooltip_input(const struct widget *w, wchar_t key)
 {
-	struct widget_tooltip *state = w->state.tooltip;
+	struct widget_tooltip *st = w->state;
 
 	switch (key) {
 		case KEY_ENTER:
 		case L' ':
 		case L'\n':
-			state->clicked = true;
+			st->clicked = true;
 			break;
 		default:
-			state->clicked = false;
+			st->clicked = false;
 			break;
 	}
 
@@ -114,13 +116,12 @@ int tooltip_input(const struct widget *w, wchar_t key)
 
 struct widget *make_tooltip(const wchar_t *line)
 {
-	struct widget_tooltip *state = NULL;
 	struct widget *w = widget_create(WIDGET_TOOLTIP);
 
 	if (!w)
 		return NULL;
 
-	state = calloc(1, sizeof(*state));
+	struct widget_tooltip *state = calloc(1, sizeof(*state));
 	if (!state) {
 		warn("make_tooltip: calloc");
 		widget_free(w);
@@ -129,7 +130,7 @@ struct widget *make_tooltip(const wchar_t *line)
 
 	state->text = wcsdup(line ?: L"");
 
-	w->state.tooltip = state;
+	w->state = state;
 	w->color_pair    = COLOR_PAIR_WINDOW;
 	w->measure       = tooltip_measure;
 	w->render        = tooltip_render;

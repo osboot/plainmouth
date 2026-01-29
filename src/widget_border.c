@@ -17,7 +17,6 @@
 static void border_measure(struct widget *w) __attribute__((nonnull(1)));
 static void border_layout(struct widget *w) __attribute__((nonnull(1)));
 static void border_render(struct widget *w) __attribute__((nonnull(1)));
-static void border_free(struct widget *w);
 
 void border_measure(struct widget *w)
 {
@@ -50,12 +49,6 @@ void border_render(struct widget *w)
 	box(w->win, 0, 0);
 }
 
-void border_free(struct widget *w)
-{
-	if (w && w->state.border)
-		free(w->state.border);
-}
-
 struct widget *make_border(void)
 {
 	struct widget *w = widget_create(WIDGET_BORDER);
@@ -65,7 +58,6 @@ struct widget *make_border(void)
 	w->measure    = border_measure;
 	w->layout     = border_layout;
 	w->render     = border_render;
-	w->free_data  = border_free;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->flex_h = 1;

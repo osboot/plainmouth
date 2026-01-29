@@ -115,23 +115,6 @@ enum widget_property {
 	PROP_SCROLL_Y,
 };
 
-/* Private widget-specific data */
-struct widget_border;
-struct widget_button;
-struct widget_checkbox;
-struct widget_hscroll;
-struct widget_input;
-struct widget_label;
-struct widget_list_vbox;
-struct widget_meter;
-struct widget_pad_box;
-struct widget_select;
-struct widget_spinbox;
-struct widget_svbox;
-struct widget_textview;
-struct widget_tooltip;
-struct widget_vscroll;
-
 enum widget_flags {
 	FLAG_NONE    = 0,        // Nothing has been set
 	FLAG_CREATED = (1 << 0), // Rendering enabled flag
@@ -218,23 +201,7 @@ struct widget {
 	struct widgethead children; /* Ordered list of child widgets */
 
 	/* Widget-specific state */
-	union {
-		struct widget_border    *border;
-		struct widget_button    *button;
-		struct widget_checkbox  *checkbox;
-		struct widget_hscroll   *hscroll;
-		struct widget_input     *input;
-		struct widget_label     *label;
-		struct widget_list_vbox *list_vbox;
-		struct widget_meter     *meter;
-		struct widget_pad_box   *pad_box;
-		struct widget_select    *select;
-		struct widget_spinbox   *spinbox;
-		struct widget_svbox     *svbox;
-		struct widget_textview  *textview;
-		struct widget_tooltip   *tooltip;
-		struct widget_vscroll   *vscroll;
-	} state;
+	void *state;
 
 	/*
 	 * User data. This is usually the global context of the entire instance,

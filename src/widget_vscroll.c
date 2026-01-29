@@ -61,29 +61,29 @@ void vscroll_measure(struct widget *w)
 
 void vscroll_render(struct widget *w)
 {
-	struct widget_vscroll *s = w->state.vscroll;
+	struct widget_vscroll *st = w->state;
 
-	if (s->content <= s->viewport)
+	if (st->content <= st->viewport)
 		return;
 
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
-	widget_draw_vscroll(w->win, color, s->offset, s->content);
+	widget_draw_vscroll(w->win, color, st->offset, st->content);
 }
 
 bool vscroll_setter(struct widget *w, enum widget_property prop, const void *in)
 {
-	struct widget_vscroll *s = w->state.vscroll;
+	struct widget_vscroll *st = w->state;
 
 	switch (prop) {
 	case PROP_SCROLL_CONTENT_H:
-		s->content = *(const int *)in;
+		st->content = *(const int *)in;
 		return true;
 	case PROP_SCROLL_VIEW_H:
-		s->viewport = *(const int *)in;
+		st->viewport = *(const int *)in;
 		return true;
 	case PROP_SCROLL_Y:
-		s->offset = *(const int *)in;
+		st->offset = *(const int *)in;
 		return true;
 	default:
 		return false;
@@ -92,10 +92,10 @@ bool vscroll_setter(struct widget *w, enum widget_property prop, const void *in)
 
 bool vscroll_getter(struct widget *w, enum widget_property prop, void *out)
 {
-	struct widget_vscroll *s = w->state.vscroll;
+	struct widget_vscroll *st = w->state;
 
 	if (prop == PROP_SCROLL_Y) {
-		*(int *)out = s->offset;
+		*(int *)out = st->offset;
 		return true;
 	}
 	return false;
@@ -105,11 +105,7 @@ void vscroll_free(struct widget *w)
 {
 	if (!w)
 		return;
-
-	if (w->state.vscroll) {
-		free(w->state.vscroll);
-		w->state.vscroll = NULL;
-	}
+	free(w->state);
 }
 
 struct widget *make_vscroll(void)
@@ -125,7 +121,7 @@ struct widget *make_vscroll(void)
 		return NULL;
 	}
 
-	w->state.vscroll = s;
+	w->state = s;
 
 	w->measure = vscroll_measure;
 	w->render  = vscroll_render;

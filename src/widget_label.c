@@ -55,15 +55,15 @@ void label_init_lines(struct widget_label *st, const wchar_t *text)
 
 void label_measure(struct widget *w)
 {
-	struct widget_label *state = w->state.label;
+	struct widget_label *st = w->state;
 
-	w->min_h = (int) state->lines.size;
-	w->min_w = state->ncols;
+	w->min_h = (int) st->lines.size;
+	w->min_w = st->ncols;
 }
 
 void label_render(struct widget *w)
 {
-	struct widget_label *state = w->state.label;
+	struct widget_label *st = w->state;
 
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 	wbkgd(w->win, COLOR_PAIR(color));
@@ -73,8 +73,8 @@ void label_render(struct widget *w)
 
 	werase(w->win);
 
-	for (int y = 0; y < maxy && (size_t) y < state->lines.size; y++) {
-		const wchar_t *line = warray_get(&state->lines, (size_t) y);
+	for (int y = 0; y < maxy && (size_t) y < st->lines.size; y++) {
+		const wchar_t *line = warray_get(&st->lines, (size_t) y);
 		if (line)
 			mvwaddnwstr(w->win, y, 0, line, maxx);
 	}
@@ -85,21 +85,21 @@ void label_free(struct widget *w)
 	if (!w)
 		return;
 
-	if (w->state.label) {
-		warray_free(&w->state.label->lines);
-		free(w->state.label);
+	struct widget_label *st = w->state;
+
+	if (st) {
+		warray_free(&st->lines);
+		free(st);
 	}
 }
 
 struct widget *make_label(const wchar_t *line)
 {
-	struct widget_label *state = NULL;
 	struct widget *w = widget_create(WIDGET_LABEL);
-
 	if (!w)
 		return NULL;
 
-	state = calloc(1, sizeof(*state));
+	struct widget_label *state = calloc(1, sizeof(*state));
 	if (!state) {
 		warn("make_label: calloc");
 		widget_free(w);
@@ -108,11 +108,11 @@ struct widget *make_label(const wchar_t *line)
 
 	label_init_lines(state, line);
 
-	w->state.label = state;
-	w->color_pair  = COLOR_PAIR_WINDOW;
-	w->measure     = label_measure;
-	w->render      = label_render;
-	w->free_data   = label_free;
+	w->state      = state;
+	w->color_pair = COLOR_PAIR_WINDOW;
+	w->measure    = label_measure;
+	w->render     = label_render;
+	w->free_data  = label_free;
 
 	w->flex_w = 0;
 	w->flex_h = 0;

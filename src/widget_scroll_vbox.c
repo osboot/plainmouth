@@ -25,7 +25,7 @@ static void scroll_vbox_free(struct widget *w);
 
 void scroll_vbox_sync(struct widget *sv)
 {
-	struct widget_svbox *st = sv->state.svbox;
+	struct widget_svbox *st = sv->state;
 
 	if (!st || !st->pad)
 		return;
@@ -55,7 +55,7 @@ void scroll_vbox_sync(struct widget *sv)
 
 void scroll_vbox_measure(struct widget *w)
 {
-	struct widget_svbox *st = w->state.svbox;
+	struct widget_svbox *st = w->state;
 	struct widget *pad = st->pad;
 
 	if (!pad || !pad->measure)
@@ -77,7 +77,7 @@ void scroll_vbox_measure(struct widget *w)
 
 void scroll_vbox_layout(struct widget *w)
 {
-	struct widget_svbox *st = w->state.svbox;
+	struct widget_svbox *st = w->state;
 	struct widget *vbox = TAILQ_FIRST(&w->children);
 	if (!vbox)
 		return;
@@ -125,7 +125,7 @@ void scroll_vbox_render(struct widget *w)
 
 void scroll_vbox_ensure_visible(struct widget *w, struct widget *child)
 {
-	struct widget_svbox *st = w->state.svbox;
+	struct widget_svbox *st = w->state;
 
 	if (!st || !st->pad)
 		return;
@@ -137,7 +137,7 @@ void scroll_vbox_ensure_visible(struct widget *w, struct widget *child)
 
 void scroll_vbox_add_child(struct widget *sv, struct widget *child)
 {
-	struct widget_svbox *st = sv->state.svbox;
+	struct widget_svbox *st = sv->state;
 
 	if (!st || !st->pad)
 		return;
@@ -147,7 +147,7 @@ void scroll_vbox_add_child(struct widget *sv, struct widget *child)
 
 int scroll_vbox_input(const struct widget *w, wchar_t key)
 {
-	struct widget_svbox *st = w->state.svbox;
+	struct widget_svbox *st = w->state;
 
 	int delta_y = 0;
 	int delta_x = 0;
@@ -174,11 +174,9 @@ int scroll_vbox_input(const struct widget *w, wchar_t key)
 
 void scroll_vbox_free(struct widget *w)
 {
-	if (!w || !w->state.svbox)
+	if (!w)
 		return;
-
-	free(w->state.svbox);
-	w->state.svbox = NULL;
+	free(w->state);
 }
 
 struct widget *make_scroll_vbox(void)
@@ -209,7 +207,7 @@ struct widget *make_scroll_vbox(void)
 	st->vscroll = vs;
 	st->hscroll = hs;
 
-	root->state.svbox = st;
+	root->state = st;
 
 	widget_add(root, vbox);
 	widget_add(vbox, hbox);

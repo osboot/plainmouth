@@ -12,18 +12,18 @@
 #include "plugin.h"
 #include "widget.h"
 
+struct widget_meter {
+	bool percent;
+	int total;
+	int value;
+};
+
 static void show_percent(WINDOW *win, struct widget_meter *state) __attribute__((nonnull(1,2)));
 static void meter_measure(struct widget *w) __attribute__((nonnull(1)));
 static void meter_render(struct widget *w) __attribute__((nonnull(1)));
 static bool meter_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
 static bool meter_setter(struct widget *w, enum widget_property prop, const void *value) __attribute__((nonnull(1,3)));
 static void meter_free(struct widget *w);
-
-struct widget_meter {
-	bool percent;
-	int total;
-	int value;
-};
 
 void show_percent(WINDOW *win, struct widget_meter *state)
 {
@@ -44,14 +44,15 @@ void meter_measure(struct widget *w)
 
 void meter_render(struct widget *w)
 {
+	struct widget_meter *st = w->state;
+
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 	wbkgd(w->win, COLOR_PAIR(color));
 
 	wmove(w->win, 0, 0);
 	wclrtoeol(w->win);
 
-	struct widget_meter *state = w->state.meter;
-	int filled = (w->w * state->value) / state->total;
+	int filled = (w->w * st->value) / st->total;
 
 	/* filled area */
 	wattron(w->win, A_REVERSE);
@@ -59,29 +60,27 @@ void meter_render(struct widget *w)
 		mvwaddch(w->win, 0, i, ACS_CKBOARD);
 	wattroff(w->win, A_REVERSE);
 
-	show_percent(w->win, state);
+	show_percent(w->win, st);
 	wnoutrefresh(w->win);
 }
 
 void meter_free(struct widget *w)
 {
-	if (w->state.meter) {
-		free(w->state.meter);
-	}
+	if (!w)
+		return;
+	free(w->state);
 }
 
 bool meter_getter(struct widget *w, enum widget_property prop, void *data)
 {
-	warnx("XXX meter_getter");
+	struct widget_meter *st = w->state;
 
 	if (prop == PROP_METER_TOTAL) {
-		int *total = data;
-		*total = w->state.meter->total;
+		*(int *) data = st->total;
 		return true;
 
 	} else if (prop == PROP_METER_VALUE) {
-		int *value = data;
-		*value = w->state.meter->value;
+		*(int *) data = st->value;
 		return true;
 
 	} else {
@@ -92,7 +91,7 @@ bool meter_getter(struct widget *w, enum widget_property prop, void *data)
 
 bool meter_setter(struct widget *w, enum widget_property prop, const void *data)
 {
-	warnx("XXX meter_setter");
+	struct widget_meter *st = w->state;
 
 	if (prop == PROP_METER_VALUE) {
 		int value = *((const int *) data);
@@ -100,10 +99,10 @@ bool meter_setter(struct widget *w, enum widget_property prop, const void *data)
 		if (value < 0)
 			value = 0;
 
-		if (value > w->state.meter->total)
-			value = w->state.meter->total;
+		if (value > st->total)
+			value = st->total;
 
-		w->state.meter->value = value;
+		st->value = value;
 		return true;
 
 	} else {
@@ -128,7 +127,7 @@ struct widget *make_meter(int total)
 	state->value = 0;
 	state->total = total;
 
-	w->state.meter = state;
+	w->state = state;
 	w->measure     = meter_measure;
 	w->render      = meter_render;
 	w->free_data   = meter_free;

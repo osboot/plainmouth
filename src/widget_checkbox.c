@@ -32,31 +32,33 @@ void checkbox_measure(struct widget *w)
 
 void checkbox_render(struct widget *w)
 {
-	struct widget_checkbox *state = w->state.checkbox;
+	struct widget_checkbox *st = w->state;
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
 	wbkgd(w->win, COLOR_PAIR(color));
 
-	if (state->multisel)
-		mvwaddstr(w->win, 0, 0, (state->checked ? "[x]" : "[ ]"));
+	if (st->multisel)
+		mvwaddstr(w->win, 0, 0, (st->checked ? "[x]" : "[ ]"));
 	else
-		mvwaddstr(w->win, 0, 0, (state->checked ? "(x)" : "( )"));
+		mvwaddstr(w->win, 0, 0, (st->checked ? "(x)" : "( )"));
 }
 
 void checkbox_free(struct widget *w)
 {
-	if (w->state.checkbox) {
-		free(w->state.checkbox);
+	struct widget_checkbox *st = w->state;
+
+	if (st) {
+		free(st);
 	}
 }
 
 int checkbox_input(const struct widget *w, wchar_t key)
 {
-	struct widget_checkbox *state = w->state.checkbox;
+	struct widget_checkbox *st = w->state;
 
 	switch (key) {
 		case L' ':
-			state->checked = !state->checked;
+			st->checked = !st->checked;
 			break;
 		default:
 			return 0;
@@ -66,9 +68,10 @@ int checkbox_input(const struct widget *w, wchar_t key)
 
 bool checkbox_getter(struct widget *w, enum widget_property prop, void *value)
 {
+	struct widget_checkbox *st = w->state;
+
 	if (prop == PROP_CHECKBOX_STATE) {
-		bool *finished = value;
-		*finished = w->state.checkbox->checked;
+		*(bool *) value = st->checked;
 		return true;
 	} else {
 		errx(EXIT_FAILURE, "unknown property: %d", prop);
@@ -78,8 +81,10 @@ bool checkbox_getter(struct widget *w, enum widget_property prop, void *value)
 
 bool checkbox_setter(struct widget *w, enum widget_property prop, const void *value)
 {
+	struct widget_checkbox *st = w->state;
+
 	if (prop == PROP_CHECKBOX_STATE) {
-		w->state.checkbox->checked = !!(*(const bool *) value);
+		st->checked = !!(*(const bool *) value);
 		return true;
 	} else {
 		errx(EXIT_FAILURE, "unknown property: %d", prop);
@@ -103,8 +108,7 @@ struct widget *make_checkbox(bool checked, bool multisel)
 	state->checked  = checked;
 	state->multisel = multisel;
 
-	w->state.checkbox = state;
-
+	w->state      = state;
 	w->measure    = checkbox_measure;
 	w->render     = checkbox_render;
 	w->free_data  = checkbox_free;

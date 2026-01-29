@@ -50,21 +50,21 @@ void spinbox_commit(struct widget_spinbox *s)
 
 void spinbox_measure(struct widget *w)
 {
-	struct widget_spinbox *s = w->state.spinbox;
+	struct widget_spinbox *st = w->state;
 
 	w->pref_h = w->min_h = 1;
-	w->pref_w = w->min_w = s->width + 2; // "[00]"
+	w->pref_w = w->min_w = st->width + 2; // "[00]"
 }
 
 void spinbox_render(struct widget *w)
 {
-	struct widget_spinbox *s = w->state.spinbox;
+	struct widget_spinbox *st = w->state;
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
 	werase(w->win);
 	wbkgd(w->win, COLOR_PAIR(color));
 
-	w_mvprintw(w->win, 0, 0, L"[%0*d]", s->width, s->value);
+	w_mvprintw(w->win, 0, 0, L"[%0*d]", st->width, st->value);
 
 	wnoutrefresh(w->win);
 }
@@ -73,30 +73,26 @@ void spinbox_free(struct widget *w)
 {
 	if (!w)
 		return;
-
-	if (w->state.spinbox) {
-		free(w->state.spinbox);
-		w->state.spinbox = NULL;
-	}
+	free(w->state);
 }
 
 int spinbox_input(const struct widget *w, wchar_t key)
 {
-	struct widget_spinbox *s = w->state.spinbox;
+	struct widget_spinbox *st = w->state;
 
 	switch (key) {
 		case KEY_UP:
-			s->value = spinbox_clamp(s->value + s->step, s->min, s->max);
+			st->value = spinbox_clamp(st->value + st->step, st->min, st->max);
 			return 1;
 
 		case KEY_DOWN:
-			s->value = spinbox_clamp(s->value - s->step, s->min, s->max);
+			st->value = spinbox_clamp(st->value - st->step, st->min, st->max);
 			return 1;
 
 		case KEY_BACKSPACE:
 		case 127:
-			s->edit_buf = 0;
-			s->edit_len = 0;
+			st->edit_buf = 0;
+			st->edit_len = 0;
 			return 1;
 
 		default:
@@ -104,11 +100,11 @@ int spinbox_input(const struct widget *w, wchar_t key)
 	}
 
 	if (key >= L'0' && key <= L'9') {
-		s->edit_buf = (s->edit_buf * 10) + (key - L'0');
-		s->edit_len++;
+		st->edit_buf = (st->edit_buf * 10) + (key - L'0');
+		st->edit_len++;
 
-		if (s->edit_len >= s->width)
-			spinbox_commit(s);
+		if (st->edit_len >= st->width)
+			spinbox_commit(st);
 
 		return 1;
 	}
@@ -118,10 +114,10 @@ int spinbox_input(const struct widget *w, wchar_t key)
 
 bool spinbox_getter(struct widget *w, enum widget_property prop, void *out)
 {
-	struct widget_spinbox *s = w->state.spinbox;
+	struct widget_spinbox *st = w->state;
 
 	if (prop == PROP_SPINBOX_VALUE) {
-		*(int *) out = s->value;
+		*(int *) out = st->value;
 		return true;
 	}
 	return false;
@@ -129,10 +125,10 @@ bool spinbox_getter(struct widget *w, enum widget_property prop, void *out)
 
 bool spinbox_setter(struct widget *w, enum widget_property prop, const void *in)
 {
-	struct widget_spinbox *s = w->state.spinbox;
+	struct widget_spinbox *st = w->state;
 
 	if (prop == PROP_SPINBOX_VALUE) {
-		s->value = spinbox_clamp(*(const int *) in, s->min, s->max);
+		st->value = spinbox_clamp(*(const int *) in, st->min, st->max);
 		return true;
 	}
 	return false;
@@ -157,7 +153,7 @@ struct widget *make_spinbox(int min, int max, int step, int initial, int width)
 	state->width = MAX(1, width);
 	state->value = spinbox_clamp(initial, min, max);
 
-	w->state.spinbox = state;
+	w->state = state;
 	w->measure       = spinbox_measure;
 	w->render        = spinbox_render;
 	w->input         = spinbox_input;

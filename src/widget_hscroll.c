@@ -60,29 +60,29 @@ void hscroll_measure(struct widget *w)
 
 void hscroll_render(struct widget *w)
 {
-	struct widget_hscroll *s = w->state.hscroll;
+	struct widget_hscroll *st = w->state;
 
-	if (s->content <= s->viewport)
+	if (st->content <= st->viewport)
 		return;
 
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
-	widget_draw_hscroll(w->win, color, s->offset, s->content);
+	widget_draw_hscroll(w->win, color, st->offset, st->content);
 }
 
 bool hscroll_setter(struct widget *w, enum widget_property prop, const void *in)
 {
-	struct widget_hscroll *s = w->state.hscroll;
+	struct widget_hscroll *st = w->state;
 
 	switch (prop) {
 	case PROP_SCROLL_CONTENT_W:
-		s->content = *(const int *)in;
+		st->content = *(const int *)in;
 		return true;
 	case PROP_SCROLL_VIEW_W:
-		s->viewport = *(const int *)in;
+		st->viewport = *(const int *)in;
 		return true;
 	case PROP_SCROLL_X:
-		s->offset = *(const int *)in;
+		st->offset = *(const int *)in;
 		return true;
 	default:
 		return false;
@@ -91,10 +91,10 @@ bool hscroll_setter(struct widget *w, enum widget_property prop, const void *in)
 
 bool hscroll_getter(struct widget *w, enum widget_property prop, void *out)
 {
-	struct widget_hscroll *s = w->state.hscroll;
+	struct widget_hscroll *st = w->state;
 
 	if (prop == PROP_SCROLL_X) {
-		*(int *)out = s->offset;
+		*(int *)out = st->offset;
 		return true;
 	}
 	return false;
@@ -104,8 +104,7 @@ void hscroll_free(struct widget *w)
 {
 	if (!w)
 		return;
-	free(w->state.hscroll);
-	w->state.hscroll = NULL;
+	free(w->state);
 }
 
 struct widget *make_hscroll(void)
@@ -121,8 +120,7 @@ struct widget *make_hscroll(void)
 		return NULL;
 	}
 
-	w->state.hscroll = s;
-
+	w->state   = s;
 	w->measure = hscroll_measure;
 	w->render  = hscroll_render;
 	w->setter  = hscroll_setter;

@@ -26,30 +26,38 @@ struct widget_button {
 
 void button_measure(struct widget *w)
 {
+	struct widget_button *st = w->state;
+
 	w->min_h = 1;
-	w->min_w = (int) wcslen(w->state.button->text) + 2; /* "[OK]" style */
+	w->min_w = (int) wcslen(st->text) + 2; /* "[OK]" style */
 }
 
 void button_render(struct widget *w)
 {
+	struct widget_button *st = w->state;
+
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
 	wbkgd(w->win, COLOR_PAIR(color));
-	w_mvprintw(w->win, 0, 0, L"[%ls]", w->state.button->text);
+	w_mvprintw(w->win, 0, 0, L"[%ls]", st->text);
 }
 
 void button_free(struct widget *w)
 {
-	if (w->state.button) {
-		free(w->state.button->text);
-		free(w->state.button);
+	struct widget_button *st = w->state;
+
+	if (st) {
+		free(st->text);
+		free(st);
 	}
 }
 
 int button_input(const struct widget *w, wchar_t key)
 {
+	struct widget_button *st = w->state;
+
 	if (key == L'\n' || key == KEY_ENTER) {
-		w->state.button->pressed = !w->state.button->pressed;
+		st->pressed = !st->pressed;
 		return 1;
 	}
 
@@ -58,9 +66,11 @@ int button_input(const struct widget *w, wchar_t key)
 
 bool button_getter(struct widget *w, enum widget_property prop, void *value)
 {
+	struct widget_button *st = w->state;
+
 	if (prop == PROP_BUTTON_STATE) {
 		bool *clicked = value;
-		*clicked = w->state.button->pressed;
+		*clicked = st->pressed;
 		return true;
 	} else {
 		errx(EXIT_FAILURE, "unknown property: %d", prop);
@@ -84,14 +94,14 @@ struct widget *make_button(const wchar_t *text)
 	state->text = wcsdup(text ?: L"");
 	state->pressed = false;
 
-	w->state.button = state;
-	w->measure      = button_measure;
-	w->render       = button_render;
-	w->input        = button_input;
-	w->getter       = button_getter;
-	w->free_data    = button_free;
-	w->color_pair   = COLOR_PAIR_BUTTON;
-	w->attrs        = ATTR_CAN_FOCUS;
+	w->state      = state;
+	w->measure    = button_measure;
+	w->render     = button_render;
+	w->input      = button_input;
+	w->getter     = button_getter;
+	w->free_data  = button_free;
+	w->color_pair = COLOR_PAIR_BUTTON;
+	w->attrs      = ATTR_CAN_FOCUS;
 
 	/* Buttons do not stretch by default — natural size only */
 	w->flex_h = 0;

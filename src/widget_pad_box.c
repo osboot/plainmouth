@@ -30,7 +30,7 @@ static void pad_box_free(struct widget *w);
 
 void pad_box_clamp_scroll(struct widget *pad)
 {
-	struct widget_pad_box *st = pad->state.pad_box;
+	struct widget_pad_box *st = pad->state;
 
 	int max_scroll_y = st->content_h - pad->h;
 	int max_scroll_x = st->content_w - pad->w;
@@ -62,7 +62,7 @@ void pad_box_measure(struct widget *w)
 
 void pad_box_layout(struct widget *w)
 {
-	struct widget_pad_box *st = w->state.pad_box;
+	struct widget_pad_box *st = w->state;
 
 	st->content_h = 0;
 	st->content_w = 0;
@@ -85,7 +85,7 @@ void pad_box_layout(struct widget *w)
 
 static WINDOW *pad_box_child_render_win(struct widget *w)
 {
-	struct widget_pad_box *st = w->state.pad_box;
+	struct widget_pad_box *st = w->state;
 
 	if (!st->pad) {
 		st->pad = newpad(MAX(1, st->content_h), MAX(1, st->content_w));
@@ -124,7 +124,7 @@ void copy_pad_to_window(WINDOW *pad, WINDOW *win, int scroll_y, int scroll_x, in
 
 void pad_box_render(struct widget *w)
 {
-	struct widget_pad_box *st = w->state.pad_box;
+	struct widget_pad_box *st = w->state;
 
 	/*
 	 * Impotant:
@@ -155,7 +155,7 @@ bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w, int *o
 
 void pad_box_ensure_visible(struct widget *container, struct widget *child)
 {
-	struct widget_pad_box *st = container->state.pad_box;
+	struct widget_pad_box *st = container->state;
 
 	int cy, cx;
 	if (!widget_offset_in_ancestor(container, child, &cy, &cx))
@@ -187,7 +187,7 @@ void pad_box_ensure_visible(struct widget *container, struct widget *child)
 
 bool pad_box_getter(struct widget *w, enum widget_property prop, void *val)
 {
-	struct widget_pad_box *st = w->state.pad_box;
+	struct widget_pad_box *st = w->state;
 
 	switch (prop) {
 		case PROP_SCROLL_X:
@@ -210,7 +210,7 @@ bool pad_box_getter(struct widget *w, enum widget_property prop, void *val)
 
 bool pad_box_setter(struct widget *w, enum widget_property prop, const void *val)
 {
-	struct widget_pad_box *st = w->state.pad_box;
+	struct widget_pad_box *st = w->state;
 
 	int max_scroll_y = st->content_h - w->h;
 	int max_scroll_x = st->content_w - w->w;
@@ -241,13 +241,12 @@ bool pad_box_setter(struct widget *w, enum widget_property prop, const void *val
 
 void pad_box_free(struct widget *w)
 {
-	struct widget_pad_box *st = w->state.pad_box;
+	struct widget_pad_box *st = w->state;
 
 	if (st->pad)
 		delwin(st->pad);
 
 	free(st);
-	w->state.pad_box = NULL;
 }
 
 struct widget *make_pad_box(void)
@@ -261,7 +260,7 @@ struct widget *make_pad_box(void)
 		return NULL;
 	}
 
-	w->state.pad_box = st;
+	w->state = st;
 
 	w->measure          = pad_box_measure;
 	w->layout           = pad_box_layout;

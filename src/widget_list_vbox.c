@@ -36,6 +36,8 @@ static inline int widget_height(const struct widget *c)
 
 void list_vbox_measure(struct widget *w)
 {
+	struct widget_list_vbox *st = w->state;
+
 	struct widget *c;
 	int max_w = 0;
 
@@ -46,14 +48,16 @@ void list_vbox_measure(struct widget *w)
 	w->min_w = max_w;
 	w->min_h = 1;
 	w->pref_w = max_w;
-	w->pref_h = w->state.list_vbox->view_rows ?: 5;
+	w->pref_h = st->view_rows ?: 5;
 }
 
 void list_vbox_layout(struct widget *w)
 {
+	struct widget_list_vbox *st = w->state;
+
 	int y = 0;
 
-	w->state.list_vbox->content_h = 0;
+	st->content_h = 0;
 
 	struct widget *c;
 	TAILQ_FOREACH(c, &w->children, siblings) {
@@ -62,7 +66,7 @@ void list_vbox_layout(struct widget *w)
 		widget_layout_tree(c, 0, y, w->w, ch);
 		y += ch;
 
-		w->state.list_vbox->content_h += ch;
+		st->content_h += ch;
 	}
 }
 
@@ -103,7 +107,7 @@ void get_visible_range(struct widget *w, struct widget **first, struct widget **
 
 void set_visible_range(struct widget *w, struct widget *first, struct widget *last)
 {
-	struct widget_list_vbox *st = w->state.list_vbox;
+	struct widget_list_vbox *st = w->state;
 	bool first_found = false;
 
 	st->scroll_y = 0;
@@ -199,7 +203,7 @@ void list_vbox_ensure_visible(struct widget *w, struct widget *focused)
 
 bool list_vbox_getter(struct widget *w, enum widget_property prop, void *val)
 {
-	struct widget_list_vbox *st = w->state.list_vbox;
+	struct widget_list_vbox *st = w->state;
 
 	switch (prop) {
 		case PROP_SCROLL_Y:
@@ -233,7 +237,7 @@ struct widget *list_vbox_find_anchor_by_scroll_y(struct widget *w, int scroll_y)
 
 bool list_vbox_setter(struct widget *w, enum widget_property prop, const void *val)
 {
-	struct widget_list_vbox *st = w->state.list_vbox;
+	struct widget_list_vbox *st = w->state;
 	int target_y = 0;
 
 	switch (prop) {
@@ -261,11 +265,7 @@ void list_vbox_free(struct widget *w)
 {
 	if (!w)
 		return;
-
-	if (w->state.list_vbox) {
-		free(w->state.list_vbox);
-		w->state.list_vbox = NULL;
-	}
+	free(w->state);
 }
 
 struct widget *make_list_vbox(int view_rows)
@@ -282,7 +282,7 @@ struct widget *make_list_vbox(int view_rows)
 	}
 
 	s->view_rows = view_rows;
-	w->state.list_vbox = s;
+	w->state = s;
 
 	w->measure        = list_vbox_measure;
 	w->layout         = list_vbox_layout;

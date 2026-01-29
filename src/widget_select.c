@@ -29,7 +29,7 @@ static void select_free(struct widget *w);
 
 void select_sync(struct widget *sv)
 {
-	struct widget_select *st = sv->state.select;
+	struct widget_select *st = sv->state;
 
 	int scroll_y, content_h;
 
@@ -45,7 +45,7 @@ void select_sync(struct widget *sv)
 
 void select_measure(struct widget *w)
 {
-	struct widget_select *st = w->state.select;
+	struct widget_select *st = w->state;
 
 	st->list->measure(st->list);
 
@@ -65,7 +65,7 @@ void select_layout(struct widget *w)
 
 void select_render(struct widget *w)
 {
-	struct widget_select *st = w->state.select;
+	struct widget_select *st = w->state;
 
 	if (w->flags & FLAG_INFOCUS)
 		st->vscroll->flags |= FLAG_INFOCUS;
@@ -77,7 +77,7 @@ void select_render(struct widget *w)
 
 void select_ensure_visible(struct widget *w, struct widget *child)
 {
-	struct widget_select *st = w->state.select;
+	struct widget_select *st = w->state;
 
 	st->list->ensure_visible(st->list, child);
 
@@ -86,7 +86,7 @@ void select_ensure_visible(struct widget *w, struct widget *child)
 
 int select_input(const struct widget *w, wchar_t key)
 {
-	struct widget_select *st = w->state.select;
+	struct widget_select *st = w->state;
 	int delta_y = 0;
 
 	switch (key) {
@@ -149,12 +149,10 @@ int select_input(const struct widget *w, wchar_t key)
 
 bool select_getter(struct widget *w, enum widget_property prop, void *value)
 {
-	struct widget_select *st = w->state.select;
+	struct widget_select *st = w->state;
 
 	if (prop == PROP_SELECT_OPTIONS_SIZE) {
 		int size = 0;
-
-		warnx("XXX select_getter PROP_SELECT_OPTIONS_SIZE");
 
 		struct widget *c;
 		TAILQ_FOREACH(c, &st->list->children, siblings) {
@@ -189,7 +187,7 @@ bool select_getter(struct widget *w, enum widget_property prop, void *value)
 
 bool select_getter_index(struct widget *w, enum widget_property prop, int index, void *value)
 {
-	struct widget_select *st = w->state.select;
+	struct widget_select *st = w->state;
 
 	if (prop == PROP_SELECT_OPTION_VALUE) {
 		int i = 0;
@@ -216,7 +214,7 @@ bool select_getter_index(struct widget *w, enum widget_property prop, int index,
 
 void select_add_child(struct widget *sv, struct widget *child)
 {
-	struct widget_select *st = sv->state.select;
+	struct widget_select *st = sv->state;
 
 	if (!st->focus) {
 		st->focus = child;
@@ -229,11 +227,9 @@ void select_add_child(struct widget *sv, struct widget *child)
 
 void select_free(struct widget *w)
 {
-	if (!w || !w->state.select)
+	if (!w)
 		return;
-
-	free(w->state.select);
-	w->state.select = NULL;
+	free(w->state);
 }
 
 struct widget *make_select(int max_selected, int view_rows)
@@ -257,7 +253,7 @@ struct widget *make_select(int max_selected, int view_rows)
 	st->list         = list;
 	st->vscroll      = vs;
 
-	root->state.select = st;
+	root->state = st;
 
 	widget_add(root, hbox);
 	widget_add(hbox, list);
