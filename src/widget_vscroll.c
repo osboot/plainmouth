@@ -108,6 +108,21 @@ void vscroll_free(struct widget *w)
 	free(w->state);
 }
 
+static const struct widget_ops vscroll_ops = {
+	.measure          = vscroll_measure,
+	.layout           = NULL,
+	.render           = vscroll_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = vscroll_free,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = vscroll_setter,
+	.getter           = vscroll_getter,
+	.getter_index     = NULL,
+};
+
 struct widget *make_vscroll(void)
 {
 	struct widget *w = widget_create(WIDGET_VSCROLL);
@@ -123,11 +138,7 @@ struct widget *make_vscroll(void)
 
 	w->state = s;
 
-	w->measure = vscroll_measure;
-	w->render  = vscroll_render;
-	w->setter  = vscroll_setter;
-	w->getter  = vscroll_getter;
-	w->free_data = vscroll_free;
+	w->ops = &vscroll_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->stretch_h = 1;

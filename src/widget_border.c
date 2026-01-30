@@ -49,15 +49,28 @@ void border_render(struct widget *w)
 	box(w->win, 0, 0);
 }
 
+static const struct widget_ops border_ops = {
+	.measure          = border_measure,
+	.layout           = border_layout,
+	.render           = border_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = NULL,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = NULL,
+	.getter           = NULL,
+	.getter_index     = NULL,
+};
+
 struct widget *make_border(void)
 {
 	struct widget *w = widget_create(WIDGET_BORDER);
 	if (!w)
 		return NULL;
 
-	w->measure    = border_measure;
-	w->layout     = border_layout;
-	w->render     = border_render;
+	w->ops = &border_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->flex_h = 1;

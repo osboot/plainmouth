@@ -166,8 +166,8 @@ void widget_add(struct widget *parent, struct widget *child)
 
 	child->parent = parent;
 
-	if (parent->add_child) {
-		parent->add_child(parent, child);
+	if (parent->ops && parent->ops->add_child) {
+		parent->ops->add_child(parent, child);
 		return;
 	}
 
@@ -192,8 +192,10 @@ void widget_free(struct widget *w)
 
 	widget_destroy_window(w);
 
-	if (w->free_data)
-		w->free_data(w);
+	if (w->ops && w->ops->free_data) {
+		w->ops->free_data(w);
+		w->state = NULL;
+	}
 
 	free(w);
 }
@@ -229,8 +231,8 @@ void widget_measure_tree(struct widget *w)
 	TAILQ_FOREACH(c, &w->children, siblings)
 		widget_measure_tree(c);
 
-	if (w->measure)
-		w->measure(w);
+	if (w->ops && w->ops->measure)
+		w->ops->measure(w);
 
 	/*
 	 * Ensure preferred sizes are at least minimum. If pref is unset (0),
@@ -261,8 +263,8 @@ void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height)
 	if (width  >= 0) w->w = width;
 	if (height >= 0) w->h = height;
 
-	if (w->layout)
-		w->layout(w);
+	if (w->ops && w->ops->layout)
+		w->ops->layout(w);
 }
 
 static void widget_create_window(struct widget *w)
@@ -281,8 +283,8 @@ static void widget_create_window(struct widget *w)
 			widget_type(w), w->ly, w->lx, w->h, w->w);
 	} else {
 		/* child: derived window */
-		parent_win = (w->parent->child_render_win)
-			? w->parent->child_render_win(w->parent)
+		parent_win = (w->parent->ops && w->parent->ops->child_render_win)
+			? w->parent->ops->child_render_win(w->parent)
 			: w->parent->win;
 
 		w->win = derwin(parent_win, w->h, w->w, w->ly, w->lx);
@@ -371,8 +373,8 @@ void widget_render_tree(struct widget *w)
 
 	werase(w->win);
 
-	if (w->render)
-		w->render(w);
+	if (w->ops && w->ops->render)
+		w->ops->render(w);
 
 	widget_refresh_upper_tree(w);
 
@@ -382,8 +384,8 @@ void widget_render_tree(struct widget *w)
 			widget_render_tree(c);
 	}
 
-	if (w->finalize_render)
-		w->finalize_render(w);
+	if (w->ops && w->ops->finalize_render)
+		w->ops->finalize_render(w);
 }
 
 void widget_hide_tree(struct widget *w)

@@ -47,7 +47,7 @@ void select_measure(struct widget *w)
 {
 	struct widget_select *st = w->state;
 
-	st->list->measure(st->list);
+	st->list->ops->measure(st->list);
 
 	w->min_h  = 1;
 	w->pref_h = st->list->pref_h;
@@ -79,7 +79,7 @@ void select_ensure_visible(struct widget *w, struct widget *child)
 {
 	struct widget_select *st = w->state;
 
-	st->list->ensure_visible(st->list, child);
+	st->list->ops->ensure_visible(st->list, child);
 
 	select_sync(w);
 }
@@ -116,7 +116,7 @@ int select_input(const struct widget *w, wchar_t key)
 				st->focus = TAILQ_FIRST(&st->list->children);
 
 			st->focus->flags |= FLAG_INFOCUS;
-			st->list->ensure_visible(st->list, st->focus);
+			st->list->ops->ensure_visible(st->list, st->focus);
 			break;
 
 		case KEY_DOWN:
@@ -127,7 +127,7 @@ int select_input(const struct widget *w, wchar_t key)
 				st->focus = TAILQ_FIRST(&st->list->children);
 
 			st->focus->flags |= FLAG_INFOCUS;
-			st->list->ensure_visible(st->list, st->focus);
+			st->list->ops->ensure_visible(st->list, st->focus);
 			break;
 
 		case KEY_PPAGE:
@@ -232,6 +232,21 @@ void select_free(struct widget *w)
 	free(w->state);
 }
 
+static const struct widget_ops select_ops = {
+	.measure          = select_measure,
+	.layout           = select_layout,
+	.render           = select_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = select_free,
+	.input            = select_input,
+	.add_child        = select_add_child,
+	.ensure_visible   = select_ensure_visible,
+	.setter           = NULL,
+	.getter           = select_getter,
+	.getter_index     = select_getter_index,
+};
+
 struct widget *make_select(int max_selected, int view_rows)
 {
 	struct widget *root = widget_create(WIDGET_SELECT);
@@ -259,15 +274,7 @@ struct widget *make_select(int max_selected, int view_rows)
 	widget_add(hbox, list);
 	widget_add(hbox, vs);
 
-	root->add_child      = select_add_child;
-	root->measure        = select_measure;
-	root->layout         = select_layout;
-	root->render         = select_render;
-	root->ensure_visible = select_ensure_visible;
-	root->input          = select_input;
-	root->getter         = select_getter;
-	root->getter_index   = select_getter_index;
-	root->free_data      = select_free;
+	root->ops = &select_ops;
 	root->color_pair     = COLOR_PAIR_WINDOW;
 	root->attrs          = ATTR_CAN_FOCUS;
 

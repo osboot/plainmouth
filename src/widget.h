@@ -128,6 +128,23 @@ enum widget_attributes {
 	ATTR_CAN_FOCUS  = (1 << 1), // Widget can be in focus
 };
 
+struct widget_ops {
+	void (*measure)(struct widget *);              /* Compute intrinsic minimum size */
+	void (*layout)(struct widget *);               /* Assign positions/sizes to children */
+	void (*render)(struct widget *);               /* Draw contents into win */
+	void (*finalize_render)(struct widget *);
+	WINDOW *(*child_render_win)(struct widget *parent);
+	void (*free_data)(struct widget *);            /* Free widget-specific data */
+	int  (*input)(const struct widget *, wchar_t); /* Handle keyboard input */
+
+	void (*add_child)(struct widget *parent, struct widget *child);
+	void (*ensure_visible)(struct widget *, struct widget *);
+
+	bool (*setter)(struct widget *, enum widget_property, const void *);
+	bool (*getter)(struct widget *, enum widget_property, void *);
+	bool (*getter_index)(struct widget *, enum widget_property, int, void *);
+};
+
 /*
  * Generic UI widget used in the ncurses-based layout system. Widgets form
  * a tree: each widget may contain children.
@@ -181,20 +198,7 @@ struct widget {
 	int flags;                  /* (widget_flags) */
 
 	/* Virtual methods */
-	void (*measure)(struct widget *);              /* Compute intrinsic minimum size */
-	void (*layout)(struct widget *);               /* Assign positions/sizes to children */
-	void (*render)(struct widget *);               /* Draw contents into win */
-	void (*finalize_render)(struct widget *);
-	WINDOW *(*child_render_win)(struct widget *parent);
-	void (*free_data)(struct widget *);            /* Free widget-specific data */
-	int  (*input)(const struct widget *, wchar_t); /* Handle keyboard input */
-
-	void (*add_child)(struct widget *parent, struct widget *child);
-	void (*ensure_visible)(struct widget *, struct widget *);
-
-	bool (*setter)(struct widget *, enum widget_property, const void *);
-	bool (*getter)(struct widget *, enum widget_property, void *);
-	bool (*getter_index)(struct widget *, enum widget_property, int, void *);
+	const struct widget_ops *ops;
 
 	/* Tree structure */
 	struct widget *parent;      /* Parent widget */
@@ -223,17 +227,17 @@ void widget_dump(FILE *fd, struct widget *w);
 
 static inline bool widget_get(struct widget *w, enum widget_property prop, void *value)
 {
-	return (w->getter) ? w->getter(w, prop, value) : false;
+	return (w && w->ops && w->ops->getter) ? w->ops->getter(w, prop, value) : false;
 }
 
 static inline bool widget_get_index(struct widget *w, enum widget_property prop, int index, void *value)
 {
-	return (w->getter_index) ? w->getter_index(w, prop, index, value) : false;
+	return (w && w->ops && w->ops->getter_index) ? w->ops->getter_index(w, prop, index, value) : false;
 }
 
 static inline bool widget_set(struct widget *w, enum widget_property prop, const void *value)
 {
-	return (w->setter) ? w->setter(w, prop, value) : false;
+	return (w && w->ops && w->ops->setter) ? w->ops->setter(w, prop, value) : false;
 }
 
 typedef bool (*walk_fn)(struct widget *, void *);

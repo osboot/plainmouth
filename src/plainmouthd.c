@@ -213,8 +213,8 @@ static void widget_ensure_visible(struct widget *w)
 	struct widget *cur = w->parent;
 
 	while (cur) {
-		if (cur->ensure_visible)
-			cur->ensure_visible(cur, child);
+		if (cur->ops && cur->ops->ensure_visible)
+			cur->ops->ensure_visible(cur, child);
 
 		child = cur;
 		cur = cur->parent;
@@ -874,10 +874,10 @@ static void handle_input(void)
 		return;
 	}
 
-	if (focused && focused->input) {
+	if (focused && focused->ops && focused->ops->input) {
 		struct instance *instance = find_instance(focused->instance_id);
 
-		focused->input(focused, (wchar_t) code);
+		focused->ops->input(focused, (wchar_t) code);
 
 		ui_check_instance_finished(instance);
 		ui_update();

@@ -78,6 +78,21 @@ bool button_getter(struct widget *w, enum widget_property prop, void *value)
 	return false;
 }
 
+static const struct widget_ops button_ops = {
+	.measure          = button_measure,
+	.layout           = NULL,
+	.render           = button_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = button_free,
+	.input            = button_input,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = NULL,
+	.getter           = button_getter,
+	.getter_index     = NULL,
+};
+
 struct widget *make_button(const wchar_t *text)
 {
 	struct widget *w = widget_create(WIDGET_BUTTON);
@@ -95,11 +110,7 @@ struct widget *make_button(const wchar_t *text)
 	state->pressed = false;
 
 	w->state      = state;
-	w->measure    = button_measure;
-	w->render     = button_render;
-	w->input      = button_input;
-	w->getter     = button_getter;
-	w->free_data  = button_free;
+	w->ops        = &button_ops;
 	w->color_pair = COLOR_PAIR_BUTTON;
 	w->attrs      = ATTR_CAN_FOCUS;
 

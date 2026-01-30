@@ -111,6 +111,21 @@ bool meter_setter(struct widget *w, enum widget_property prop, const void *data)
 	return false;
 }
 
+static const struct widget_ops meter_ops = {
+	.measure          = meter_measure,
+	.layout           = NULL,
+	.render           = meter_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = meter_free,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = meter_setter,
+	.getter           = meter_getter,
+	.getter_index     = NULL,
+};
+
 struct widget *make_meter(int total)
 {
 	struct widget *w = widget_create(WIDGET_METER);
@@ -128,11 +143,7 @@ struct widget *make_meter(int total)
 	state->total = total;
 
 	w->state = state;
-	w->measure     = meter_measure;
-	w->render      = meter_render;
-	w->free_data   = meter_free;
-	w->getter      = meter_getter;
-	w->setter      = meter_setter;
+	w->ops = &meter_ops;
 	w->color_pair  = COLOR_PAIR_WINDOW;
 
 	w->flex_w = 1;        /* expand horizontally */

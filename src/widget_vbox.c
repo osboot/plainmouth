@@ -166,12 +166,26 @@ void vbox_layout(struct widget *w)
 	}
 }
 
+static const struct widget_ops vbox_ops = {
+	.measure          = vbox_measure,
+	.layout           = vbox_layout,
+	.render           = NULL,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = NULL,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = NULL,
+	.getter           = NULL,
+	.getter_index     = NULL,
+};
+
 struct widget *make_vbox(void)
 {
 	struct widget *w = widget_create(WIDGET_VBOX);
 
-	w->measure    = vbox_measure;
-	w->layout     = vbox_layout;
+	w->ops = &vbox_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->flex_h = 1;

@@ -134,6 +134,21 @@ bool spinbox_setter(struct widget *w, enum widget_property prop, const void *in)
 	return false;
 }
 
+static const struct widget_ops spinbox_ops = {
+	.measure          = spinbox_measure,
+	.layout           = NULL,
+	.render           = spinbox_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = spinbox_free,
+	.input            = spinbox_input,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = spinbox_setter,
+	.getter           = spinbox_getter,
+	.getter_index     = NULL,
+};
+
 struct widget *make_spinbox(int min, int max, int step, int initial, int width)
 {
 	struct widget *w = widget_create(WIDGET_SPINBOX);
@@ -154,12 +169,7 @@ struct widget *make_spinbox(int min, int max, int step, int initial, int width)
 	state->value = spinbox_clamp(initial, min, max);
 
 	w->state = state;
-	w->measure       = spinbox_measure;
-	w->render        = spinbox_render;
-	w->input         = spinbox_input;
-	w->free_data     = spinbox_free;
-	w->getter        = spinbox_getter;
-	w->setter        = spinbox_setter;
+	w->ops = &spinbox_ops;
 	w->color_pair    = COLOR_PAIR_WINDOW;
 	w->attrs         = ATTR_CAN_FOCUS;
 

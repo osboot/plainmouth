@@ -114,6 +114,21 @@ int tooltip_input(const struct widget *w, wchar_t key)
 	return 1;
 }
 
+static const struct widget_ops tooltip_ops = {
+	.measure          = tooltip_measure,
+	.layout           = NULL,
+	.render           = tooltip_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = tooltip_free,
+	.input            = tooltip_input,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = NULL,
+	.getter           = NULL,
+	.getter_index     = NULL,
+};
+
 struct widget *make_tooltip(const wchar_t *line)
 {
 	struct widget *w = widget_create(WIDGET_TOOLTIP);
@@ -131,11 +146,8 @@ struct widget *make_tooltip(const wchar_t *line)
 	state->text = wcsdup(line ?: L"");
 
 	w->state = state;
+	w->ops = &tooltip_ops;
 	w->color_pair    = COLOR_PAIR_WINDOW;
-	w->measure       = tooltip_measure;
-	w->render        = tooltip_render;
-	w->free_data     = tooltip_free;
-	w->input         = tooltip_input;
 	w->attrs         = ATTR_CAN_FOCUS;
 
 	w->flex_w = 0;

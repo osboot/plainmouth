@@ -220,6 +220,21 @@ bool input_getter(struct widget *w, enum widget_property prop, void *value)
 	return false;
 }
 
+static const struct widget_ops input_ops = {
+	.measure          = input_measure,
+	.layout           = NULL,
+	.render           = input_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = input_free,
+	.input            = input_input,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = NULL,
+	.getter           = input_getter,
+	.getter_index     = NULL,
+};
+
 struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder)
 {
 	struct widget *w = widget_create(WIDGET_INPUT);
@@ -243,11 +258,7 @@ struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder)
 		state->placeholder = wcsdup(placeholder);
 
 	w->state       = state;
-	w->measure     = input_measure;
-	w->render      = input_render;
-	w->free_data   = input_free;
-	w->input       = input_input;
-	w->getter      = input_getter;
+	w->ops         = &input_ops;
 	w->color_pair  = COLOR_PAIR_BUTTON;
 	w->attrs       = ATTR_CAN_FOCUS | ATTR_CAN_CURSOR;
 

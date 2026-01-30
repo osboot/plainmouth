@@ -93,6 +93,21 @@ void label_free(struct widget *w)
 	}
 }
 
+static const struct widget_ops label_ops = {
+	.measure          = label_measure,
+	.layout           = NULL,
+	.render           = label_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = label_free,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = NULL,
+	.getter           = NULL,
+	.getter_index     = NULL,
+};
+
 struct widget *make_label(const wchar_t *line)
 {
 	struct widget *w = widget_create(WIDGET_LABEL);
@@ -109,10 +124,8 @@ struct widget *make_label(const wchar_t *line)
 	label_init_lines(state, line);
 
 	w->state      = state;
+	w->ops        = &label_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;
-	w->measure    = label_measure;
-	w->render     = label_render;
-	w->free_data  = label_free;
 
 	w->flex_w = 0;
 	w->flex_h = 0;

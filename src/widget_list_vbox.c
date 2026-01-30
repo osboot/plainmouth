@@ -268,6 +268,21 @@ void list_vbox_free(struct widget *w)
 	free(w->state);
 }
 
+static const struct widget_ops list_vbox_ops = {
+	.measure          = list_vbox_measure,
+	.layout           = list_vbox_layout,
+	.render           = list_vbox_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = list_vbox_free,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = list_vbox_ensure_visible,
+	.setter           = list_vbox_setter,
+	.getter           = list_vbox_getter,
+	.getter_index     = NULL,
+};
+
 struct widget *make_list_vbox(int view_rows)
 {
 	struct widget *w = widget_create(WIDGET_LIST_VBOX);
@@ -284,13 +299,7 @@ struct widget *make_list_vbox(int view_rows)
 	s->view_rows = view_rows;
 	w->state = s;
 
-	w->measure        = list_vbox_measure;
-	w->layout         = list_vbox_layout;
-	w->render         = list_vbox_render;
-	w->ensure_visible = list_vbox_ensure_visible;
-	w->getter         = list_vbox_getter;
-	w->setter         = list_vbox_setter;
-	w->free_data      = list_vbox_free;
+	w->ops = &list_vbox_ops;
 	w->color_pair     = COLOR_PAIR_WINDOW;
 
 	w->flex_h = 1;

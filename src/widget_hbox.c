@@ -183,12 +183,26 @@ void hbox_layout(struct widget *w)
 	}
 }
 
+static const struct widget_ops hbox_ops = {
+	.measure          = hbox_measure,
+	.layout           = hbox_layout,
+	.render           = NULL,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = NULL,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = NULL,
+	.getter           = NULL,
+	.getter_index     = NULL,
+};
+
 struct widget *make_hbox(void)
 {
 	struct widget *w = widget_create(WIDGET_HBOX);
 
-	w->measure    = hbox_measure;
-	w->layout     = hbox_layout;
+	w->ops = &hbox_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->flex_h = 1;

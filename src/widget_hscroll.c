@@ -107,6 +107,21 @@ void hscroll_free(struct widget *w)
 	free(w->state);
 }
 
+static const struct widget_ops hscroll_ops = {
+	.measure          = hscroll_measure,
+	.layout           = NULL,
+	.render           = hscroll_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = hscroll_free,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = hscroll_setter,
+	.getter           = hscroll_getter,
+	.getter_index     = NULL,
+};
+
 struct widget *make_hscroll(void)
 {
 	struct widget *w = widget_create(WIDGET_HSCROLL);
@@ -121,11 +136,7 @@ struct widget *make_hscroll(void)
 	}
 
 	w->state   = s;
-	w->measure = hscroll_measure;
-	w->render  = hscroll_render;
-	w->setter  = hscroll_setter;
-	w->getter  = hscroll_getter;
-	w->free_data = hscroll_free;
+	w->ops     = &hscroll_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->stretch_h = 0;

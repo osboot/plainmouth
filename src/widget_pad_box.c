@@ -249,6 +249,21 @@ void pad_box_free(struct widget *w)
 	free(st);
 }
 
+static const struct widget_ops pad_box_ops = {
+	.measure          = pad_box_measure,
+	.layout           = pad_box_layout,
+	.render           = pad_box_render,
+	.finalize_render  = pad_box_render,
+	.child_render_win = pad_box_child_render_win,
+	.free_data        = pad_box_free,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = pad_box_ensure_visible,
+	.setter           = pad_box_setter,
+	.getter           = pad_box_getter,
+	.getter_index     = NULL,
+};
+
 struct widget *make_pad_box(void)
 {
 	struct widget *w = widget_create(WIDGET_PAD_BOX);
@@ -262,16 +277,8 @@ struct widget *make_pad_box(void)
 
 	w->state = st;
 
-	w->measure          = pad_box_measure;
-	w->layout           = pad_box_layout;
-	w->child_render_win = pad_box_child_render_win;
-	w->render           = pad_box_render;
-	w->finalize_render  = pad_box_render;
-	w->ensure_visible   = pad_box_ensure_visible;
-	w->free_data        = pad_box_free;
-	w->getter           = pad_box_getter;
-	w->setter           = pad_box_setter;
-	w->color_pair       = COLOR_PAIR_WINDOW;
+	w->ops = &pad_box_ops;
+	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->flex_w = 1;
 	w->flex_h = 1;

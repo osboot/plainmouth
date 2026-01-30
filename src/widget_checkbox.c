@@ -92,6 +92,21 @@ bool checkbox_setter(struct widget *w, enum widget_property prop, const void *va
 	return false;
 }
 
+static const struct widget_ops checkbox_ops = {
+	.measure          = checkbox_measure,
+	.layout           = NULL,
+	.render           = checkbox_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = checkbox_free,
+	.input            = checkbox_input,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = checkbox_setter,
+	.getter           = checkbox_getter,
+	.getter_index     = NULL,
+};
+
 struct widget *make_checkbox(bool checked, bool multisel)
 {
 	struct widget *w = widget_create(WIDGET_CHECKBOX);
@@ -109,12 +124,7 @@ struct widget *make_checkbox(bool checked, bool multisel)
 	state->multisel = multisel;
 
 	w->state      = state;
-	w->measure    = checkbox_measure;
-	w->render     = checkbox_render;
-	w->free_data  = checkbox_free;
-	w->input      = checkbox_input;
-	w->getter     = checkbox_getter;
-	w->setter     = checkbox_setter;
+	w->ops        = &checkbox_ops;
 	w->color_pair = COLOR_PAIR_BUTTON;
 	w->attrs      = ATTR_CAN_FOCUS;
 

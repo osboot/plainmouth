@@ -8,13 +8,27 @@
 #include "macros.h"
 #include "widget.h"
 
+static const struct widget_ops window_ops = {
+	.measure          = vbox_measure,
+	.layout           = vbox_layout,
+	.render           = NULL,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = NULL,
+	.input            = NULL,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = NULL,
+	.getter           = NULL,
+	.getter_index     = NULL,
+};
+
 struct widget *make_window(void)
 {
 	struct widget *w = widget_create(WIDGET_WINDOW);
 
-	w->measure    = vbox_measure;
-	w->layout     = vbox_layout;
-	w->render     = NULL; /* could draw border */
+	w->ops = &window_ops;
+
 	w->min_w      = 10;
 	w->min_h      = 5;
 	w->color_pair = COLOR_PAIR_WINDOW;

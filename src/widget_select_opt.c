@@ -65,8 +65,8 @@ int selopt_input(const struct widget *w, wchar_t key)
 
 	struct widget *c;
 	TAILQ_FOREACH(c, &hbox->children, siblings) {
-		if (c->type == WIDGET_CHECKBOX && c->input) {
-			return c->input(c, key);
+		if (c->type == WIDGET_CHECKBOX && c->ops && c->ops->input) {
+			return c->ops->input(c, key);
 		}
 	}
 	return 0;
@@ -79,8 +79,8 @@ bool selopt_getter(struct widget *w, enum widget_property prop, void *value)
 
 		struct widget *c;
 		TAILQ_FOREACH(c, &hbox->children, siblings) {
-			if (c->type == WIDGET_CHECKBOX && c->getter) {
-				return c->getter(c, prop, value);
+			if (c->type == WIDGET_CHECKBOX && c->ops && c->ops->getter) {
+				return c->ops->getter(c, prop, value);
 			}
 		}
 	}
@@ -94,13 +94,28 @@ bool selopt_setter(struct widget *w, enum widget_property prop, const void *valu
 
 		struct widget *c;
 		TAILQ_FOREACH(c, &hbox->children, siblings) {
-			if (c->type == WIDGET_CHECKBOX && c->getter) {
-				return c->setter(c, prop, value);
+			if (c->type == WIDGET_CHECKBOX && c->ops && c->ops->setter) {
+				return c->ops->setter(c, prop, value);
 			}
 		}
 	}
 	return false;
 }
+
+static const struct widget_ops selopt_ops = {
+	.measure          = selopt_measure,
+	.layout           = selopt_layout,
+	.render           = selopt_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = NULL,
+	.input            = selopt_input,
+	.add_child        = NULL,
+	.ensure_visible   = NULL,
+	.setter           = selopt_setter,
+	.getter           = selopt_getter,
+	.getter_index     = NULL,
+};
 
 struct widget *make_select_option(const wchar_t *text, bool checked, bool is_radio)
 {
@@ -124,12 +139,7 @@ struct widget *make_select_option(const wchar_t *text, bool checked, bool is_rad
 	widget_add(hbox, label);
 	widget_add(w, hbox);
 
-	w->measure    = selopt_measure;
-	w->layout     = selopt_layout;
-	w->render     = selopt_render;
-	w->input      = selopt_input;
-	w->getter     = selopt_getter;
-	w->setter     = selopt_setter;
+	w->ops = &selopt_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->attrs |= ATTR_CAN_FOCUS;

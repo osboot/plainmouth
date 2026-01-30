@@ -58,10 +58,10 @@ void scroll_vbox_measure(struct widget *w)
 	struct widget_svbox *st = w->state;
 	struct widget *pad = st->pad;
 
-	if (!pad || !pad->measure)
+	if (!pad || !pad->ops->measure)
 		return;
 
-	pad->measure(pad);
+	pad->ops->measure(pad);
 
 	/*
 	 * scroll_vbox reserves space for scrollbars in measure(),
@@ -130,7 +130,7 @@ void scroll_vbox_ensure_visible(struct widget *w, struct widget *child)
 	if (!st || !st->pad)
 		return;
 
-	st->pad->ensure_visible(st->pad, child);
+	st->pad->ops->ensure_visible(st->pad, child);
 	scroll_vbox_sync(w);
 	widget_render_tree(w);
 }
@@ -179,6 +179,21 @@ void scroll_vbox_free(struct widget *w)
 	free(w->state);
 }
 
+static const struct widget_ops scroll_vbox_ops = {
+	.measure          = scroll_vbox_measure,
+	.layout           = scroll_vbox_layout,
+	.render           = scroll_vbox_render,
+	.finalize_render  = NULL,
+	.child_render_win = NULL,
+	.free_data        = scroll_vbox_free,
+	.input            = scroll_vbox_input,
+	.add_child        = scroll_vbox_add_child,
+	.ensure_visible   = scroll_vbox_ensure_visible,
+	.setter           = NULL,
+	.getter           = NULL,
+	.getter_index     = NULL,
+};
+
 struct widget *make_scroll_vbox(void)
 {
 	struct widget *root = widget_create(WIDGET_SCROLL_VBOX);
@@ -215,13 +230,7 @@ struct widget *make_scroll_vbox(void)
 	widget_add(hbox, vs);
 	widget_add(vbox, hs);
 
-	root->add_child      = scroll_vbox_add_child;
-	root->measure        = scroll_vbox_measure;
-	root->layout         = scroll_vbox_layout;
-	root->render         = scroll_vbox_render;
-	root->ensure_visible = scroll_vbox_ensure_visible;
-	root->input          = scroll_vbox_input;
-	root->free_data      = scroll_vbox_free;
+	root->ops = &scroll_vbox_ops;
 	root->color_pair     = COLOR_PAIR_WINDOW;
 	root->attrs          = ATTR_CAN_FOCUS;
 
