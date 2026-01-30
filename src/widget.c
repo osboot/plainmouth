@@ -192,8 +192,8 @@ void widget_free(struct widget *w)
 
 	widget_destroy_window(w);
 
-	if (w->ops && w->ops->free_data) {
-		w->ops->free_data(w);
+	if (w->state && w->ops && w->ops->free) {
+		w->ops->free(w);
 		w->state = NULL;
 	}
 
