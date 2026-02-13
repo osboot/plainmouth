@@ -814,7 +814,9 @@ bool ipc_connect(struct ipc_ctx *ctx, const char *file_name, int sock_flags)
 	if (connect(fd, (const struct sockaddr *) &addr, sizeof(addr))) {
 		int saved_errno = errno;
 		close(fd);
+		ctx->fd = -1;
 		errno = saved_errno;
+		return false;
 	}
 
 	ctx->fd = fd;

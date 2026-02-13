@@ -283,7 +283,8 @@ int main(int argc, char **argv)
 	struct ipc_ctx ctx = { 0 };
 
 	ipc_init(&ctx);
-	ipc_connect(&ctx, socket_file, 0);
+	if (!ipc_connect(&ctx, socket_file, 0))
+		err(EXIT_FAILURE, "unable to connect to socket: %s", socket_file);
 
 	switch (action) {
 		case SRV_QUIT:
