@@ -193,6 +193,11 @@ static void release_instance(struct instance *instance)
 	}
 
 	if (instance->root) {
+		if (instance->plugin && instance->plugin->p_delete_instance &&
+		    instance->plugin->p_delete_instance(instance->root) != P_RET_OK) {
+			warnx("plugin delete callback failed for instance '%s'", instance->id);
+		}
+
 		widget_free(instance->root);
 		instance->root = NULL;
 	}
@@ -436,7 +441,11 @@ static int ui_process_task_create(struct ui_task *t)
 			ipc_send_string(req_fd(&t->req),
 					"RESPDATA %s ERR=unable to create panel",
 					req_id(&t->req));
-			// TODO free plugin instance
+			if (wnew->plugin && wnew->plugin->p_delete_instance &&
+			    wnew->plugin->p_delete_instance(wnew->root) != P_RET_OK) {
+				warnx("plugin delete callback failed for instance '%s'", wnew->id);
+			}
+			widget_free(wnew->root);
 			free(wnew);
 			return -1;
 		}
