@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <limits.h>
 #include <err.h>
 
 #include "macros.h"
@@ -60,8 +62,18 @@ int req_get_int(struct request *req, const char *key, int def)
 uint32_t req_get_uint(struct request *req, const char *key, uint32_t def)
 {
 	const char *v = req_get_val(req, key);
-	int i = atoi(v);
-	return (v && i >= 0) ? (uint32_t) i : def;
+	char *end = NULL;
+	unsigned long value;
+
+	if (!v)
+		return def;
+
+	errno = 0;
+	value = strtoul(v, &end, 10);
+	if (errno || end == v || *end != '\0' || value > UINT32_MAX)
+		return def;
+
+	return (uint32_t) value;
 }
 
 bool req_get_bool(struct request *req, const char *key, bool def)
