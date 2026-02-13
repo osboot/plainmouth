@@ -63,6 +63,12 @@ Dependencies include:
 - `ncurses` and `panel` development libraries
 - `pthread`
 
+## Documentation
+
+- `Documentation/architecture.md` - architecture and widget model
+- `Documentation/plainmouthd-commands.md` - command-level interface
+- `Documentation/ipc-protocol.md` - low-level IPC wire protocol and examples
+
 ## License
 
 This software is licensed under the [GNU General Public License v2.0](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).

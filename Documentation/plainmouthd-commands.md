@@ -3,6 +3,9 @@
 This document describes the command set implemented in `plainmouthd`. Commands
 are sent by plugin instances to `plainmouthd` and are interpreted as **requests**.
 
+For wire format, framing rules, and full request/response transcripts, see
+`Documentation/ipc-protocol.md`.
+
 ## Global Commands
 
 ### set-title
