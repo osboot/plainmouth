@@ -126,7 +126,7 @@ const char *widget_type(struct widget *w)
 	};
 	if (!w)
 		return "NULL";
-	if (w->type >= 0 || w->type < WIDGET_COUNTS)
+	if (w->type >= 0 && w->type < WIDGET_COUNTS)
 		return _widget_type[w->type];
 	return "unknown";
 }
