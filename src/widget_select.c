@@ -31,15 +31,7 @@ void select_sync(struct widget *sv)
 {
 	struct widget_select *st = sv->state;
 
-	int scroll_y, content_h;
-
-	widget_get(st->list, PROP_SCROLL_Y, &scroll_y);
-	widget_get(st->list, PROP_SCROLL_CONTENT_H, &content_h);
-
-	widget_set(st->vscroll, PROP_SCROLL_Y,  &scroll_y);
-	widget_set(st->vscroll, PROP_SCROLL_CONTENT_H, &content_h);
-	widget_set(st->vscroll, PROP_SCROLL_VIEW_H, &st->list->h);
-
+	widget_sync_vscroll(st->list, st->vscroll);
 	widget_render_tree(st->vscroll);
 }
 

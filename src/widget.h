@@ -261,6 +261,8 @@ void widget_scrollbar_draw(WINDOW *scrollwin, enum color_pair color,
 		int scroll_pos, int content_size, bool vertical);
 void widget_scrollbar_measure(struct widget *w, bool vertical);
 void widget_scrollbar_render(struct widget *w, bool vertical);
+void widget_sync_vscroll(struct widget *source, struct widget *vscroll);
+void widget_sync_hscroll(struct widget *source, struct widget *hscroll);
 bool widget_scrollbar_setter(struct widget_scrollbar_state *st,
 		enum widget_property prop, const void *in,
 		enum widget_property content_prop, enum widget_property view_prop,

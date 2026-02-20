@@ -30,27 +30,8 @@ void scroll_vbox_sync(struct widget *sv)
 	if (!st || !st->pad)
 		return;
 
-	if (st->vscroll) {
-		int scroll_y, content_h;
-
-		widget_get(st->pad, PROP_SCROLL_Y, &scroll_y);
-		widget_get(st->pad, PROP_SCROLL_CONTENT_H, &content_h);
-
-		widget_set(st->vscroll, PROP_SCROLL_Y,  &scroll_y);
-		widget_set(st->vscroll, PROP_SCROLL_CONTENT_H, &content_h);
-		widget_set(st->vscroll, PROP_SCROLL_VIEW_H, &st->pad->h);
-	}
-
-	if (st->hscroll) {
-		int scroll_x, content_w;
-
-		widget_get(st->pad, PROP_SCROLL_X, &scroll_x);
-		widget_get(st->pad, PROP_SCROLL_CONTENT_W, &content_w);
-
-		widget_set(st->hscroll, PROP_SCROLL_X,  &scroll_x);
-		widget_set(st->hscroll, PROP_SCROLL_CONTENT_W, &content_w);
-		widget_set(st->hscroll, PROP_SCROLL_VIEW_W, &st->pad->w);
-	}
+	widget_sync_vscroll(st->pad, st->vscroll);
+	widget_sync_hscroll(st->pad, st->hscroll);
 }
 
 void scroll_vbox_measure(struct widget *w)

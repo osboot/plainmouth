@@ -251,6 +251,38 @@ void widget_scrollbar_render(struct widget *w, bool vertical)
 	widget_scrollbar_draw(w->win, color, st->offset, st->content, vertical);
 }
 
+static void widget_sync_scrollbar(struct widget *source, struct widget *scrollbar,
+		enum widget_property offset_prop, enum widget_property content_prop,
+		enum widget_property view_prop, int view_size)
+{
+	int offset = 0;
+	int content = 0;
+
+	if (!source || !scrollbar)
+		return;
+
+	widget_get(source, offset_prop, &offset);
+	widget_get(source, content_prop, &content);
+
+	widget_set(scrollbar, offset_prop, &offset);
+	widget_set(scrollbar, content_prop, &content);
+	widget_set(scrollbar, view_prop, &view_size);
+}
+
+void widget_sync_vscroll(struct widget *source, struct widget *vscroll)
+{
+	widget_sync_scrollbar(source, vscroll,
+			PROP_SCROLL_Y, PROP_SCROLL_CONTENT_H,
+			PROP_SCROLL_VIEW_H, source ? source->h : 0);
+}
+
+void widget_sync_hscroll(struct widget *source, struct widget *hscroll)
+{
+	widget_sync_scrollbar(source, hscroll,
+			PROP_SCROLL_X, PROP_SCROLL_CONTENT_W,
+			PROP_SCROLL_VIEW_W, source ? source->w : 0);
+}
+
 bool widget_scrollbar_setter(struct widget_scrollbar_state *st,
 		enum widget_property prop, const void *in,
 		enum widget_property content_prop,
