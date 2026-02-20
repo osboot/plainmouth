@@ -187,7 +187,7 @@ struct widget *make_scroll_vbox(void)
 	struct widget *vs   = make_vscroll();
 	struct widget *hs   = make_hscroll();
 
-	if (!hbox || !pad || !vs || !hs) {
+	if (!vbox || !hbox || !pad || !vs || !hs) {
 		widget_free(root);
 		return NULL;
 	}

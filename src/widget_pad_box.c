@@ -267,6 +267,8 @@ static const struct widget_ops pad_box_ops = {
 struct widget *make_pad_box(void)
 {
 	struct widget *w = widget_create(WIDGET_PAD_BOX);
+	if (!w)
+		return NULL;
 
 	struct widget_pad_box *st = calloc(1, sizeof(*st));
 	if (!st) {

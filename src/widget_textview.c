@@ -8,8 +8,11 @@ struct widget *make_textview(const wchar_t *text)
 	struct widget *scroll = make_scroll_vbox();
 	struct widget *w = make_label(text);
 
-	if (!scroll || !w)
+	if (!scroll || !w) {
+		widget_free(scroll);
+		widget_free(w);
 		return NULL;
+	}
 
 	widget_add(scroll, w);
 
