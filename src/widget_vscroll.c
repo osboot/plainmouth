@@ -1,111 +1,36 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "config.h"
 
-#include <unistd.h>
+#include <stdlib.h>
 #include <err.h>
 
-#include "macros.h"
 #include "widget.h"
 
-struct widget_vscroll {
-	int content;   /* total size */
-	int viewport;  /* visible size */
-	int offset;    /* current scroll */
-};
-
-static void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height) __attribute__((nonnull(1)));
 static void vscroll_measure(struct widget *w) __attribute__((nonnull(1)));
 static void vscroll_render(struct widget *w) __attribute__((nonnull(1)));
 static bool vscroll_setter(struct widget *w, enum widget_property prop, const void *in) __attribute__((nonnull(1,3)));
 static bool vscroll_getter(struct widget *w, enum widget_property prop, void *out) __attribute__((nonnull(1,3)));
-static void vscroll_free(struct widget *w);
 
-
-void widget_draw_vscroll(WINDOW *scrollwin, enum color_pair color, int scroll_pos, int content_height)
-{
-	int view_width, view_height;
-	getmaxyx(scrollwin, view_height, view_width);
-
-	if ((content_height - view_height) <= 0)
-		return;
-
-	int thumb_size = MAX(1, (view_height * view_height) / content_height);
-	int thumb_pos = (scroll_pos * (view_height - thumb_size)) / (content_height - view_height);
-
-	wattron(scrollwin, COLOR_PAIR(color) | A_NORMAL);
-	for (int i = 0; i < view_height; i++)
-		mvwaddch(scrollwin, i, view_width - 1, ACS_CKBOARD);
-	wattroff(scrollwin, COLOR_PAIR(color) | A_NORMAL);
-
-	wattron(scrollwin, COLOR_PAIR(color) | A_REVERSE);
-	for (int i = 0; i < thumb_size; i++) {
-		chtype c = ' ';
-
-		if (thumb_size >= 2) {
-			if (i == 0)
-				c = '^';
-			else if (i == thumb_size - 1)
-				c = 'v';
-		}
-
-		mvwaddch(scrollwin, thumb_pos + i, view_width - 1, c);
-	}
-	wattroff(scrollwin, COLOR_PAIR(color) | A_REVERSE);
-}
 
 void vscroll_measure(struct widget *w)
 {
-	w->min_w = w->max_w = w->pref_w = 1;
-	w->min_h = 1;
+	widget_scrollbar_measure(w, true);
 }
 
 void vscroll_render(struct widget *w)
 {
-	struct widget_vscroll *st = w->state;
-
-	if (st->content <= st->viewport)
-		return;
-
-	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
-
-	widget_draw_vscroll(w->win, color, st->offset, st->content);
+	widget_scrollbar_render(w, true);
 }
 
 bool vscroll_setter(struct widget *w, enum widget_property prop, const void *in)
 {
-	struct widget_vscroll *st = w->state;
-
-	switch (prop) {
-	case PROP_SCROLL_CONTENT_H:
-		st->content = *(const int *)in;
-		return true;
-	case PROP_SCROLL_VIEW_H:
-		st->viewport = *(const int *)in;
-		return true;
-	case PROP_SCROLL_Y:
-		st->offset = *(const int *)in;
-		return true;
-	default:
-		return false;
-	}
+	return widget_scrollbar_setter(w->state, prop, in,
+			PROP_SCROLL_CONTENT_H, PROP_SCROLL_VIEW_H, PROP_SCROLL_Y);
 }
 
 bool vscroll_getter(struct widget *w, enum widget_property prop, void *out)
 {
-	struct widget_vscroll *st = w->state;
-
-	if (prop == PROP_SCROLL_Y) {
-		*(int *)out = st->offset;
-		return true;
-	}
-	return false;
-}
-
-void vscroll_free(struct widget *w)
-{
-	if (!w)
-		return;
-	free(w->state);
+	return widget_scrollbar_getter(w->state, prop, out, PROP_SCROLL_Y);
 }
 
 static const struct widget_ops vscroll_ops = {
@@ -114,7 +39,7 @@ static const struct widget_ops vscroll_ops = {
 	.render           = vscroll_render,
 	.finalize_render  = NULL,
 	.child_render_win = NULL,
-	.free             = vscroll_free,
+	.free             = widget_scrollbar_state_free,
 	.input            = NULL,
 	.add_child        = NULL,
 	.ensure_visible   = NULL,
@@ -129,7 +54,7 @@ struct widget *make_vscroll(void)
 	if (!w)
 		return NULL;
 
-	struct widget_vscroll *s = calloc(1, sizeof(*s));
+	struct widget_scrollbar_state *s = calloc(1, sizeof(*s));
 	if (!s) {
 		warn("make_vscroll: calloc");
 		widget_free(w);

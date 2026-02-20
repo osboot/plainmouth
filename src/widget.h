@@ -145,6 +145,12 @@ struct widget_ops {
 	bool (*getter_index)(struct widget *, enum widget_property, int, void *);
 };
 
+struct widget_scrollbar_state {
+	int content;   /* total size */
+	int viewport;  /* visible size */
+	int offset;    /* current scroll */
+};
+
 /*
  * Generic UI widget used in the ncurses-based layout system. Widgets form
  * a tree: each widget may contain children.
@@ -251,6 +257,18 @@ void widget_render_tree(struct widget *w);
 void distribute_flex_axis(int count, const int *pref,
 		const int *min, const int *max, const int *grow,
 		const int *shrink, int available, int *out);
+void widget_scrollbar_draw(WINDOW *scrollwin, enum color_pair color,
+		int scroll_pos, int content_size, bool vertical);
+void widget_scrollbar_measure(struct widget *w, bool vertical);
+void widget_scrollbar_render(struct widget *w, bool vertical);
+bool widget_scrollbar_setter(struct widget_scrollbar_state *st,
+		enum widget_property prop, const void *in,
+		enum widget_property content_prop, enum widget_property view_prop,
+		enum widget_property offset_prop);
+bool widget_scrollbar_getter(const struct widget_scrollbar_state *st,
+		enum widget_property prop, void *out,
+		enum widget_property offset_prop);
+void widget_scrollbar_state_free(struct widget *w);
 
 struct widget *make_window(void);
 struct widget *make_vbox(void);

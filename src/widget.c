@@ -189,6 +189,108 @@ void distribute_flex_axis(int count, const int *pref,
 	}
 }
 
+void widget_scrollbar_draw(WINDOW *scrollwin, enum color_pair color,
+		int scroll_pos, int content_size, bool vertical)
+{
+	int view_w, view_h;
+	getmaxyx(scrollwin, view_h, view_w);
+
+	int view_size = vertical ? view_h : view_w;
+	if ((content_size - view_size) <= 0)
+		return;
+
+	int thumb_size = MAX(1, (view_size * view_size) / content_size);
+	int thumb_pos = (scroll_pos * (view_size - thumb_size)) / (content_size - view_size);
+
+	wattron(scrollwin, COLOR_PAIR(color) | A_NORMAL);
+	for (int i = 0; i < view_size; i++) {
+		int y = vertical ? i : view_h - 1;
+		int x = vertical ? view_w - 1 : i;
+		mvwaddch(scrollwin, y, x, ACS_CKBOARD);
+	}
+	wattroff(scrollwin, COLOR_PAIR(color) | A_NORMAL);
+
+	wattron(scrollwin, COLOR_PAIR(color) | A_REVERSE);
+	for (int i = 0; i < thumb_size; i++) {
+		chtype c = ' ';
+
+		if (thumb_size >= 2) {
+			if (i == 0)
+				c = vertical ? '^' : '<';
+			else if (i == thumb_size - 1)
+				c = vertical ? 'v' : '>';
+		}
+
+		int y = vertical ? thumb_pos + i : view_h - 1;
+		int x = vertical ? view_w - 1 : thumb_pos + i;
+		mvwaddch(scrollwin, y, x, c);
+	}
+	wattroff(scrollwin, COLOR_PAIR(color) | A_REVERSE);
+}
+
+void widget_scrollbar_measure(struct widget *w, bool vertical)
+{
+	if (vertical) {
+		w->min_w = w->max_w = w->pref_w = 1;
+		w->min_h = 1;
+		return;
+	}
+
+	w->min_h = w->max_h = w->pref_h = 1;
+	w->min_w = 1;
+}
+
+void widget_scrollbar_render(struct widget *w, bool vertical)
+{
+	const struct widget_scrollbar_state *st = w->state;
+
+	if (st->content <= st->viewport)
+		return;
+
+	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
+	widget_scrollbar_draw(w->win, color, st->offset, st->content, vertical);
+}
+
+bool widget_scrollbar_setter(struct widget_scrollbar_state *st,
+		enum widget_property prop, const void *in,
+		enum widget_property content_prop,
+		enum widget_property view_prop,
+		enum widget_property offset_prop)
+{
+	if (prop == content_prop) {
+		st->content = *(const int *)in;
+		return true;
+	}
+	if (prop == view_prop) {
+		st->viewport = *(const int *)in;
+		return true;
+	}
+	if (prop == offset_prop) {
+		st->offset = *(const int *)in;
+		return true;
+	}
+
+	return false;
+}
+
+bool widget_scrollbar_getter(const struct widget_scrollbar_state *st,
+		enum widget_property prop, void *out,
+		enum widget_property offset_prop)
+{
+	if (prop == offset_prop) {
+		*(int *)out = st->offset;
+		return true;
+	}
+	return false;
+}
+
+void widget_scrollbar_state_free(struct widget *w)
+{
+	if (!w)
+		return;
+	free(w->state);
+}
+
 const char *widget_type(struct widget *w)
 {
 	static const char *_widget_type[] = {
