@@ -9,9 +9,6 @@
 #include "widget.h"
 
 static void hbox_measure(struct widget *w) __attribute__((nonnull(1)));
-static void distribute_flex_hbox(int count, const int *pref,
-		const int *min, const int *max, const int *grow,
-		const int *shrink, int available, int *out) __attribute__((nonnull(2,3,4,5,6,8)));
 static void hbox_layout(struct widget *w) __attribute__((nonnull(1)));
 
 /*
@@ -33,108 +30,6 @@ void hbox_measure(struct widget *w)
 
 	w->min_w = sum_min_w;
 	w->min_h = max_h;
-}
-
-/* Iterative distribution helper for one axis (HBOX main axis) */
-void distribute_flex_hbox(int count, const int *pref,
-		const int *min, const int *max, const int *grow,
-		const int *shrink, int available, int *out)
-{
-	int i;
-
-	/* sum preferred */
-	int sum_pref = 0;
-	for (i = 0; i < count; i++)
-		sum_pref += pref[i];
-
-	if (available >= sum_pref) {
-		/* Grow case */
-		int extra = available - sum_pref;
-		int sum_grow = 0;
-
-		for (i = 0; i < count; i++)
-			sum_grow += grow[i];
-
-		int allocated = 0;
-		for (i = 0; i < count; i++) {
-			int add = (sum_grow > 0) ? (extra * grow[i]) / sum_grow : 0;
-
-			out[i] = pref[i] + add;
-			allocated += add;
-
-			/* respect max */
-			if (max[i] > 0 && out[i] > max[i])
-				out[i] = max[i];
-		}
-
-		/* distribute remainder (rounding) and respect max */
-		int rem = extra - allocated;
-
-		for (i = 0; i < count && rem > 0; i++) {
-			if (!grow[i])
-				continue;
-
-			if (max[i] == 0 || out[i] < max[i]) {
-				out[i]++;
-				rem--;
-			}
-		}
-		return;
-	}
-
-	/* Shrink case: iterative clamp to min */
-	int deficit = sum_pref - available;
-
-	for (i = 0; i < count; i++)
-		out[i] = pref[i];
-
-	bool changed = true;
-
-	while (deficit > 0 && changed) {
-		int sum_shrink_active = 0;
-
-		changed = false;
-
-		for (i = 0; i < count; i++) {
-			if (out[i] > min[i])
-				sum_shrink_active += shrink[i];
-		}
-
-		if (sum_shrink_active == 0)
-			break;
-
-		int total_cut = 0;
-
-		for (i = 0; i < count; i++) {
-			if (out[i] <= min[i])
-				continue;
-
-			int cut = (deficit * shrink[i]) / sum_shrink_active;
-			int newsize = out[i] - cut;
-
-			if (newsize < min[i])
-				newsize = min[i];
-
-			total_cut += (out[i] - newsize);
-
-			if (newsize != out[i])
-				changed = true;
-
-			out[i] = newsize;
-		}
-		deficit -= total_cut;
-	}
-
-	/*
-	 * If deficit still > 0, force-last-resort trim from rightmost children
-	 */
-	for (i = count - 1; i >= 0 && deficit > 0; i--) {
-		int take = MIN(deficit, out[i] - min[i]);
-		if (take > 0) {
-			out[i] -= take;
-			deficit -= take;
-		}
-	}
 }
 
 void hbox_layout(struct widget *w)
@@ -169,7 +64,7 @@ void hbox_layout(struct widget *w)
 		i++;
 	}
 
-	distribute_flex_hbox(count, pref, min, max, grow, shrink, w->w, out);
+	distribute_flex_axis(count, pref, min, max, grow, shrink, w->w, out);
 
 	/* apply results */
 	x = 0;

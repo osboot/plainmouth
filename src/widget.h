@@ -248,6 +248,9 @@ void widget_measure_tree(struct widget *w);
 void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height);
 void widget_hide_tree(struct widget *w);
 void widget_render_tree(struct widget *w);
+void distribute_flex_axis(int count, const int *pref,
+		const int *min, const int *max, const int *grow,
+		const int *shrink, int available, int *out);
 
 struct widget *make_window(void);
 struct widget *make_vbox(void);
