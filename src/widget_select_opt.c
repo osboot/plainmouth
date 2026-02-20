@@ -2,11 +2,16 @@
 #include "config.h"
 
 #include <sys/queue.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <err.h>
 
 #include "macros.h"
 #include "widget.h"
+
+struct widget_select_opt {
+	struct widget *checkbox;
+};
 
 static void selopt_measure(struct widget *w) __attribute__((nonnull(1)));
 static void selopt_layout(struct widget *w) __attribute__((nonnull(1)));
@@ -14,6 +19,7 @@ static void selopt_render(struct widget *w) __attribute__((nonnull(1)));
 static int selopt_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
 static bool selopt_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
 static bool selopt_setter(struct widget *w, enum widget_property prop, const void *value) __attribute__((nonnull(1,3)));
+static void selopt_free(struct widget *w);
 
 
 void selopt_measure(struct widget *w)
@@ -61,44 +67,43 @@ void selopt_render(struct widget *w)
 
 int selopt_input(const struct widget *w, wchar_t key)
 {
-	struct widget *hbox = TAILQ_FIRST(&w->children);
+	const struct widget_select_opt *st = w->state;
+	struct widget *checkbox = st ? st->checkbox : NULL;
 
-	struct widget *c;
-	TAILQ_FOREACH(c, &hbox->children, siblings) {
-		if (c->type == WIDGET_CHECKBOX && c->ops && c->ops->input) {
-			return c->ops->input(c, key);
-		}
-	}
-	return 0;
+	if (!checkbox || !checkbox->ops || !checkbox->ops->input)
+		return 0;
+
+	return checkbox->ops->input(checkbox, key);
+}
+
+void selopt_free(struct widget *w)
+{
+	free(w->state);
 }
 
 bool selopt_getter(struct widget *w, enum widget_property prop, void *value)
 {
-	if (prop == PROP_CHECKBOX_STATE) {
-		struct widget *hbox = TAILQ_FIRST(&w->children);
+	struct widget_select_opt *st = w->state;
 
-		struct widget *c;
-		TAILQ_FOREACH(c, &hbox->children, siblings) {
-			if (c->type == WIDGET_CHECKBOX && c->ops && c->ops->getter) {
-				return c->ops->getter(c, prop, value);
-			}
-		}
-	}
+	if (prop != PROP_CHECKBOX_STATE || !st || !st->checkbox)
+		return false;
+
+	if (st->checkbox->ops && st->checkbox->ops->getter)
+		return st->checkbox->ops->getter(st->checkbox, prop, value);
+
 	return false;
 }
 
 bool selopt_setter(struct widget *w, enum widget_property prop, const void *value)
 {
-	if (prop == PROP_CHECKBOX_STATE) {
-		struct widget *hbox = TAILQ_FIRST(&w->children);
+	struct widget_select_opt *st = w->state;
 
-		struct widget *c;
-		TAILQ_FOREACH(c, &hbox->children, siblings) {
-			if (c->type == WIDGET_CHECKBOX && c->ops && c->ops->setter) {
-				return c->ops->setter(c, prop, value);
-			}
-		}
-	}
+	if (prop != PROP_CHECKBOX_STATE || !st || !st->checkbox)
+		return false;
+
+	if (st->checkbox->ops && st->checkbox->ops->setter)
+		return st->checkbox->ops->setter(st->checkbox, prop, value);
+
 	return false;
 }
 
@@ -108,7 +113,7 @@ static const struct widget_ops selopt_ops = {
 	.render           = selopt_render,
 	.finalize_render  = NULL,
 	.child_render_win = NULL,
-	.free             = NULL,
+	.free             = selopt_free,
 	.input            = selopt_input,
 	.add_child        = NULL,
 	.ensure_visible   = NULL,
@@ -123,12 +128,16 @@ struct widget *make_select_option(const wchar_t *text, bool checked, bool is_rad
 	struct widget *hbox = make_hbox();
 	struct widget *checkbox = make_checkbox(checked, is_radio);
 	struct widget *label = make_label(text);
+	struct widget_select_opt *state = calloc(1, sizeof(*state));
 
-	if (!w || !hbox || !checkbox || !label) {
+	if (!w || !hbox || !checkbox || !label || !state) {
+		if (!state)
+			warn("make_select_option: calloc");
 		widget_free(hbox);
 		widget_free(checkbox);
 		widget_free(label);
 		widget_free(w);
+		free(state);
 		return NULL;
 	}
 
@@ -139,6 +148,8 @@ struct widget *make_select_option(const wchar_t *text, bool checked, bool is_rad
 	widget_add(hbox, label);
 	widget_add(w, hbox);
 
+	state->checkbox = checkbox;
+	w->state = state;
 	w->ops = &selopt_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;
 
