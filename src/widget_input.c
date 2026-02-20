@@ -243,7 +243,7 @@ struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder)
 
 	struct widget_input *state = calloc(1, sizeof(*state));
 	if (!state) {
-		warn("make_button: calloc");
+		warn("make_input: calloc");
 		widget_free(w);
 		return NULL;
 	}

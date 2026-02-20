@@ -134,7 +134,7 @@ struct widget *make_meter(int total)
 
 	struct widget_meter *state = calloc(1, sizeof(*state));
 	if (!state) {
-		warn("make_button: calloc");
+		warn("make_meter: calloc");
 		widget_free(w);
 		return NULL;
 	}
