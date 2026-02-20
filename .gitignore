@@ -26,3 +26,4 @@ tests/ipc/ipc_send_and_receive
 tests/ipc/ipc_send_key_value_pairs
 tests/ncurses-leaks/panel
 tests/warray/warray_test
+tests/widget/widget_flex_axis_test

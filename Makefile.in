@@ -149,6 +149,7 @@ VALGRIND = valgrind --error-exitcode=1 \
 TESTS := $(sort $(basename \
 	$(wildcard tests/ipc/ipc_*.c) \
 	$(wildcard tests/warray/warray_*.c) \
+	$(wildcard tests/widget/widget_*.c) \
 ))
 TESTS_E2E := $(sort $(basename \
 	$(wildcard tests/e2e-*.sh) \
@@ -170,6 +171,9 @@ tests/ipc/%: tests/ipc/%.o src/ipc.o
 
 tests/warray/%: tests/warray/%.o src/warray.o
 	$(call cmd_LINK,$^)
+
+tests/widget/%: tests/widget/%.o src/widget.o
+	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS)
 
 tests/%.chk: tests/%
 	@timeout -s KILL 5s $(VALGRIND) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \
