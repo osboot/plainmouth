@@ -43,31 +43,60 @@ static bool handle_take(struct ipc_ctx *, struct ipc_token *) __attribute__((non
 static bool handle_pair(struct ipc_ctx *, struct ipc_token *) __attribute__((nonnull(1, 2)));
 static bool handle_done(struct ipc_ctx *, struct ipc_token *) __attribute__((nonnull(1, 2)));
 static bool handle_dummy(struct ipc_ctx *, struct ipc_token *) __attribute__((nonnull(1, 2)));
+static bool ipc_set_handler(struct ipc_token *tok) __attribute__((nonnull(1)));
 typedef bool (*send_pairs_fn)(struct ipc_ctx *, const char *, const void *) __attribute__((nonnull(1,2,3)));
 static bool send_pairs_raw(struct ipc_ctx *ctx, const char *id, const void *data) __attribute__((nonnull(1,2,3)));
 static bool send_pairs_kv(struct ipc_ctx *ctx, const char *id, const void *data) __attribute__((nonnull(1,2,3)));
 static bool ipc_send_message_common(struct ipc_ctx *ctx, send_pairs_fn send_pairs,
 		const void *pairs_data, struct ipc_pair *resp) __attribute__((nonnull(1,2,3,4)));
 
-struct cmd_handler {
-	const char *name;
-	bool (*fn)(struct ipc_ctx *, struct ipc_token *);
-};
-
-static struct cmd_handler handlers[] = {
-	{ "HELLO",    handle_hllo  },
-	{ "TAKE",     handle_take  },
-	{ "PAIR",     handle_pair  },
-	{ "DONE",     handle_done  },
-	{ "RESPDATA", handle_dummy },
-	{ "RESPONSE", handle_dummy },
-	{ NULL,       NULL         }
-};
-
 struct send_pairs_raw_args {
 	char **pairs;
 	int num_pairs;
 };
+
+bool ipc_set_handler(struct ipc_token *tok)
+{
+	if (!tok->cmd || !tok->cmd[0])
+		return false;
+
+	switch (tok->cmd[0]) {
+	case 'H':
+		if (streq(tok->cmd, "HELLO")) {
+			tok->handler = handle_hllo;
+			return true;
+		}
+		break;
+	case 'T':
+		if (streq(tok->cmd, "TAKE")) {
+			tok->handler = handle_take;
+			return true;
+		}
+		break;
+	case 'P':
+		if (streq(tok->cmd, "PAIR")) {
+			tok->handler = handle_pair;
+			return true;
+		}
+		break;
+	case 'D':
+		if (streq(tok->cmd, "DONE")) {
+			tok->handler = handle_done;
+			return true;
+		}
+		break;
+	case 'R':
+		if (streq(tok->cmd, "RESPDATA") || streq(tok->cmd, "RESPONSE")) {
+			tok->handler = handle_dummy;
+			return true;
+		}
+		break;
+	default:
+		break;
+	}
+
+	return false;
+}
 
 void sanitize_newlines(char *s)
 {
@@ -514,14 +543,7 @@ int ipc_parse_token(char *token, struct ipc_token *tok)
 		return -EINVAL;
 	}
 
-	for (struct cmd_handler *handler = handlers; handler->name; handler++) {
-		if (streq(tok->cmd, handler->name)) {
-			tok->handler = handler->fn;
-			break;
-		}
-	}
-
-	if (!tok->handler) {
+	if (!ipc_set_handler(tok)) {
 		warnx("ERROR unknown command '%s'", tok->cmd);
 		return -ESRCH;
 	}
