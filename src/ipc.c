@@ -43,6 +43,11 @@ static bool handle_take(struct ipc_ctx *, struct ipc_token *) __attribute__((non
 static bool handle_pair(struct ipc_ctx *, struct ipc_token *) __attribute__((nonnull(1, 2)));
 static bool handle_done(struct ipc_ctx *, struct ipc_token *) __attribute__((nonnull(1, 2)));
 static bool handle_dummy(struct ipc_ctx *, struct ipc_token *) __attribute__((nonnull(1, 2)));
+typedef bool (*send_pairs_fn)(struct ipc_ctx *, const char *, const void *) __attribute__((nonnull(1,2,3)));
+static bool send_pairs_raw(struct ipc_ctx *ctx, const char *id, const void *data) __attribute__((nonnull(1,2,3)));
+static bool send_pairs_kv(struct ipc_ctx *ctx, const char *id, const void *data) __attribute__((nonnull(1,2,3)));
+static bool ipc_send_message_common(struct ipc_ctx *ctx, send_pairs_fn send_pairs,
+		const void *pairs_data, struct ipc_pair *resp) __attribute__((nonnull(1,2,3,4)));
 
 struct cmd_handler {
 	const char *name;
@@ -57,6 +62,11 @@ static struct cmd_handler handlers[] = {
 	{ "RESPDATA", handle_dummy },
 	{ "RESPONSE", handle_dummy },
 	{ NULL,       NULL         }
+};
+
+struct send_pairs_raw_args {
+	char **pairs;
+	int num_pairs;
 };
 
 void sanitize_newlines(char *s)
@@ -565,69 +575,14 @@ ssize_t ipc_recv_token(struct ipc_ctx *ctx, struct ipc_token *tok)
 bool ipc_send_message(struct ipc_ctx *ctx, char **pairs, int num_pairs,
 		struct ipc_pair *result)
 {
-	struct ipc_token response1 = { 0 };
-	struct ipc_token response2 = { 0 };
+	struct send_pairs_raw_args args = {
+		.pairs = pairs,
+		.num_pairs = num_pairs,
+	};
 	struct ipc_pair resp = { 0 };
-	ssize_t size = 0;
-	bool ret = false;
+	bool ret;
 
-	if (ipc_send_string(ctx->fd, "%s", "HELLO") < 0)
-		goto finish;
-
-	if ((size = ipc_recv_token(ctx, &response1)) <= 0)
-		goto finish;
-
-	if (!streq(response1.cmd, "TAKE")) {
-		warnx("ERROR: unexpected answer: %s", response1.cmd);
-		goto finish;
-	}
-
-	for (int i = 0; i < num_pairs; i++) {
-		if (pairs[i] && pairs[i][0] != '\0' &&
-		    ipc_send_string(ctx->fd, "PAIR %s %s", response1.id, pairs[i]) < 0)
-			goto finish;
-	}
-
-	if (ipc_send_string(ctx->fd, "DONE %s", response1.id) < 0)
-		goto finish;
-
-	while (1) {
-		if ((size = ipc_recv_token(ctx, &response2)) <= 0)
-			goto finish;
-
-		if (streq(response2.cmd, "RESPDATA")) {
-			char *eq = strchr(response2.arg, '=');
-			if (!eq) {
-				warnx("ERROR: bad format of 'RESPDATA'");
-				break;
-			}
-
-			*eq = '\0';
-
-			char *key = response2.arg;
-			char *val = eq + 1;
-
-			ipc_pair_add(&resp, key, val);
-
-			ipc_free_token(&response2);
-			continue;
-		}
-
-		if (streq(response2.cmd, "RESPONSE")) {
-			if (!streq(response2.id, response1.id) &&
-			    !streq(response2.id, "0")) {
-				warnx("ERROR: command id '%s'. expected '%s'",
-						response2.id, response1.id);
-				goto finish;
-			}
-
-			ret = streq(response2.status, "OK");
-			if (!ret && response2.arg)
-				warnx("ERROR: %s", response2.arg);
-			break;
-		}
-	}
-finish:
+	ret = ipc_send_message_common(ctx, send_pairs_raw, &args, &resp);
 	if (result) {
 		result->kv = resp.kv;
 		result->num_kv = resp.num_kv;
@@ -635,13 +590,41 @@ finish:
 	} else {
 		ipc_pair_free(&resp);
 	}
-	ipc_free_token(&response1);
-	ipc_free_token(&response2);
 
 	return ret;
 }
 
-bool ipc_send_message2(struct ipc_ctx *ctx, struct ipc_pair *data, struct ipc_pair *resp)
+static bool send_pairs_raw(struct ipc_ctx *ctx, const char *id, const void *data)
+{
+	const struct send_pairs_raw_args *args = data;
+	char **pairs = args->pairs;
+	int num_pairs = args->num_pairs;
+
+	for (int i = 0; i < num_pairs; i++) {
+		if (pairs[i] && pairs[i][0] != '\0' &&
+		    ipc_send_string(ctx->fd, "PAIR %s %s", id, pairs[i]) < 0)
+			return false;
+	}
+
+	return true;
+}
+
+static bool send_pairs_kv(struct ipc_ctx *ctx, const char *id, const void *data)
+{
+	const struct ipc_pair *pairs = data;
+
+	for (size_t i = 0; i < pairs->num_kv; i++) {
+		ssize_t size = ipc_send_string(ctx->fd, "PAIR %s %s=%s", id,
+				pairs->kv[i].key, pairs->kv[i].val);
+		if (size < 0)
+			return false;
+	}
+
+	return true;
+}
+
+static bool ipc_send_message_common(struct ipc_ctx *ctx, send_pairs_fn send_pairs,
+		const void *pairs_data, struct ipc_pair *resp)
 {
 	struct ipc_token response1 = { 0 };
 	struct ipc_token response2 = { 0 };
@@ -659,17 +642,15 @@ bool ipc_send_message2(struct ipc_ctx *ctx, struct ipc_pair *data, struct ipc_pa
 		goto finish;
 	}
 
-	for (size_t i = 0; i < data->num_kv; i++) {
-		size = ipc_send_string(ctx->fd, "PAIR %s %s=%s", response1.id,
-				data->kv[i].key, data->kv[i].val);
-		if (size < 0)
-			goto finish;
-	}
+	if (!send_pairs(ctx, response1.id, pairs_data))
+		goto finish;
 
 	if (ipc_send_string(ctx->fd, "DONE %s", response1.id) < 0)
 		goto finish;
 
 	while (1) {
+		ipc_free_token(&response2);
+
 		if ((size = ipc_recv_token(ctx, &response2)) <= 0)
 			goto finish;
 
@@ -680,14 +661,13 @@ bool ipc_send_message2(struct ipc_ctx *ctx, struct ipc_pair *data, struct ipc_pa
 				break;
 			}
 
-			if (resp) {
-				*eq = '\0';
+			*eq = '\0';
 
-				char *key = response2.arg;
-				char *val = eq + 1;
+			char *key = response2.arg;
+			char *val = eq + 1;
 
-				ipc_pair_add(resp, key, val);
-			}
+			if (!ipc_pair_add(resp, key, val))
+				goto finish;
 			continue;
 		}
 
@@ -708,6 +688,17 @@ bool ipc_send_message2(struct ipc_ctx *ctx, struct ipc_pair *data, struct ipc_pa
 finish:
 	ipc_free_token(&response1);
 	ipc_free_token(&response2);
+
+	return ret;
+}
+
+bool ipc_send_message2(struct ipc_ctx *ctx, struct ipc_pair *data, struct ipc_pair *resp)
+{
+	struct ipc_pair sink = { 0 };
+	bool ret = ipc_send_message_common(ctx, send_pairs_kv, data, resp ? resp : &sink);
+
+	if (!resp)
+		ipc_pair_free(&sink);
 
 	return ret;
 }
