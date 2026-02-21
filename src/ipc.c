@@ -9,8 +9,6 @@
 #include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <poll.h>
 #include <errno.h>
 #include <err.h>
