@@ -33,6 +33,7 @@ enum ui_task_type {
 	UI_TASK_DUMP,
 	UI_TASK_CREATE,
 	UI_TASK_UPDATE,
+	UI_TASK_SET_VALUE,
 	UI_TASK_DELETE,
 	UI_TASK_FOCUS,
 	UI_TASK_RESULT,
@@ -491,6 +492,32 @@ static int ui_process_task_update(struct ui_task *t)
 	return 0;
 }
 
+static int ui_process_task_set_value(struct ui_task *t)
+{
+	if (!pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
+
+	struct instance *instance = ui_get_instance_by_id(t);
+	if (!instance)
+		return -1;
+
+	if (!instance->plugin->p_set_value_instance) {
+		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=set-value is unsupported by plugin",
+				req_id(&t->req));
+		return -1;
+	}
+
+	if (instance->plugin->p_set_value_instance(&t->req, instance->root) != P_RET_OK)
+		return -1;
+
+	widget_render_tree(instance->root);
+
+	ui_check_instance_finished(instance);
+	ui_update();
+
+	return 0;
+}
+
 static int ui_process_task_delete(struct ui_task *t)
 {
 	if (!pthread_equal(pthread_self(), ui_thread))
@@ -724,6 +751,7 @@ static void ui_process_tasks(void)
 			case UI_TASK_DUMP:		rc = ui_process_task_dump(t);		break;
 			case UI_TASK_CREATE:		rc = ui_process_task_create(t);		break;
 			case UI_TASK_UPDATE:		rc = ui_process_task_update(t);		break;
+			case UI_TASK_SET_VALUE:		rc = ui_process_task_set_value(t);	break;
 			case UI_TASK_DELETE:		rc = ui_process_task_delete(t);		break;
 			case UI_TASK_FOCUS:		rc = ui_process_task_focus(t);		break;
 			case UI_TASK_RESULT:		rc = ui_process_task_result(t);		break;
@@ -819,6 +847,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 
 	if (streq(action, "create"))		ttype = UI_TASK_CREATE;
 	else if (streq(action, "update"))	ttype = UI_TASK_UPDATE;
+	else if (streq(action, "set-value"))	ttype = UI_TASK_SET_VALUE;
 	else if (streq(action, "delete"))	ttype = UI_TASK_DELETE;
 	else if (streq(action, "focus"))	ttype = UI_TASK_FOCUS;
 	else if (streq(action, "result"))	ttype = UI_TASK_RESULT;

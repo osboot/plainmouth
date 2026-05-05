@@ -55,6 +55,11 @@ the dialog within `plainmouthd`.
 Updates an existing plugin instance. Applies incremental changes to the dialog
 state. Typically triggers re-layout and redraw.
 
+### set-value
+
+Sets a semantic value inside an existing plugin instance. This is intended for
+automation and tests; it is not a synthetic keyboard event.
+
 ### delete
 
 Deletes the widget tree associated with the plugin instance. Destroys all
@@ -93,5 +98,12 @@ BUTTON_<button-id>=<0|1>
 
 For dialog-compatible clients, tags should be kept by the client and mapped to
 `option-id` values. The plugin does not store arbitrary dialog tags.
+
+The plugin supports `set-value` for options and buttons:
+
+```text
+action=set-value id=<instance-id> select=<select-id> option=<option-id> selected=<true|false>
+action=set-value id=<instance-id> button=<button-id> clicked=<true|false>
+```
 
 ---

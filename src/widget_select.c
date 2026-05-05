@@ -23,6 +23,7 @@ static void select_ensure_visible(struct widget *w, struct widget *child) __attr
 static int select_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
 static bool select_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
 static bool select_getter_index(struct widget *w, enum widget_property prop, int index, void *value) __attribute__((nonnull(1,4)));
+static bool select_setter_index(struct widget *w, enum widget_property prop, int index, const void *value) __attribute__((nonnull(1,4)));
 static void select_add_child(struct widget *sv, struct widget *child) __attribute__((nonnull(1,2)));
 static void select_free(struct widget *w);
 
@@ -204,6 +205,52 @@ bool select_getter_index(struct widget *w, enum widget_property prop, int index,
 	return false;
 }
 
+bool select_setter_index(struct widget *w, enum widget_property prop, int index, const void *value)
+{
+	struct widget_select *st = w->state;
+
+	if (prop == PROP_SELECT_OPTION_VALUE) {
+		int i = 0;
+		bool selected = !!(*(const bool *) value);
+
+		struct widget *c;
+		TAILQ_FOREACH(c, &st->list->children, siblings) {
+			if (c->type != WIDGET_SELECT_OPT)
+				continue;
+
+			if (i == index) {
+				bool current = false;
+				widget_get(c, PROP_CHECKBOX_STATE, &current);
+
+				if (current == selected)
+					return true;
+
+				if (selected && st->max_selected <= 1) {
+					struct widget *other;
+					TAILQ_FOREACH(other, &st->list->children, siblings) {
+						if (other->type == WIDGET_SELECT_OPT) {
+							bool off = false;
+							widget_set(other, PROP_CHECKBOX_STATE, &off);
+						}
+					}
+					st->selected = 0;
+				}
+
+				if (selected && st->selected >= st->max_selected)
+					return false;
+
+				widget_set(c, PROP_CHECKBOX_STATE, &selected);
+				st->selected += selected ? 1 : -1;
+				st->list->ops->ensure_visible(st->list, c);
+				return true;
+			}
+			i++;
+		}
+	}
+
+	return false;
+}
+
 void select_add_child(struct widget *sv, struct widget *child)
 {
 	struct widget_select *st = sv->state;
@@ -237,6 +284,7 @@ static const struct widget_ops select_ops = {
 	.setter           = NULL,
 	.getter           = select_getter,
 	.getter_index     = select_getter_index,
+	.setter_index     = select_setter_index,
 };
 
 struct widget *make_select(int max_selected, int view_rows)

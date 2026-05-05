@@ -17,6 +17,7 @@ static void button_measure(struct widget *w) __attribute__((nonnull(1)));
 static void button_render(struct widget *w) __attribute__((nonnull(1)));
 static int button_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
 static bool button_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1)));
+static bool button_setter(struct widget *w, enum widget_property prop, const void *value) __attribute__((nonnull(1,3)));
 static void button_free(struct widget *w);
 
 struct widget_button {
@@ -78,6 +79,19 @@ bool button_getter(struct widget *w, enum widget_property prop, void *value)
 	return false;
 }
 
+bool button_setter(struct widget *w, enum widget_property prop, const void *value)
+{
+	struct widget_button *st = w->state;
+
+	if (prop == PROP_BUTTON_STATE) {
+		st->pressed = !!(*(const bool *) value);
+		return true;
+	} else {
+		errx(EXIT_FAILURE, "unknown property: %d", prop);
+	}
+	return false;
+}
+
 static const struct widget_ops button_ops = {
 	.measure          = button_measure,
 	.layout           = NULL,
@@ -88,7 +102,7 @@ static const struct widget_ops button_ops = {
 	.input            = button_input,
 	.add_child        = NULL,
 	.ensure_visible   = NULL,
-	.setter           = NULL,
+	.setter           = button_setter,
 	.getter           = button_getter,
 	.getter_index     = NULL,
 };

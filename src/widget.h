@@ -143,6 +143,7 @@ struct widget_ops {
 	bool (*setter)(struct widget *, enum widget_property, const void *);
 	bool (*getter)(struct widget *, enum widget_property, void *);
 	bool (*getter_index)(struct widget *, enum widget_property, int, void *);
+	bool (*setter_index)(struct widget *, enum widget_property, int, const void *);
 };
 
 struct widget_scrollbar_state {
@@ -244,6 +245,11 @@ static inline bool widget_get_index(struct widget *w, enum widget_property prop,
 static inline bool widget_set(struct widget *w, enum widget_property prop, const void *value)
 {
 	return (w && w->ops && w->ops->setter) ? w->ops->setter(w, prop, value) : false;
+}
+
+static inline bool widget_set_index(struct widget *w, enum widget_property prop, int index, const void *value)
+{
+	return (w && w->ops && w->ops->setter_index) ? w->ops->setter_index(w, prop, index, value) : false;
 }
 
 typedef bool (*walk_fn)(struct widget *, void *);
