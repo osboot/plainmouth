@@ -75,4 +75,23 @@ intermediate results.
 Blocks until the plugin receives a result event. Used by clients that wait for
 user input completion.
 
+## Plugin Result Contracts
+
+### checklist
+
+The `checklist` plugin accepts repeated `option` fields. Each option is assigned
+a stable 1-based numeric option id in the order it appears in the create
+request. This id is not a visual row number; scrolling, focus movement, or
+future rendering changes must not change it.
+
+Results are reported as:
+
+```text
+SELECT_<select-id>_OPTION_<option-id>=<0|1>
+BUTTON_<button-id>=<0|1>
+```
+
+For dialog-compatible clients, tags should be kept by the client and mapped to
+`option-id` values. The plugin does not store arbitrary dialog tags.
+
 ---

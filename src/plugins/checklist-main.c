@@ -122,6 +122,10 @@ static bool collect_results(struct widget *w, void *data)
 		int options = 0;
 		widget_get(w, PROP_SELECT_OPTIONS_SIZE, &options);
 
+		/*
+		 * OPTION_N is the stable 1-based id assigned by create-request
+		 * order, not a visual row number.
+		 */
 		for (int i = 0; i < options; i++) {
 			bool selected = false;
 			widget_get_index(w, PROP_SELECT_OPTION_VALUE, i, &selected);
