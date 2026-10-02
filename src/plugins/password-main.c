@@ -115,6 +115,33 @@ static enum p_retcode p_pass_result(struct request *req, struct widget *root)
 	return P_RET_OK;
 }
 
+static enum p_retcode p_pass_set_value(struct request *req, struct widget *root)
+{
+	struct widget *input = find_widget_by_id(root, INPUT_ID);
+	if (!input)
+		return P_RET_ERR;
+
+	if (req_get_val(req, "value")) {
+		wchar_t *value __free(ptr) = req_get_wchars(req, "value");
+		if (!value || !widget_set(input, PROP_INPUT_VALUE, value)) {
+			ipc_send_string(req_fd(req), "RESPDATA %s ERR=unable to set password value",
+					req_id(req));
+			return P_RET_ERR;
+		}
+	}
+
+	if (req_get_val(req, "finished")) {
+		bool finished = req_get_bool(req, "finished", true);
+		if (!widget_set(input, PROP_INPUT_STATE, &finished)) {
+			ipc_send_string(req_fd(req), "RESPDATA %s ERR=unable to set password state",
+					req_id(req));
+			return P_RET_ERR;
+		}
+	}
+
+	return P_RET_OK;
+}
+
 static bool p_pass_finished(struct widget *root)
 {
 	bool is_finished = false;
@@ -135,6 +162,7 @@ struct plugin plugin = {
 	.p_create_instance = p_pass_create,
 	.p_delete_instance = NULL,
 	.p_update_instance = NULL,
+	.p_set_value_instance = p_pass_set_value,
 	.p_finished        = p_pass_finished,
 	.p_result          = p_pass_result,
 };

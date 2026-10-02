@@ -185,6 +185,66 @@ static bool collect_results(struct widget *w, void *data)
 	return true;
 }
 
+struct find_widget_ctx {
+	enum widget_type type;
+	int id;
+	struct widget *found;
+};
+
+static bool find_widget_by_type_and_id(struct widget *w, void *data)
+{
+	struct find_widget_ctx *ctx = data;
+
+	if (w->type == ctx->type && w->w_id == ctx->id) {
+		ctx->found = w;
+		return false;
+	}
+	return true;
+}
+
+static enum p_retcode p_form_set_value(struct request *req, struct widget *root)
+{
+	const char *button = req_get_val(req, "button");
+	const char *input = req_get_val(req, "input");
+
+	if (button) {
+		struct find_widget_ctx ctx = {
+			.type = WIDGET_BUTTON,
+			.id = req_get_int(req, "button", -1),
+		};
+		bool clicked = req_get_bool(req, "clicked", true);
+
+		walk_widget_tree(root, find_widget_by_type_and_id, &ctx);
+		if (!ctx.found || !widget_set(ctx.found, PROP_BUTTON_STATE, &clicked)) {
+			ipc_send_string(req_fd(req), "RESPDATA %s ERR=button not found: %s",
+					req_id(req), button);
+			return P_RET_ERR;
+		}
+		return P_RET_OK;
+	}
+
+	if (input) {
+		struct find_widget_ctx ctx = {
+			.type = WIDGET_INPUT,
+			.id = req_get_int(req, "input", -1),
+		};
+		wchar_t *value __free(ptr) = req_get_wchars(req, "value");
+
+		walk_widget_tree(root, find_widget_by_type_and_id, &ctx);
+		if (!ctx.found || !value ||
+		    !widget_set(ctx.found, PROP_INPUT_VALUE, value)) {
+			ipc_send_string(req_fd(req), "RESPDATA %s ERR=input not found: %s",
+					req_id(req), input);
+			return P_RET_ERR;
+		}
+		return P_RET_OK;
+	}
+
+	ipc_send_string(req_fd(req), "RESPDATA %s ERR=set-value requires input or button",
+			req_id(req));
+	return P_RET_ERR;
+}
+
 static enum p_retcode p_form_result(struct request *req, struct widget *root)
 {
 	walk_widget_tree(root, collect_results, req);
@@ -221,6 +281,7 @@ struct plugin plugin = {
 	.p_create_instance = p_form_create,
 	.p_delete_instance = NULL,
 	.p_update_instance = NULL,
+	.p_set_value_instance = p_form_set_value,
 	.p_finished        = p_form_finished,
 	.p_result          = p_form_result,
 };

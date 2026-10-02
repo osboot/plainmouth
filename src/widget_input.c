@@ -34,6 +34,7 @@ static void input_measure(struct widget *w) __attribute__((nonnull(1)));
 static void input_render(struct widget *w) __attribute__((nonnull(1)));
 static int input_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
 static bool input_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
+static bool input_setter(struct widget *w, enum widget_property prop, const void *value) __attribute__((nonnull(1,3)));
 static void input_free(struct widget *w);
 static bool __input_unchr(struct widget_input *state) __attribute__((nonnull(1)));
 static bool __input_append(struct widget_input *state, wchar_t c) __attribute__((nonnull(1)));
@@ -220,6 +221,37 @@ bool input_getter(struct widget *w, enum widget_property prop, void *value)
 	return false;
 }
 
+bool input_setter(struct widget *w, enum widget_property prop, const void *value)
+{
+	struct widget_input *st = w->state;
+
+	if (prop == PROP_INPUT_STATE) {
+		st->finished = !!(*(const bool *) value);
+		return true;
+
+	} else if (prop == PROP_INPUT_VALUE) {
+		const wchar_t *in = value;
+		wchar_t *text = wcsdup(in ?: L"");
+		if (!text) {
+			warn("wcsdup");
+			return false;
+		}
+
+		free(st->text);
+		st->text = text;
+		st->len = (int) wcslen(st->text);
+		st->cap = st->len + 1;
+		st->index = st->len;
+		st->cursor_x = (w->w > 0) ? MIN(st->index, w->w) : st->index;
+		st->cursor_y = 0;
+		return true;
+
+	} else {
+		errx(EXIT_FAILURE, "unknown property: %d", prop);
+	}
+	return false;
+}
+
 static const struct widget_ops input_ops = {
 	.measure          = input_measure,
 	.layout           = NULL,
@@ -230,7 +262,7 @@ static const struct widget_ops input_ops = {
 	.input            = input_input,
 	.add_child        = NULL,
 	.ensure_visible   = NULL,
-	.setter           = NULL,
+	.setter           = input_setter,
 	.getter           = input_getter,
 	.getter_index     = NULL,
 };

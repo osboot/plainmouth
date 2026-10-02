@@ -106,4 +106,16 @@ action=set-value id=<instance-id> select=<select-id> option=<option-id> selected
 action=set-value id=<instance-id> button=<button-id> clicked=<true|false>
 ```
 
+Other plugins expose the following `set-value` fields:
+
+```text
+plugin=form:     input=<input-id> value=<text>
+plugin=form:     button=<button-id> clicked=<true|false>
+plugin=meter:    value=<number>
+plugin=msgbox:   button=<button-id> clicked=<true|false>
+plugin=password: value=<text> [finished=<true|false>]
+plugin=timebox:  spinbox=<spinbox-id> value=<number>
+plugin=timebox:  button=<button-id> clicked=<true|false>
+```
+
 ---

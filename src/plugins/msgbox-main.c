@@ -100,6 +100,28 @@ static bool collect_results(struct widget *w, void *data)
 	return true;
 }
 
+static enum p_retcode p_msgbox_set_value(struct request *req, struct widget *root)
+{
+	const char *button = req_get_val(req, "button");
+	if (!button) {
+		ipc_send_string(req_fd(req), "RESPDATA %s ERR=set-value requires button",
+				req_id(req));
+		return P_RET_ERR;
+	}
+
+	struct widget *w = find_widget_by_id(root, req_get_int(req, "button", -1));
+	bool clicked = req_get_bool(req, "clicked", true);
+
+	if (!w || w->type != WIDGET_BUTTON ||
+	    !widget_set(w, PROP_BUTTON_STATE, &clicked)) {
+		ipc_send_string(req_fd(req), "RESPDATA %s ERR=button not found: %s",
+				req_id(req), button);
+		return P_RET_ERR;
+	}
+
+	return P_RET_OK;
+}
+
 static enum p_retcode p_msgbox_result(struct request *req, struct widget *root)
 {
 	walk_widget_tree(root, collect_results, req);
@@ -136,6 +158,7 @@ struct plugin plugin = {
 	.p_create_instance = p_msgbox_create,
 	.p_delete_instance = NULL,
 	.p_update_instance = NULL,
+	.p_set_value_instance = p_msgbox_set_value,
 	.p_finished        = p_msgbox_finished,
 	.p_result          = p_msgbox_result,
 };

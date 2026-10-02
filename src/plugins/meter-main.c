@@ -78,6 +78,11 @@ static enum p_retcode p_meter_update(struct request *req, struct widget *root)
 	return P_RET_OK;
 }
 
+static enum p_retcode p_meter_set_value(struct request *req, struct widget *root)
+{
+	return p_meter_update(req, root);
+}
+
 static bool p_meter_finished(struct widget *root)
 {
 	struct widget *meter = find_widget_by_id(root, METER_ID);
@@ -103,6 +108,7 @@ struct plugin plugin = {
 	.p_create_instance = p_meter_create,
 	.p_delete_instance = NULL,
 	.p_update_instance = p_meter_update,
+	.p_set_value_instance = p_meter_set_value,
 	.p_finished        = p_meter_finished,
 	.p_result          = NULL,
 };
