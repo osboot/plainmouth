@@ -131,11 +131,29 @@ Other plugins expose the following `set-value` fields:
 ```text
 plugin=form:     input=<input-id> value=<text>
 plugin=form:     button=<button-id> clicked=<true|false>
+plugin=inputbox: value=<text> [finished=<true|false>]
+plugin=inputbox: button=<button-id> clicked=<true|false>
 plugin=meter:    value=<number>
 plugin=msgbox:   button=<button-id> clicked=<true|false>
 plugin=password: value=<text> [finished=<true|false>]
 plugin=timebox:  spinbox=<spinbox-id> value=<number>
 plugin=timebox:  button=<button-id> clicked=<true|false>
 ```
+
+### inputbox
+
+The `inputbox` plugin displays one unmasked, single-line input. Creation
+requires `width` and `height` and accepts `x`, `y`, `border`, `text`,
+`label`, `value` (initial contents), `placeholder`, and `tooltip`.
+Repeated `button` fields add buttons with 1-based IDs in creation order.
+Buttons are optional.
+
+Results contain `INPUT_1=<text>` and `BUTTON_N=0|1` for every button.
+Enter in the input or a clicked button completes the instance.
+`set-value` accepts `value` and/or `finished` for the input, or
+`button=<id>` with optional `clicked` (default true). Input and button
+updates must be separate requests. An empty `value` clears the input.
+As with password, input values and completion flags are validated before
+changing state.
 
 ---
