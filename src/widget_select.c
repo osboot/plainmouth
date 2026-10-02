@@ -10,6 +10,8 @@
 struct widget_select {
 	int max_selected;
 	int selected;
+	bool menu;
+	bool finished;
 	struct widget *focus;
 	struct widget *list;
 	struct widget *vscroll;
@@ -24,6 +26,7 @@ static int select_input(const struct widget *w, wchar_t key) __attribute__((nonn
 static bool select_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
 static bool select_getter_index(struct widget *w, enum widget_property prop, int index, void *value) __attribute__((nonnull(1,4)));
 static bool select_setter_index(struct widget *w, enum widget_property prop, int index, const void *value) __attribute__((nonnull(1,4)));
+static bool select_setter(struct widget *w, enum widget_property prop, const void *value);
 static void select_add_child(struct widget *sv, struct widget *child) __attribute__((nonnull(1,2)));
 static void select_free(struct widget *w);
 
@@ -82,8 +85,49 @@ int select_input(const struct widget *w, wchar_t key)
 	struct widget_select *st = w->state;
 	int delta_y = 0;
 
+	if (st->menu && (key == L'\n' || key == KEY_ENTER)) {
+		st->finished = st->focus != NULL;
+		return 1;
+	}
+	if (!st->focus)
+		return 0;
+	if (st->menu) {
+		int index = 0, size = 0;
+		select_getter((struct widget *) w, PROP_SELECT_CURSOR, &index);
+		select_getter((struct widget *) w, PROP_SELECT_OPTIONS_SIZE, &size);
+		switch (key) {
+			case KEY_UP:
+				index--;
+				break;
+			case KEY_DOWN:
+				index++;
+				break;
+			case KEY_PPAGE:
+				index -= w->h;
+				break;
+			case KEY_NPAGE:
+				index += w->h;
+				break;
+			case KEY_HOME:
+				index = 0;
+				break;
+			case KEY_END:
+				index = size - 1;
+				break;
+			case L' ':
+				return 1;
+			default:
+				return 0;
+		}
+		index = MAX(0, MIN(index, size - 1));
+		select_setter((struct widget *) w, PROP_SELECT_CURSOR, &index);
+		return 1;
+	}
+
 	switch (key) {
 		case L' ':
+			if (st->menu)
+				return 1;
 			if (st->focus) {
 				bool clicked = false;
 
@@ -143,6 +187,11 @@ int select_input(const struct widget *w, wchar_t key)
 bool select_getter(struct widget *w, enum widget_property prop, void *value)
 {
 	struct widget_select *st = w->state;
+
+	if (prop == PROP_SELECT_STATE) {
+		*(bool *) value = st->finished;
+		return true;
+	}
 
 	if (prop == PROP_SELECT_OPTIONS_SIZE) {
 		int size = 0;
@@ -251,6 +300,36 @@ bool select_setter_index(struct widget *w, enum widget_property prop, int index,
 	return false;
 }
 
+static bool select_setter(struct widget *w, enum widget_property prop, const void *value)
+{
+	struct widget_select *st = w->state;
+	if (!st->menu)
+		return false;
+	if (prop == PROP_SELECT_STATE) {
+		st->finished = *(const bool *) value;
+		return true;
+	}
+	if (prop == PROP_SELECT_CURSOR) {
+		int index = *(const int *) value;
+		int i = 0;
+		struct widget *c;
+		TAILQ_FOREACH(c, &st->list->children, siblings)
+		{
+			if (c->type != WIDGET_SELECT_OPT)
+				continue;
+			if (i++ != index)
+				continue;
+			if (st->focus)
+				st->focus->flags &= ~FLAG_INFOCUS;
+			st->focus = c;
+			c->flags |= FLAG_INFOCUS;
+			st->list->ops->ensure_visible(st->list, c);
+			return true;
+		}
+	}
+	return false;
+}
+
 void select_add_child(struct widget *sv, struct widget *child)
 {
 	struct widget_select *st = sv->state;
@@ -272,19 +351,19 @@ void select_free(struct widget *w)
 }
 
 static const struct widget_ops select_ops = {
-	.measure          = select_measure,
-	.layout           = select_layout,
-	.render           = select_render,
-	.finalize_render  = NULL,
+	.measure = select_measure,
+	.layout = select_layout,
+	.render = select_render,
+	.finalize_render = NULL,
 	.child_render_win = NULL,
-	.free             = select_free,
-	.input            = select_input,
-	.add_child        = select_add_child,
-	.ensure_visible   = select_ensure_visible,
-	.setter           = NULL,
-	.getter           = select_getter,
-	.getter_index     = select_getter_index,
-	.setter_index     = select_setter_index,
+	.free = select_free,
+	.input = select_input,
+	.add_child = select_add_child,
+	.ensure_visible = select_ensure_visible,
+	.setter = select_setter,
+	.getter = select_getter,
+	.getter_index = select_getter_index,
+	.setter_index = select_setter_index,
 };
 
 struct widget *make_select(int max_selected, int view_rows)
@@ -332,4 +411,12 @@ fail:
 	widget_free(root);
 
 	return NULL;
+}
+
+struct widget *make_menu(int view_rows)
+{
+	struct widget *w = make_select(1, view_rows);
+	if (w)
+		((struct widget_select *) w->state)->menu = true;
+	return w;
 }

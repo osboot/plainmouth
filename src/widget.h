@@ -113,6 +113,7 @@ enum widget_property {
 	PROP_SCROLL_INC_Y,
 	PROP_SCROLL_X,
 	PROP_SCROLL_Y,
+	PROP_SELECT_STATE,
 };
 
 enum widget_flags {
@@ -297,6 +298,8 @@ struct widget *make_spinbox(int min, int max, int step, int initial, int width);
 struct widget *make_list_vbox(int view_rows);
 
 struct widget *make_select(int max_selected, int view_rows);
+struct widget *make_menu(int view_rows);
+struct widget *make_menu_option(const wchar_t *text);
 struct widget *make_select_option(const wchar_t *text, bool checked, bool is_radio);
 
 struct widget *make_border(void);

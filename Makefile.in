@@ -175,6 +175,12 @@ tests/warray/%: tests/warray/%.o src/warray.o
 tests/widget/%: tests/widget/%.o src/widget.o
 	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS)
 
+tests/widget/widget_menu_test: tests/widget/widget_menu_test.o $(COMMON_SO)
+	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS) -Wl,-rpath,$(CURDIR)
+
+tests/widget/widget_menu_test.o: src/widget.h
+GARBAGE += tests/widget/widget_menu_test.o
+
 tests/%.chk: tests/%
 	@timeout -s KILL 5s $(VALGRIND) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \
 	flock -x $(CURDIR)/tests printf '%4s %s\n' "$$status" "$<"; \

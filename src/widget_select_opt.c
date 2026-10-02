@@ -162,3 +162,25 @@ struct widget *make_select_option(const wchar_t *text, bool checked, bool is_rad
 
 	return w;
 }
+
+struct widget *make_menu_option(const wchar_t *text)
+{
+	struct widget *w = widget_create(WIDGET_SELECT_OPT);
+	struct widget *hbox = make_hbox();
+	struct widget *label = make_label(text);
+	if (!w || !hbox || !label) {
+		widget_free(label);
+		widget_free(hbox);
+		widget_free(w);
+		return NULL;
+	}
+	label->attrs &= ~ATTR_CAN_FOCUS;
+	widget_add(hbox, label);
+	widget_add(w, hbox);
+	w->ops = &selopt_ops;
+	w->color_pair = COLOR_PAIR_WINDOW;
+	w->stretch_w = true;
+	w->flex_w = 1;
+	w->flex_h = 1;
+	return w;
+}

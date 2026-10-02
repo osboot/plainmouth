@@ -134,6 +134,8 @@ plugin=form:     button=<button-id> clicked=<true|false>
 plugin=inputbox: value=<text> [finished=<true|false>]
 plugin=inputbox: button=<button-id> clicked=<true|false>
 plugin=meter:    value=<number>
+plugin=menu:     option=<option-id> [finished=<true|false>]
+plugin=menu:     button=<button-id> clicked=<true|false>
 plugin=msgbox:   button=<button-id> clicked=<true|false>
 plugin=password: value=<text> [finished=<true|false>]
 plugin=timebox:  spinbox=<spinbox-id> value=<number>
@@ -155,5 +157,22 @@ Enter in the input or a clicked button completes the instance.
 updates must be separate requests. An empty `value` clears the input.
 As with password, input values and completion flags are validated before
 changing state.
+
+### menu
+
+The `menu` plugin displays one current choice without checkbox markers.
+Creation requires `width`, `height`, and at least one repeated `option`
+field. It accepts `x`, `y`, `border`, `text`, `visible` (preferred
+number of visible rows), and optional repeated `button` fields.
+The first option is current initially.
+
+Arrow keys, Page Up/Down, and Home/End move the current choice and keep it
+visible. Enter confirms it; buttons can also complete the instance.
+Results contain `SELECTED=N`, the 1-based option number in creation order,
+and `BUTTON_N=0|1` for each button.
+
+`set-value option=N` changes the current choice and scrolls it into view.
+Adding `finished=true` confirms the choice. Button updates use
+`button=N` with optional `clicked` (default true), in a separate request.
 
 ---
