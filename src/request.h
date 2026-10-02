@@ -37,5 +37,6 @@ wchar_t *req_get_wchars(struct request *req, const char *key)             __attr
 bool req_error(struct request *req, const char *format, ...) __attribute__((format(printf, 2, 3)));
 bool req_read_int(struct request *req, const char *key, int *value);
 bool req_read_bool(struct request *req, const char *key, bool def, bool *value);
+bool req_read_kv_bool(struct request *req, const struct ipc_kv *kv, bool *value);
 
 #endif /* _PLAINMOUTH_REQUEST_H_ */

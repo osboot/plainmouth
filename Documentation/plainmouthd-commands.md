@@ -109,6 +109,19 @@ a stable 1-based numeric option id in the order it appears in the create
 request. This id is not a visual row number; scrolling, focus movement, or
 future rendering changes must not change it.
 
+An optional `status` immediately following an `option` sets its initial
+checked state. Without `status`, the option starts unchecked:
+
+```text
+plugin=checklist action=create id=choices width=40 height=7 select=2 visible=3 option=apple status=true option=banana status=false option=orange status=true button=OK
+```
+
+`status` accepts `1/0`, `true/false`, and `yes/no` (case-insensitive).
+A detached or repeated `status`, malformed boolean, or initial selection
+exceeding the `select` limit fails creation. In particular, `select=1`
+(radiolist) allows at most one initially checked option. Initial checks do
+not change creation-order option IDs or scroll the list.
+
 Results are reported as:
 
 ```text

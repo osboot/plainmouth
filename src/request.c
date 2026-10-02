@@ -56,14 +56,8 @@ bool req_read_int(struct request *req, const char *key, int *value)
 	return true;
 }
 
-bool req_read_bool(struct request *req, const char *key, bool def, bool *value)
+static bool req_parse_bool(struct request *req, const char *key, const char *text, bool *value)
 {
-	const char *text = req_get_val(req, key);
-
-	if (!text) {
-		*value = def;
-		return true;
-	}
 	if (streq(text, "1") || strcaseeq(text, "true") || strcaseeq(text, "yes"))
 		*value = true;
 	else if (streq(text, "0") || strcaseeq(text, "false") || strcaseeq(text, "no"))
@@ -71,6 +65,21 @@ bool req_read_bool(struct request *req, const char *key, bool def, bool *value)
 	else
 		return req_error(req, "invalid value: %s", key);
 	return true;
+}
+
+bool req_read_bool(struct request *req, const char *key, bool def, bool *value)
+{
+	const char *text = req_get_val(req, key);
+	if (!text) {
+		*value = def;
+		return true;
+	}
+	return req_parse_bool(req, key, text, value);
+}
+
+bool req_read_kv_bool(struct request *req, const struct ipc_kv *kv, bool *value)
+{
+	return req_parse_bool(req, kv->key, kv->val, value);
 }
 
 wchar_t *req_get_kv_wchars(struct ipc_kv *kv)

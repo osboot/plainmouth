@@ -425,6 +425,11 @@ static int ui_process_task_create(struct ui_task *t)
 	}
 
 	wnew->id = strdup(instance_id);
+	if (!wnew->id) {
+		req_error(&t->req, "no memory");
+		free(wnew);
+		return -1;
+	}
 	wnew->plugin = plugin;
 
 	if (plugin->p_create_instance) {
@@ -433,6 +438,7 @@ static int ui_process_task_create(struct ui_task *t)
 			ipc_send_string(req_fd(&t->req),
 					"RESPDATA %s ERR=unable to create instance",
 					req_id(&t->req));
+			free((char *) wnew->id);
 			free(wnew);
 			return -1;
 		}
@@ -447,6 +453,7 @@ static int ui_process_task_create(struct ui_task *t)
 				warnx("plugin delete callback failed for instance '%s'", wnew->id);
 			}
 			widget_free(wnew->root);
+			free((char *) wnew->id);
 			free(wnew);
 			return -1;
 		}

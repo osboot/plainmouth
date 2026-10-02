@@ -341,6 +341,9 @@ void select_add_child(struct widget *sv, struct widget *child)
 
 	child->attrs &= ~ATTR_CAN_FOCUS;
 	widget_add(st->list, child);
+	bool checked = false;
+	if (widget_get(child, PROP_CHECKBOX_STATE, &checked) && checked)
+		st->selected++;
 }
 
 void select_free(struct widget *w)

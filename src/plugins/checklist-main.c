@@ -32,6 +32,7 @@ static struct widget *p_checklist_create(struct request *req)
 		return NULL;
 	}
 
+	wchar_t *text __free(ptr) = NULL;
 	struct widget *root = make_window();
 	if (!root)
 		return NULL;
@@ -39,11 +40,12 @@ static struct widget *p_checklist_create(struct request *req)
 	struct widget *parent = root;
 
 	if (req_get_bool(req, "border", false)) {
-		struct widget *border = make_border_vbox(parent);
-		parent = border;
+		parent = make_border_vbox(parent);
+		if (!parent)
+			goto fail;
 	}
 
-	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
+	text = req_get_wchars(req, "text");
 	if (text) {
 		struct widget *txt = make_textview(text);
 		if (!txt) {
@@ -65,12 +67,31 @@ static struct widget *p_checklist_create(struct request *req)
 	widget_add(parent, select);
 	select->w_id = SELECT_ID;
 
+	int initially_selected = 0;
 	for (size_t i = 0; i < p->num_kv; i++) {
+		if (streq(p->kv[i].key, "status")) {
+			req_error(req, "status must follow option");
+			goto fail;
+		}
 		if (streq(p->kv[i].key, "option")) {
+			bool checked = false;
+			size_t status_index = i + 1;
+			if (status_index < p->num_kv && streq(p->kv[status_index].key, "status")) {
+				if (!req_read_kv_bool(req, p->kv + status_index, &checked))
+					goto fail;
+			}
+			if (checked && ++initially_selected > maxsel) {
+				req_error(req, "initial selection exceeds select limit");
+				goto fail;
+			}
 			wchar_t *txt = req_get_kv_wchars(p->kv + i);
-			struct widget *option = make_select_option(txt, false, (maxsel > 1));
+			struct widget *option = txt ? make_select_option(txt, checked, (maxsel > 1)) : NULL;
 			free(txt);
+			if (!option)
+				goto fail;
 			widget_add(select, option);
+			if (status_index < p->num_kv && streq(p->kv[status_index].key, "status"))
+				i = status_index;
 		}
 	}
 
