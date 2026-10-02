@@ -304,6 +304,7 @@ struct widget *make_border_vbox(struct widget *parent);
 struct widget *make_border_hbox(struct widget *parent);
 
 struct widget *find_widget_by_id(struct widget *w, int id);
+struct widget *find_widget_by_type_and_id(struct widget *w, enum widget_type type, int id);
 
 void vbox_measure(struct widget *w);
 void vbox_layout(struct widget *w);

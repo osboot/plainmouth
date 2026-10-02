@@ -185,37 +185,16 @@ static bool collect_results(struct widget *w, void *data)
 	return true;
 }
 
-struct find_widget_ctx {
-	enum widget_type type;
-	int id;
-	struct widget *found;
-};
-
-static bool find_widget_by_type_and_id(struct widget *w, void *data)
-{
-	struct find_widget_ctx *ctx = data;
-
-	if (w->type == ctx->type && w->w_id == ctx->id) {
-		ctx->found = w;
-		return false;
-	}
-	return true;
-}
-
 static enum p_retcode p_form_set_value(struct request *req, struct widget *root)
 {
 	const char *button = req_get_val(req, "button");
 	const char *input = req_get_val(req, "input");
 
 	if (button) {
-		struct find_widget_ctx ctx = {
-			.type = WIDGET_BUTTON,
-			.id = req_get_int(req, "button", -1),
-		};
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, req_get_int(req, "button", -1));
 		bool clicked = req_get_bool(req, "clicked", true);
 
-		walk_widget_tree(root, find_widget_by_type_and_id, &ctx);
-		if (!ctx.found || !widget_set(ctx.found, PROP_BUTTON_STATE, &clicked)) {
+		if (!w || !widget_set(w, PROP_BUTTON_STATE, &clicked)) {
 			ipc_send_string(req_fd(req), "RESPDATA %s ERR=button not found: %s",
 					req_id(req), button);
 			return P_RET_ERR;
@@ -224,15 +203,11 @@ static enum p_retcode p_form_set_value(struct request *req, struct widget *root)
 	}
 
 	if (input) {
-		struct find_widget_ctx ctx = {
-			.type = WIDGET_INPUT,
-			.id = req_get_int(req, "input", -1),
-		};
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_INPUT, req_get_int(req, "input", -1));
 		wchar_t *value __free(ptr) = req_get_wchars(req, "value");
 
-		walk_widget_tree(root, find_widget_by_type_and_id, &ctx);
-		if (!ctx.found || !value ||
-		    !widget_set(ctx.found, PROP_INPUT_VALUE, value)) {
+		if (!w || !value ||
+		    !widget_set(w, PROP_INPUT_VALUE, value)) {
 			ipc_send_string(req_fd(req), "RESPDATA %s ERR=input not found: %s",
 					req_id(req), input);
 			return P_RET_ERR;

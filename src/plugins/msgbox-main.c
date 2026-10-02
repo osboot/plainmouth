@@ -109,10 +109,10 @@ static enum p_retcode p_msgbox_set_value(struct request *req, struct widget *roo
 		return P_RET_ERR;
 	}
 
-	struct widget *w = find_widget_by_id(root, req_get_int(req, "button", -1));
+	struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, req_get_int(req, "button", -1));
 	bool clicked = req_get_bool(req, "clicked", true);
 
-	if (!w || w->type != WIDGET_BUTTON ||
+	if (!w ||
 	    !widget_set(w, PROP_BUTTON_STATE, &clicked)) {
 		ipc_send_string(req_fd(req), "RESPDATA %s ERR=button not found: %s",
 				req_id(req), button);

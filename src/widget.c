@@ -657,6 +657,25 @@ struct widget *find_widget_by_id(struct widget *w, int id)
 	return NULL;
 }
 
+struct widget *find_widget_by_type_and_id(struct widget *w, enum widget_type type, int id)
+{
+	if (!w)
+		return NULL;
+
+	if (w->type == type && w->w_id == id)
+		return w;
+
+	struct widget *c, *n;
+
+	TAILQ_FOREACH(c, &w->children, siblings)
+	{
+		if ((n = find_widget_by_type_and_id(c, type, id)) != NULL)
+			return n;
+	}
+
+	return NULL;
+}
+
 bool widget_coordinates_yx(struct widget *w, int *wy, int *wx)
 {
 	int y, x, ry, rx;
