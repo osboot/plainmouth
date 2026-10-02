@@ -117,28 +117,33 @@ static enum p_retcode p_pass_result(struct request *req, struct widget *root)
 
 static enum p_retcode p_pass_set_value(struct request *req, struct widget *root)
 {
-	struct widget *input = find_widget_by_id(root, INPUT_ID);
-	if (!input)
+	bool has_value = req_get_val(req, "value") != NULL;
+	bool has_finished = req_get_val(req, "finished") != NULL;
+	bool finished;
+	if (!has_value && !has_finished) {
+		req_error(req, "field is missing: value or finished");
 		return P_RET_ERR;
-
-	if (req_get_val(req, "value")) {
-		wchar_t *value __free(ptr) = req_get_wchars(req, "value");
-		if (!value || !widget_set(input, PROP_INPUT_VALUE, value)) {
-			ipc_send_string(req_fd(req), "RESPDATA %s ERR=unable to set password value",
-					req_id(req));
-			return P_RET_ERR;
-		}
 	}
-
-	if (req_get_val(req, "finished")) {
-		bool finished = req_get_bool(req, "finished", true);
-		if (!widget_set(input, PROP_INPUT_STATE, &finished)) {
-			ipc_send_string(req_fd(req), "RESPDATA %s ERR=unable to set password state",
-					req_id(req));
-			return P_RET_ERR;
-		}
+	if (!req_read_bool(req, "finished", false, &finished))
+		return P_RET_ERR;
+	wchar_t *value __free(ptr) = has_value ? req_get_wchars(req, "value") : NULL;
+	if (has_value && !value) {
+		req_error(req, "unable to decode value: value");
+		return P_RET_ERR;
 	}
-
+	struct widget *w = find_widget_by_type_and_id(root, WIDGET_INPUT, INPUT_ID);
+	if (!w) {
+		req_error(req, "widget not found: input=%d", INPUT_ID);
+		return P_RET_ERR;
+	}
+	if (has_value && !widget_set(w, PROP_INPUT_VALUE, value)) {
+		req_error(req, "unable to set value: value");
+		return P_RET_ERR;
+	}
+	if (has_finished && !widget_set(w, PROP_INPUT_STATE, &finished)) {
+		req_error(req, "unable to set value: finished");
+		return P_RET_ERR;
+	}
 	return P_RET_OK;
 }
 

@@ -190,33 +190,55 @@ static enum p_retcode p_form_set_value(struct request *req, struct widget *root)
 	const char *button = req_get_val(req, "button");
 	const char *input = req_get_val(req, "input");
 
-	if (button) {
-		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, req_get_int(req, "button", -1));
-		bool clicked = req_get_bool(req, "clicked", true);
+	if (button && input) {
+		req_error(req, "ambiguous target: button and input");
+		return P_RET_ERR;
+	}
 
-		if (!w || !widget_set(w, PROP_BUTTON_STATE, &clicked)) {
-			ipc_send_string(req_fd(req), "RESPDATA %s ERR=button not found: %s",
-					req_id(req), button);
+	if (button) {
+		int id;
+		bool clicked;
+		if (!req_read_int(req, "button", &id) ||
+		    !req_read_bool(req, "clicked", true, &clicked))
+			return P_RET_ERR;
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, id);
+		if (!w) {
+			req_error(req, "widget not found: button=%d", id);
+			return P_RET_ERR;
+		}
+		if (!widget_set(w, PROP_BUTTON_STATE, &clicked)) {
+			req_error(req, "unable to set value: clicked");
 			return P_RET_ERR;
 		}
 		return P_RET_OK;
 	}
 
 	if (input) {
-		struct widget *w = find_widget_by_type_and_id(root, WIDGET_INPUT, req_get_int(req, "input", -1));
+		int id;
+		if (!req_read_int(req, "input", &id))
+			return P_RET_ERR;
+		if (!req_get_val(req, "value")) {
+			req_error(req, "field is missing: value");
+			return P_RET_ERR;
+		}
 		wchar_t *value __free(ptr) = req_get_wchars(req, "value");
-
-		if (!w || !value ||
-		    !widget_set(w, PROP_INPUT_VALUE, value)) {
-			ipc_send_string(req_fd(req), "RESPDATA %s ERR=input not found: %s",
-					req_id(req), input);
+		if (!value) {
+			req_error(req, "unable to decode value: value");
+			return P_RET_ERR;
+		}
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_INPUT, id);
+		if (!w) {
+			req_error(req, "widget not found: input=%d", id);
+			return P_RET_ERR;
+		}
+		if (!widget_set(w, PROP_INPUT_VALUE, value)) {
+			req_error(req, "unable to set value: value");
 			return P_RET_ERR;
 		}
 		return P_RET_OK;
 	}
 
-	ipc_send_string(req_fd(req), "RESPDATA %s ERR=set-value requires input or button",
-			req_id(req));
+	req_error(req, "field is missing: input or button");
 	return P_RET_ERR;
 }
 

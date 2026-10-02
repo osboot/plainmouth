@@ -34,4 +34,8 @@ bool req_get_bool(struct request *req, const char *key, bool def)         __attr
 wchar_t *req_get_kv_wchars(struct ipc_kv *kv)                             __attribute__((malloc, nonnull(1)));
 wchar_t *req_get_wchars(struct request *req, const char *key)             __attribute__((malloc, nonnull(1, 2)));
 
+bool req_error(struct request *req, const char *format, ...) __attribute__((format(printf, 2, 3)));
+bool req_read_int(struct request *req, const char *key, int *value);
+bool req_read_bool(struct request *req, const char *key, bool def, bool *value);
+
 #endif /* _PLAINMOUTH_REQUEST_H_ */

@@ -103,23 +103,27 @@ static bool collect_results(struct widget *w, void *data)
 static enum p_retcode p_msgbox_set_value(struct request *req, struct widget *root)
 {
 	const char *button = req_get_val(req, "button");
-	if (!button) {
-		ipc_send_string(req_fd(req), "RESPDATA %s ERR=set-value requires button",
-				req_id(req));
-		return P_RET_ERR;
+
+	if (button) {
+		int id;
+		bool clicked;
+		if (!req_read_int(req, "button", &id) ||
+		    !req_read_bool(req, "clicked", true, &clicked))
+			return P_RET_ERR;
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, id);
+		if (!w) {
+			req_error(req, "widget not found: button=%d", id);
+			return P_RET_ERR;
+		}
+		if (!widget_set(w, PROP_BUTTON_STATE, &clicked)) {
+			req_error(req, "unable to set value: clicked");
+			return P_RET_ERR;
+		}
+		return P_RET_OK;
 	}
 
-	struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, req_get_int(req, "button", -1));
-	bool clicked = req_get_bool(req, "clicked", true);
-
-	if (!w ||
-	    !widget_set(w, PROP_BUTTON_STATE, &clicked)) {
-		ipc_send_string(req_fd(req), "RESPDATA %s ERR=button not found: %s",
-				req_id(req), button);
-		return P_RET_ERR;
-	}
-
-	return P_RET_OK;
+	req_error(req, "field is missing: button");
+	return P_RET_ERR;
 }
 
 static enum p_retcode p_msgbox_result(struct request *req, struct widget *root)

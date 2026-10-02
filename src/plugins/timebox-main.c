@@ -169,33 +169,53 @@ static enum p_retcode p_timebox_set_value(struct request *req, struct widget *ro
 	const char *button = req_get_val(req, "button");
 	const char *spinbox = req_get_val(req, "spinbox");
 
-	if (button) {
-		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, req_get_int(req, "button", -1));
-		bool clicked = req_get_bool(req, "clicked", true);
+	if (button && spinbox) {
+		req_error(req, "ambiguous target: button and spinbox");
+		return P_RET_ERR;
+	}
 
-		if (!w || !widget_set(w, PROP_BUTTON_STATE, &clicked)) {
-			ipc_send_string(req_fd(req), "RESPDATA %s ERR=button not found: %s",
-					req_id(req), button);
+	if (button) {
+		int id;
+		bool clicked;
+		if (!req_read_int(req, "button", &id) ||
+		    !req_read_bool(req, "clicked", true, &clicked))
+			return P_RET_ERR;
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, id);
+		if (!w) {
+			req_error(req, "widget not found: button=%d", id);
+			return P_RET_ERR;
+		}
+		if (!widget_set(w, PROP_BUTTON_STATE, &clicked)) {
+			req_error(req, "unable to set value: clicked");
 			return P_RET_ERR;
 		}
 		return P_RET_OK;
 	}
 
 	if (spinbox) {
-		struct widget *w = find_widget_by_type_and_id(root, WIDGET_SPINBOX, req_get_int(req, "spinbox", -1));
-		int value = req_get_int(req, "value", 0);
-
-		if (!w ||
-		    !widget_set(w, PROP_SPINBOX_VALUE, &value)) {
-			ipc_send_string(req_fd(req), "RESPDATA %s ERR=spinbox not found: %s",
-					req_id(req), spinbox);
+		int id;
+		if (!req_read_int(req, "spinbox", &id))
+			return P_RET_ERR;
+		if (!req_get_val(req, "value")) {
+			req_error(req, "field is missing: value");
+			return P_RET_ERR;
+		}
+		int value;
+		if (!req_read_int(req, "value", &value))
+			return P_RET_ERR;
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_SPINBOX, id);
+		if (!w) {
+			req_error(req, "widget not found: spinbox=%d", id);
+			return P_RET_ERR;
+		}
+		if (!widget_set(w, PROP_SPINBOX_VALUE, &value)) {
+			req_error(req, "unable to set value: value");
 			return P_RET_ERR;
 		}
 		return P_RET_OK;
 	}
 
-	ipc_send_string(req_fd(req), "RESPDATA %s ERR=set-value requires spinbox or button",
-			req_id(req));
+	req_error(req, "field is missing: spinbox or button");
 	return P_RET_ERR;
 }
 

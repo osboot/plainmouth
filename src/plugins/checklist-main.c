@@ -151,34 +151,54 @@ static enum p_retcode p_checklist_set_value(struct request *req, struct widget *
 	const char *button = req_get_val(req, "button");
 	const char *option = req_get_val(req, "option");
 
-	if (button) {
-		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, req_get_int(req, "button", -1));
-		bool clicked = req_get_bool(req, "clicked", true);
+	if (button && option) {
+		req_error(req, "ambiguous target: button and option");
+		return P_RET_ERR;
+	}
 
-		if (!w || !widget_set(w, PROP_BUTTON_STATE, &clicked)) {
-			ipc_send_string(req_fd(req), "RESPDATA %s ERR=button not found: %s",
-					req_id(req), button);
+	if (button) {
+		int id;
+		bool clicked;
+		if (!req_read_int(req, "button", &id) ||
+		    !req_read_bool(req, "clicked", true, &clicked))
+			return P_RET_ERR;
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, id);
+		if (!w) {
+			req_error(req, "widget not found: button=%d", id);
+			return P_RET_ERR;
+		}
+		if (!widget_set(w, PROP_BUTTON_STATE, &clicked)) {
+			req_error(req, "unable to set value: clicked");
 			return P_RET_ERR;
 		}
 		return P_RET_OK;
 	}
 
 	if (option) {
-		struct widget *w = find_widget_by_type_and_id(root, WIDGET_SELECT, req_get_int(req, "select", SELECT_ID));
-		int option_id = req_get_int(req, "option", 0);
-		bool selected = req_get_bool(req, "selected", true);
-
-		if (!w || option_id <= 0 ||
-		    !widget_set_index(w, PROP_SELECT_OPTION_VALUE, option_id - 1, &selected)) {
-			ipc_send_string(req_fd(req), "RESPDATA %s ERR=option not found: %s",
-					req_id(req), option);
+		int id;
+		int select_id = SELECT_ID;
+		bool selected;
+		if (!req_read_int(req, "option", &id) ||
+		    (req_get_val(req, "select") && !req_read_int(req, "select", &select_id)) ||
+		    !req_read_bool(req, "selected", true, &selected))
+			return P_RET_ERR;
+		if (id <= 0) {
+			req_error(req, "invalid value: option");
+			return P_RET_ERR;
+		}
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_SELECT, select_id);
+		if (!w) {
+			req_error(req, "widget not found: select=%d", select_id);
+			return P_RET_ERR;
+		}
+		if (!widget_set_index(w, PROP_SELECT_OPTION_VALUE, id - 1, &selected)) {
+			req_error(req, "option not found: option=%d", id);
 			return P_RET_ERR;
 		}
 		return P_RET_OK;
 	}
 
-	ipc_send_string(req_fd(req), "RESPDATA %s ERR=set-value requires button or option",
-			req_id(req));
+	req_error(req, "field is missing: option or button");
 	return P_RET_ERR;
 }
 

@@ -60,6 +60,26 @@ state. Typically triggers re-layout and redraw.
 Sets a semantic value inside an existing plugin instance. This is intended for
 automation and tests; it is not a synthetic keyboard event.
 
+Failed requests return a failed response and an `ERR` pair. The command-line
+client prints `ERR=<message>` and exits with status 1. Plugins use the following
+messages:
+
+- `field is missing: <field>` for a required field or target.
+- `invalid value: <field>` for a malformed integer or boolean.
+- `ambiguous target: <target> and <target>` when two targets are supplied.
+- `widget not found: <type>=<id>` for an absent typed widget.
+- `option not found: option=<id>` for an absent checklist option.
+- `unable to decode value: value` when text conversion fails.
+- `unable to set value: <field>` when a widget rejects the update.
+
+Integers must fit in a signed C `int` and contain no trailing characters.
+Booleans accept `1/0`, `true/false`, and `yes/no` (case-insensitive).
+`clicked` and `selected` default to true when omitted. Form input, timebox
+spinbox, and meter updates require `value`; an empty text value is valid.
+Password updates require `value` or `finished`, and validate both before
+changing the widget. Meter and spinbox values retain the widget's range
+clamping behavior.
+
 ### delete
 
 Deletes the widget tree associated with the plugin instance. Destroys all

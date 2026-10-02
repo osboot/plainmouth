@@ -80,7 +80,19 @@ static enum p_retcode p_meter_update(struct request *req, struct widget *root)
 
 static enum p_retcode p_meter_set_value(struct request *req, struct widget *root)
 {
-	return p_meter_update(req, root);
+	int value;
+	if (!req_read_int(req, "value", &value))
+		return P_RET_ERR;
+	struct widget *w = find_widget_by_type_and_id(root, WIDGET_METER, METER_ID);
+	if (!w) {
+		req_error(req, "widget not found: meter=%d", METER_ID);
+		return P_RET_ERR;
+	}
+	if (!widget_set(w, PROP_METER_VALUE, &value)) {
+		req_error(req, "unable to set value: value");
+		return P_RET_ERR;
+	}
+	return P_RET_OK;
 }
 
 static bool p_meter_finished(struct widget *root)
