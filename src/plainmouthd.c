@@ -536,6 +536,7 @@ static int ui_process_task_delete(struct ui_task *t)
 
 	pthread_mutex_lock(&instances_mutex);
 	release_instance(instance);
+	pthread_cond_broadcast(&instance_cond);
 	pthread_mutex_unlock(&instances_mutex);
 
 	ui_update();

@@ -176,7 +176,7 @@ ssize_t send_line(int fd, char *line)
 		warnx("pid=%-10d SEND: %s", getpid(), line);
 
 	if (fd >= 0) {
-		size = sendmsg_retry(fd, &msg, 0);
+		size = sendmsg_retry(fd, &msg, MSG_NOSIGNAL);
 		if (size < 0)
 			warn("sendmsg");
 	}

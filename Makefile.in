@@ -82,6 +82,10 @@ OBJ_plainmouth = $(SRC_plainmouth:.c=.o)
 LIB_plainmouth = -L$(CURDIR) -lplainmouth
 GARBAGE += plainmouth $(OBJ_plainmouth)
 
+PROGS += plaindialog
+OBJ_plaindialog = src/plaindialog.o
+GARBAGE += plaindialog $(OBJ_plaindialog)
+
 PLUGINS = $(basename $(notdir $(wildcard src/plugins/*-main.c)))
 PLUGINS := $(PLUGINS:-main=)
 GARBAGE += $(PLUGINSDIR)
@@ -118,6 +122,9 @@ plainmouthd: Makefile $(COMMON_SO) $(OBJ_plainmouthd) plugins
 
 plainmouth:  Makefile $(COMMON_SO) $(OBJ_plainmouth)
 	$(call cmd_LINK,$(OBJ_plainmouth)) $(LIB_plainmouth)
+
+plaindialog: Makefile $(COMMON_SO) $(OBJ_plaindialog)
+	$(call cmd_LINK,$(OBJ_plaindialog)) $(LIB_plainmouth)
 
 ### Plugins
 
