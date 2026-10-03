@@ -337,5 +337,10 @@ alternate screen, and retains no scrollback. Rendering occurs in the UI
 thread after output has been processed. Terminal replies append raw bytes
 to the same bounded write queue used by validated text input; POLLOUT is
 requested only while this queue is nonempty. Tab continues to change focus.
+Special keys and control characters are encoded by libvterm, so sequences
+follow the child's terminal modes. Backspace retains the PTY erase character;
+the text setter continues to validate text rather than accept raw sequences.
+The daemon uses raw input while a terminal widget has focus, allowing Ctrl-C
+and flow-control characters to reach the child. Other widgets use cbreak.
 
 ---

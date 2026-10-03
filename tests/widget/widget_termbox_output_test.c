@@ -46,6 +46,20 @@ static void check_cell(struct widget *view, int y, int x, wchar_t expected, attr
 	assert((attrs & required) == required);
 }
 
+static void check_key(struct widget *view, struct replies *responses,
+		      wchar_t key, bool keycode, const char *expected)
+{
+	responses->length = 0;
+	responses->text[0] = '\0';
+	assert(termbox_output_key(view, key, keycode) == 1);
+	if (responses->length != strlen(expected) ||
+	    memcmp(responses->text, expected, responses->length))
+		fprintf(stderr, "key %ld: expected %zu bytes, received %zu\n",
+			(long) key, strlen(expected), responses->length);
+	assert(responses->length == strlen(expected));
+	assert(!memcmp(responses->text, expected, responses->length));
+}
+
 int main(void)
 {
 	assert(setlocale(LC_CTYPE, "C.UTF-8"));
@@ -79,6 +93,34 @@ int main(void)
 	assert(!(view->attrs & ATTR_CAN_CURSOR));
 	feed(view, "\033[?25h\033[6n");
 	assert(!strcmp(responses.text, "\033[2;4R"));
+	check_key(view, &responses, KEY_UP, true, "\033[A");
+	check_key(view, &responses, KEY_DOWN, true, "\033[B");
+	check_key(view, &responses, KEY_RIGHT, true, "\033[C");
+	check_key(view, &responses, KEY_LEFT, true, "\033[D");
+	feed(view, "\033[?1h");
+	check_key(view, &responses, KEY_UP, true, "\033OA");
+	feed(view, "\033[?1l");
+	check_key(view, &responses, KEY_HOME, true, "\033[H");
+	check_key(view, &responses, KEY_END, true, "\033[F");
+	check_key(view, &responses, KEY_IC, true, "\033[2~");
+	check_key(view, &responses, KEY_DC, true, "\033[3~");
+	check_key(view, &responses, KEY_PPAGE, true, "\033[5~");
+	check_key(view, &responses, KEY_NPAGE, true, "\033[6~");
+	check_key(view, &responses, KEY_F(1), true, "\033OP");
+	check_key(view, &responses, KEY_F(12), true, "\033[24~");
+	check_key(view, &responses, L'\n', false, "\r");
+	check_key(view, &responses, KEY_ENTER, true, "\r");
+	check_key(view, &responses, 27, false, "\033");
+	check_key(view, &responses, 3, false, "\003");
+	check_key(view, &responses, 4, false, "\004");
+	assert(termbox_output_key(view, L'\t', false) == 0);
+	assert(termbox_output_key(view, KEY_BACKSPACE, true) == 0);
+	assert(termbox_output_key(view, L'x', false) == 0);
+	assert(termbox_output_key(view, KEY_RESIZE, true) == 0);
+	responses.fail = true;
+	assert(termbox_output_key(view, KEY_UP, true) == -1);
+	responses.fail = false;
+	check_key(view, &responses, KEY_UP, true, "\033[A");
 	feed(view, "\033[?1049hALT");
 	check_cell(view, 0, 0, L' ', 0);
 	feed(view, "\033[?1049l");
@@ -108,6 +150,7 @@ int main(void)
 	responses.fail = true;
 	assert(!termbox_output_feed(view, "\033[6n", 4));
 	termbox_output_finish(view);
+	assert(termbox_output_key(view, KEY_UP, true) == -1);
 	widget_render_tree(view);
 	assert(!(view->attrs & ATTR_CAN_CURSOR));
 	widget_free(view);

@@ -326,8 +326,26 @@ static void ui_update_cursor(void)
 
 static void ui_update(void)
 {
+	static bool terminal_input = false;
+
 	if (!use_terminal)
 		return;
+
+	bool needs_raw = focused && focused->type == WIDGET_TERMINAL;
+	if (needs_raw != terminal_input) {
+		int ret;
+		if (needs_raw)
+			ret = raw();
+		else {
+			ret = noraw();
+			if (ret != ERR)
+				ret = cbreak();
+		}
+		if (ret == ERR)
+			warnx("unable to change terminal input mode");
+		else
+			terminal_input = needs_raw;
+	}
 
 	if (focused)
 		widget_render_tree(focused);

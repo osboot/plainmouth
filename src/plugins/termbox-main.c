@@ -77,11 +77,20 @@ static int termbox_view_input(const struct widget *w, wchar_t key, bool keycode)
 	char text[MB_LEN_MAX];
 	size_t length = 1;
 
+	if (st->exited || st->input_closed || st->failed) {
+		beep();
+		return 0;
+	}
+
+	int handled = termbox_output_key(st->view, key, keycode);
+	if (handled) {
+		if (handled < 0)
+			beep();
+		return handled > 0;
+	}
+
 	if (keycode) {
 		switch (key) {
-			case KEY_ENTER:
-				text[0] = '\n';
-				break;
 			case KEY_BACKSPACE:
 				text[0] = '\b';
 				break;

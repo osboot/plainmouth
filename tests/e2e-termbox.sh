@@ -165,7 +165,7 @@ testcase_view()
 {
 	trap '"$topdir"/plainmouth --quit >/dev/null 2>&1 || :' EXIT
 	"$topdir"/plaindialog --termbox \
-		'printf "\033[1;36mName:\033[0m "; IFS= read -r name; printf "\033[32mHello, %s\033[0m\n" "$name"' 10 60
+		'printf "\033[1;36mtermbox\033[0m\n"; exec bash --noprofile --norc -i' 10 60
 }
 
 exec 2>"$logfile"

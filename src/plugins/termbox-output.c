@@ -271,3 +271,75 @@ void termbox_output_finish(struct widget *view)
 	struct termbox_screen *st = view->state;
 	st->active = false;
 }
+
+int termbox_output_key(struct widget *view, wchar_t key, bool keycode)
+{
+	struct termbox_screen *st = view->state;
+	VTermKey terminal_key = VTERM_KEY_NONE;
+
+	if (keycode) {
+		switch (key) {
+			case KEY_ENTER:
+				terminal_key = VTERM_KEY_ENTER;
+				break;
+			case KEY_UP:
+				terminal_key = VTERM_KEY_UP;
+				break;
+			case KEY_DOWN:
+				terminal_key = VTERM_KEY_DOWN;
+				break;
+			case KEY_LEFT:
+				terminal_key = VTERM_KEY_LEFT;
+				break;
+			case KEY_RIGHT:
+				terminal_key = VTERM_KEY_RIGHT;
+				break;
+			case KEY_IC:
+				terminal_key = VTERM_KEY_INS;
+				break;
+			case KEY_DC:
+				terminal_key = VTERM_KEY_DEL;
+				break;
+			case KEY_HOME:
+				terminal_key = VTERM_KEY_HOME;
+				break;
+			case KEY_END:
+				terminal_key = VTERM_KEY_END;
+				break;
+			case KEY_PPAGE:
+				terminal_key = VTERM_KEY_PAGEUP;
+				break;
+			case KEY_NPAGE:
+				terminal_key = VTERM_KEY_PAGEDOWN;
+				break;
+			default:
+				if (key >= KEY_F(1) && key <= KEY_F(63))
+					terminal_key = VTERM_KEY_FUNCTION(key - KEY_F(0));
+				else
+					return 0;
+		}
+	} else if (key == L'\n' || key == L'\r') {
+		terminal_key = VTERM_KEY_ENTER;
+	} else if (key == 27) {
+		terminal_key = VTERM_KEY_ESCAPE;
+	} else if (key < 0 || key > 31 || key == L'\t' || key == L'\b') {
+		return 0;
+	}
+
+	if (!st->terminal || !st->active || st->failed)
+		return -1;
+
+	if (terminal_key != VTERM_KEY_NONE)
+		vterm_keyboard_key(st->terminal, terminal_key, VTERM_MOD_NONE);
+	else if (key >= 1 && key <= 26)
+		vterm_keyboard_unichar(st->terminal, (uint32_t) key + 'a' - 1, VTERM_MOD_CTRL);
+	else
+		vterm_keyboard_unichar(st->terminal, (uint32_t) key + '@', VTERM_MOD_CTRL);
+
+	/* Queue exhaustion rejects this key without poisoning output parsing. */
+	if (st->failed) {
+		st->failed = false;
+		return -1;
+	}
+	return 1;
+}

@@ -59,11 +59,16 @@ is bounded to 65536 cells per screen; scrollback history is not retained.
 The screen and PTY retain their initial dimensions when the host terminal
 resizes. The renderer redraws the screen once per event batch.
 
-When the output view has focus, printable text, Enter
-and Backspace are forwarded to the command. Tab moves focus to the OK
-button; arrows, other control keys, function keys and escape sequences are not
-forwarded. The letters `h`, `l` and `0` are ordinary input. Echo and line
-editing are provided by the child PTY; no local editing or echo is added.
+When the output view has focus, printable text, Enter, Backspace, Escape,
+arrows, Home/End, Insert/Delete, Page Up/Down, function keys and control
+characters are forwarded to the command. Libvterm encodes special keys
+according to the command's terminal modes, including application cursor
+mode. Tab moves focus to the OK button. Alt combinations and modified
+special keys are not decoded. The letters `h`, `l` and `0` are ordinary input.
+Echo and line editing are provided by the child PTY; no local editing or
+echo is added.
+While the output view has focus, the daemon uses raw input so that Ctrl-C
+and Ctrl-Z reach the child PTY rather than signal the daemon.
 In a UTF-8 daemon locale, the child PTY initially enables `IUTF8` so that
 Backspace erases a complete UTF-8 character in canonical mode. The command
 can change these settings after startup. A cursor is shown at the emulator's
