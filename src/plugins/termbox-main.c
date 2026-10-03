@@ -11,7 +11,9 @@
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
 #include <unistd.h>
+#include <wctype.h>
 #include <err.h>
 
 #include <pthread.h>
@@ -20,6 +22,7 @@
 #include "plugin.h"
 #include "widget.h"
 #include "termbox-output.h"
+#include "termbox-input.h"
 
 struct cleanup_job {
 	LIST_ENTRY(cleanup_job)
@@ -35,10 +38,63 @@ struct termbox {
 	struct pollfd master;
 	struct cleanup_job *child;
 	struct termbox_output output;
+	struct termbox_input input;
 	struct widget *view, *button;
-	bool exited, failed, output_closed;
+	bool exited, failed, output_closed, input_closed;
 	int exit_status, exit_signal;
 };
+
+static struct widget_ops termbox_view_ops;
+static int (*view_scroll_input)(const struct widget *, wchar_t);
+
+static bool termbox_queue_input(struct termbox *st, const char *text, size_t length)
+{
+	if (st->exited || st->input_closed || st->failed) {
+		errno = EPIPE;
+		return false;
+	}
+	if (!termbox_input_append(&st->input, text, length))
+		return false;
+	if (st->input.length)
+		st->master.events |= POLLOUT;
+	return true;
+}
+
+static int termbox_view_input(const struct widget *w, wchar_t key, bool keycode)
+{
+	struct termbox *st = w->data;
+	char text[MB_LEN_MAX];
+	size_t length = 1;
+
+	if (keycode) {
+		switch (key) {
+			case KEY_LEFT:
+			case KEY_RIGHT:
+				return view_scroll_input(w, key);
+			case KEY_ENTER:
+				text[0] = '\n';
+				break;
+			case KEY_BACKSPACE:
+				text[0] = '\b';
+				break;
+			default:
+				return 0;
+		}
+	} else if (key == L'\n' || key == L'\r' || key == L'\b' || key == 127 || iswprint((wint_t) key)) {
+		mbstate_t state = { 0 };
+		length = wcrtomb(text, key, &state);
+		if (length == (size_t) -1)
+			return 0;
+	} else {
+		return 0;
+	}
+
+	if (!termbox_queue_input(st, text, length)) {
+		beep();
+		return 0;
+	}
+	return 1;
+}
 
 static void reap_child(pid_t pid)
 {
@@ -251,6 +307,10 @@ static bool termbox_spawn(struct termbox *st, const char *command)
 		return false;
 
 	st->master.events = POLLIN;
+	struct termios attributes;
+	if (tcgetattr(st->master.fd, &attributes) < 0)
+		return false;
+	st->input.erase = attributes.c_cc[VERASE];
 
 	return true;
 }
@@ -303,6 +363,13 @@ static struct widget *termbox_create(struct request *req)
 	st->view = make_tailview();
 	if (!st->view)
 		goto fail;
+	if (!termbox_view_ops.input_event) {
+		termbox_view_ops = *st->view->ops;
+		view_scroll_input = termbox_view_ops.input;
+		termbox_view_ops.input_event = termbox_view_input;
+	}
+	st->view->ops = &termbox_view_ops;
+	st->view->data = st;
 
 	widget_add(parent, st->view);
 
@@ -351,7 +418,7 @@ static enum p_event_result termbox_event(struct widget *root, const struct pollf
 	size_t remaining = 65536;
 	bool changed = false;
 
-	while (remaining) {
+	while (remaining && (fd->revents & (POLLIN | POLLHUP | POLLERR))) {
 		char buffer[4096];
 		size_t request = remaining < sizeof(buffer) ? remaining : sizeof(buffer);
 		ssize_t n = read(fd->fd, buffer, request);
@@ -374,11 +441,23 @@ static enum p_event_result termbox_event(struct widget *root, const struct pollf
 			termbox_output_finish(&st->output);
 			/* Keep the master open: EOF must not send HUP to a live child. */
 			st->output_closed = true;
+			st->input_closed = true;
+			st->input.length = st->input.offset = 0;
 			changed = true;
 			break;
 		}
 		goto fail;
 	}
+
+	if (!st->input_closed && (fd->revents & POLLOUT) &&
+	    !termbox_input_flush(&st->input, fd->fd)) {
+		if (errno != EIO)
+			goto fail;
+		st->input_closed = true;
+		st->input.length = st->input.offset = 0;
+	}
+	if (!st->input.length)
+		st->master.events &= (short) ~POLLOUT;
 
 	if (!changed)
 		return P_EVENT_IDLE;
@@ -410,6 +489,8 @@ static enum p_event_result termbox_child_event(struct widget *root)
 
 	if (info.si_pid) {
 		st->exited = true;
+		st->input.length = st->input.offset = 0;
+		st->master.events &= (short) ~POLLOUT;
 		if (info.si_code == CLD_EXITED)
 			st->exit_status = info.si_status;
 		else
@@ -445,6 +526,7 @@ static enum p_retcode termbox_result(struct request *req, struct widget *root)
 	ipc_send_string(req_fd(req), "RESPDATA %s PID=%ld", req_id(req), (long) st->child->pid);
 	ipc_send_string(req_fd(req), "RESPDATA %s RUNNING=%d", req_id(req), !st->exited);
 	ipc_send_string(req_fd(req), "RESPDATA %s OUTPUT_CLOSED=%d", req_id(req), st->output_closed);
+	ipc_send_string(req_fd(req), "RESPDATA %s INPUT_PENDING=%zu", req_id(req), st->input.length);
 
 	if (st->exited) {
 		if (st->exit_signal)
@@ -458,6 +540,18 @@ static enum p_retcode termbox_result(struct request *req, struct widget *root)
 static enum p_retcode termbox_set_value(struct request *req, struct widget *root)
 {
 	struct termbox *st = root->data;
+	const char *input = req_get_val(req, "input");
+	if (input) {
+		if (req_get_val(req, "button") || req_get_val(req, "clicked")) {
+			req_error(req, "input cannot be combined with button or clicked");
+			return P_RET_ERR;
+		}
+		if (!termbox_queue_input(st, input, strlen(input))) {
+			req_error(req, "unable to queue input: %s", strerror(errno));
+			return P_RET_ERR;
+		}
+		return P_RET_OK;
+	}
 	int button;
 	bool clicked;
 

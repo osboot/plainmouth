@@ -150,6 +150,7 @@ $(foreach n,$(PLUGINS_NAMES),\
 	$(eval $(call build_plugin,$(n))))
 
 src/plugins/termbox-main.o src/plugins/termbox-output.o: src/plugins/termbox-output.h
+src/plugins/termbox-main.o src/plugins/termbox-input.o: src/plugins/termbox-input.h
 
 ### Tests
 
@@ -206,6 +207,12 @@ tests/widget/widget_termbox_output_test: tests/widget/widget_termbox_output_test
 
 tests/widget/widget_termbox_output_test.o: src/plugins/termbox-output.h
 GARBAGE += tests/widget/widget_termbox_output_test.o
+
+tests/widget/widget_termbox_input_test: tests/widget/widget_termbox_input_test.o src/plugins/termbox-input.o
+	$(call cmd_LINK,$^)
+
+tests/widget/widget_termbox_input_test.o: src/plugins/termbox-input.h
+GARBAGE += tests/widget/widget_termbox_input_test.o
 
 tests/%.chk: tests/%
 	@timeout -s KILL 5s $(VALGRIND) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \

@@ -49,9 +49,13 @@ daemon's permissions, environment and current directory. The PTY size
 matches the output viewport. Daemon descriptors are not inherited by the
 executed shell. Only run commands you trust.
 
-This first version displays the latest lines and supports horizontal
-scrolling as in tailbox; it does not forward keyboard input to the command
-or emulate a full terminal. It handles UTF-8, carriage returns, backspace
+Termbox displays the latest lines and supports horizontal scrolling with
+left/right arrows. When the output view has focus, printable text, Enter
+and Backspace are forwarded to the command. Tab moves focus to the OK
+button; other control keys, function keys and escape sequences are not
+forwarded. The letters `h`, `l` and `0` are ordinary input. Echo and line
+editing are provided by the child PTY; no local editing or echo is added.
+It does not emulate a full terminal. It handles UTF-8, carriage returns, backspace
 and tabs, and discards escape sequences rather than interpreting cursor
 movement or colors. It retains at most 65536 wide characters and reads at
 most 64 KiB per event. Command exit leaves the window open. Closing with OK
@@ -66,7 +70,17 @@ being reused before process-group cleanup.
 
 The plainmouth result includes `PID`, `RUNNING`, `OUTPUT_CLOSED` and, once
 the command exits, `EXIT_STATUS` or `SIGNAL`. PTY output closure and child
-exit are independent events. An interactive example is available with
+exit are independent events. `INPUT_PENDING` reports bytes waiting to be
+written. Input writes are nonblocking and retain short writes in a bounded
+64 KiB queue. A keyboard character that cannot be queued produces a beep.
+Input is rejected after child exit or PTY closure.
+
+Scripts can append input with `plainmouth action=set-value id=ID input=TEXT`.
+This accepts printable text, newline/carriage return and backspace/DEL;
+backspace is translated to the PTY's initial erase character. Unsupported
+controls, invalid/incomplete multibyte text, an overflowing queue or input
+combined with `button`/`clicked` are rejected without appending any bytes.
+An interactive example is available with
 `MODE=view tests/e2e-termbox.sh`.
 
 This is not a complete replacement for dialog. Dimensions and menu height

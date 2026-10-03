@@ -151,9 +151,17 @@ plugin=menu:     option=<option-id> [finished=<true|false>]
 plugin=menu:     button=<button-id> clicked=<true|false>
 plugin=msgbox:   button=<button-id> clicked=<true|false>
 plugin=password: value=<text> [finished=<true|false>]
+plugin=termbox:  input=<text>
+plugin=termbox:  button=1 clicked=<true|false>
 plugin=timebox:  spinbox=<spinbox-id> value=<number>
 plugin=timebox:  button=<button-id> clicked=<true|false>
 ```
+
+For termbox, `input` appends text to the child PTY's bounded write queue.
+It accepts printable characters, newline/carriage return and backspace/DEL.
+Invalid text, unsupported controls, a full queue, a closed PTY or an exited
+command fail the request without appending bytes. Input and button updates
+must be separate requests. `INPUT_PENDING` in the result reports queued bytes.
 
 ### inputbox
 

@@ -925,10 +925,13 @@ static void handle_input(void)
 		return;
 	}
 
-	if (focused && focused->ops && focused->ops->input) {
+	if (focused && focused->ops && (focused->ops->input_event || focused->ops->input)) {
 		struct instance *instance = find_instance(focused->instance_id);
 
-		focused->ops->input(focused, (wchar_t) code);
+		if (focused->ops->input_event)
+			focused->ops->input_event(focused, (wchar_t) code, ret == KEY_CODE_YES);
+		else
+			focused->ops->input(focused, (wchar_t) code);
 
 		ui_check_instance_finished(instance);
 		ui_update();

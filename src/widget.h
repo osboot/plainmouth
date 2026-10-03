@@ -147,6 +147,8 @@ struct widget_ops {
 	bool (*getter)(struct widget *, enum widget_property, void *);
 	bool (*getter_index)(struct widget *, enum widget_property, int, void *);
 	bool (*setter_index)(struct widget *, enum widget_property, int, const void *);
+	/* Optional typed input: keycodes can overlap with Unicode characters. */
+	int (*input_event)(const struct widget *, wchar_t, bool keycode);
 };
 
 struct widget_scrollbar_state {

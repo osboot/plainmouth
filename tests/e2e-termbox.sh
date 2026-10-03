@@ -97,6 +97,23 @@ testcase_dump()
 	await_result second EXIT_STATUS=12
 	"$topdir"/plainmouth action=delete id=first
 	"$topdir"/plainmouth action=delete id=second
+	create_term input 'stty -echo; printf "READY\n"; IFS= read -r line; printf "received: %s\n" "$line"'
+	await_text input READY
+	local status=0
+	"$topdir"/plainmouth action=set-value id=input input=$'discard\033' >/dev/null || status=$?
+	test "$status" -eq 1
+	status=0
+	"$topdir"/plainmouth action=set-value id=input input=discard button=1 >/dev/null || status=$?
+	test "$status" -eq 1
+	"$topdir"/plainmouth action=set-value id=input input=$'hl0 \304\203X\b\n'
+	await_result input EXIT_STATUS=0
+	await_text input $'received: hl0 \304\203'
+	grep -qx BUTTON_1=0 "$termdir/result"
+	grep -qx INPUT_PENDING=0 "$termdir/result"
+	status=0
+	"$topdir"/plainmouth action=set-value id=input input=late >/dev/null || status=$?
+	test "$status" -eq 1
+	"$topdir"/plainmouth action=delete id=input
 	# Cleanup escalates for a command ignoring HUP and TERM, without blocking UI.
 	create_term live 'trap "" HUP TERM; printf "LIVE\n"; exec sleep 30'
 	await_text live LIVE
@@ -134,7 +151,7 @@ testcase_view()
 {
 	trap '"$topdir"/plainmouth --quit >/dev/null 2>&1 || :' EXIT
 	"$topdir"/plaindialog --termbox \
-		'i=1; while test "$i" -le 20; do printf "line %02d: command output in a PTY, with horizontal scrolling\n" "$i"; i=$((i + 1)); sleep 0.2; done; printf "done\n"' 10 60
+		'printf "Name: "; IFS= read -r name; printf "Hello, %s\n" "$name"' 10 60
 }
 
 exec 2>"$logfile"
