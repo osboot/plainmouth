@@ -4,6 +4,7 @@
 
 #include <sys/queue.h>
 #include <stdbool.h>
+#include <poll.h>
 
 #include "request.h"
 
@@ -12,6 +13,12 @@
 enum p_retcode {
 	P_RET_OK  = 0,
 	P_RET_ERR = 1,
+};
+
+enum p_event_result {
+	P_EVENT_IDLE,
+	P_EVENT_REDRAW,
+	P_EVENT_ERROR,
 };
 
 struct plugin {
@@ -29,6 +36,9 @@ struct plugin {
 	bool (*p_finished)(struct widget *root);
 	enum p_retcode (*p_result)(struct request *req, struct widget *root);
 	enum p_retcode (*p_plugin_free)(void);
+	/* Borrowed descriptors; this accessor must not change instance state. */
+	size_t (*p_pollfds)(struct widget *root, const struct pollfd **fds);
+	enum p_event_result (*p_handle_event)(struct widget *root, const struct pollfd *fd);
 };
 
 bool load_plugins(const char *dirpath);

@@ -262,11 +262,46 @@ There is no shared parent, no common root, and no implicit global widget
 hierarchy.
 
 This design enforces **strict isolation**. A widget cannot traverse "up" or
-"sideways" into another plugin’s widgets. Plugins cannot accidentally depend on
+"sideways" into another plugin's widgets. Plugins cannot accidentally depend on
 internal structure of other plugins. Multiple instances of the same plugin are
 fully isolated from each other.
 
 In particular, this prevents scenarios where one plugin instance could navigate
 the widget tree and reach widgets belonging to another plugin instance.
+
+### 8.3 Plugin Event Sources
+
+An instance may expose event sources through `p_pollfds(root, &fds)`.
+This optional accessor returns a borrowed array of `struct pollfd` and
+its length. It must not mutate instance state, and the descriptors remain
+owned by the plugin. Both this accessor and `p_handle_event(root, &fd)`
+run in the UI thread. All plugins must be rebuilt against
+the updated `struct plugin` definition.
+
+Before each `poll()`, the server copies plugin descriptors into its poll
+array alongside the terminal, IPC listener and internal eventfd. The
+event callback receives a copy including `revents`, and must handle
+error/hangup conditions as well as normal readiness. Callbacks should use
+nonblocking I/O where applicable and bound work per invocation.
+
+The callback returns `P_EVENT_IDLE`, `P_EVENT_REDRAW` or `P_EVENT_ERROR`.
+On redraw, the server measures, lays out and renders the instance once
+per event batch, then updates the screen. It also checks completion and
+wakes result waiters. On error, event dispatch for that instance is
+disabled; the plugin must retain the failure in its state if it should
+finish and report an error to the client.
+
+Plugin events are dispatched before input and queued IPC tasks, so an
+instance cannot be deleted by a queued task while its poll snapshot is
+being dispatched. Callbacks only modify their own instance. If multiple
+sources fire together, callbacks must account for earlier callbacks in
+that batch; descriptor changes take effect on the next poll iteration.
+The instance's delete hook closes its descriptors and frees source state.
+
+The tailbox plugin uses a periodic `CLOCK_MONOTONIC` timerfd as its source.
+Regular files are not polled directly because EOF still counts as read
+readiness. On each timer expiration, tailbox checks the open file and
+reads a bounded amount of data into a bounded buffer. File I/O and widget
+state changes occur in the UI thread; no additional worker is created.
 
 ---

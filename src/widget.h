@@ -87,6 +87,7 @@ enum widget_type {
 	WIDGET_HSCROLL,
 	WIDGET_VSCROLL,
 	WIDGET_PAD_BOX,
+	WIDGET_TAILVIEW,
 	WIDGET_COUNTS,
 };
 
@@ -114,6 +115,7 @@ enum widget_property {
 	PROP_SCROLL_X,
 	PROP_SCROLL_Y,
 	PROP_SELECT_STATE,
+	PROP_TEXT_VALUE,
 };
 
 enum widget_flags {
@@ -288,6 +290,7 @@ struct widget *make_scroll_vbox(void);
 struct widget *make_pad_box(void);
 struct widget *make_label(const wchar_t *text);
 struct widget *make_textview(const wchar_t *text);
+struct widget *make_tailview(void);
 struct widget *make_button(const wchar_t *label);
 struct widget *make_checkbox(bool checked, bool is_radio);
 struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder);

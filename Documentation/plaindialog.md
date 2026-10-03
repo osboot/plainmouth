@@ -14,6 +14,7 @@ plaindialog --msgbox "Message" 6 40
 plaindialog --yesno "Continue?" 6 40
 plaindialog --stdout --inputbox "Name:" 7 40 "initial value"
 plaindialog --stdout --menu "Choose:" 10 40 4 tag1 "First" tag2 "Second"
+plaindialog --tailbox /var/log/messages 10 60
 ```
 
 Text and menu results go to stderr by default, without a trailing newline.
@@ -25,6 +26,21 @@ Exit status is 0 for OK/Yes or Enter in an input/menu, 1 for Cancel/No, and
 255 for errors or interruption. Cancel/No produces no result text. Created
 instances are deleted after completion and on SIGINT, SIGTERM or SIGHUP.
 SIGKILL cannot be cleaned up.
+
+`--tailbox FILE HEIGHT WIDTH` reads the file in the server and shows its
+latest lines until OK is selected. It produces no result text. The file
+must be a regular file accessible to the daemon; relative paths are
+resolved against the daemon's current directory. Tailbox checks for new
+data every 100 ms, retains at most 64 KiB, and reads at most 64 KiB per
+notification. Incomplete multibyte characters are held until more bytes
+arrive; invalid characters are displayed as `?`.
+
+Tailbox follows the open file descriptor. An observed decrease in file
+size clears the buffer and restarts reading. Replacing the pathname does
+not switch to the replacement file. Truncation followed by regrowth
+between checks may go unnoticed. Left/right arrows or `h`/`l` scroll
+horizontally; `0` resets that offset. Vertical position follows the tail.
+`--tailboxbg` is not yet supported.
 
 This is not a complete replacement for dialog. Dimensions and menu height
 must be positive integers; automatic sizing, ESC cancellation, dialog

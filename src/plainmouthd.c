@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <locale.h>
 #include <getopt.h>
 #include <poll.h>
@@ -67,6 +68,8 @@ struct instance {
 	struct widget *root;
 	PANEL *panel;
 	bool finished;
+	bool events_disabled;
+	bool redraw_pending;
 };
 TAILQ_HEAD(instances, instance);
 
@@ -982,6 +985,89 @@ static void *thread_connection(void *arg)
 	return NULL;
 }
 
+static size_t instance_pollfds(struct instance *ins, const struct pollfd **fds)
+{
+	*fds = NULL;
+	if (ins->finished || ins->events_disabled || !ins->plugin->p_pollfds ||
+	    !ins->plugin->p_handle_event)
+		return 0;
+	return ins->plugin->p_pollfds(ins->root, fds);
+}
+
+static bool collect_pollfds(const struct pollfd *base, size_t base_count,
+			    struct pollfd **out, struct instance ***owners, size_t *count)
+{
+	size_t total = base_count;
+	struct instance *ins;
+	const struct pollfd *fds;
+	TAILQ_FOREACH(ins, &instances, entries)
+	{
+		size_t n = instance_pollfds(ins, &fds);
+		if ((n && !fds) || n > SIZE_MAX / sizeof(**owners) - total ||
+		    n > SIZE_MAX / sizeof(**out) - total)
+			return false;
+		total += n;
+	}
+	if ((size_t) (nfds_t) total != total)
+		return false;
+	*out = calloc(total, sizeof(**out));
+	*owners = calloc(total, sizeof(**owners));
+	if (!*out || !*owners) {
+		free(*out);
+		free(*owners);
+		return false;
+	}
+	memcpy(*out, base, base_count * sizeof(**out));
+	size_t pos = base_count;
+	TAILQ_FOREACH(ins, &instances, entries)
+	{
+		size_t n = instance_pollfds(ins, &fds);
+		if ((n && !fds) || n > total - pos) {
+			free(*out);
+			free(*owners);
+			return false;
+		}
+		for (size_t i = 0; i < n; i++, pos++) {
+			(*out)[pos] = fds[i];
+			(*out)[pos].revents = 0;
+			(*owners)[pos] = ins;
+		}
+	}
+	*count = total;
+	return true;
+}
+
+static void handle_plugin_events(struct pollfd *fds, struct instance **owners, size_t count)
+{
+	bool redraw = false;
+	for (size_t i = 0; i < count; i++) {
+		struct instance *ins = owners[i];
+		if (!ins || !fds[i].revents || ins->finished || ins->events_disabled)
+			continue;
+		enum p_event_result result = ins->plugin->p_handle_event(ins->root, &fds[i]);
+		if (result == P_EVENT_ERROR) {
+			warnx("event handler failed for instance '%s'", ins->id);
+			ins->events_disabled = true;
+		}
+		if (result == P_EVENT_REDRAW)
+			ins->redraw_pending = true;
+		ui_check_instance_finished(ins);
+	}
+	struct instance *ins;
+	TAILQ_FOREACH(ins, &instances, entries) {
+		if (!ins->redraw_pending)
+			continue;
+		struct widget *root = ins->root;
+		widget_measure_tree(root);
+		widget_layout_tree(root, root->lx, root->ly, root->w, root->h);
+		widget_render_tree(root);
+		ins->redraw_pending = false;
+		redraw = true;
+	}
+	if (redraw)
+		ui_update();
+}
+
 int main(int argc, char **argv)
 {
 	int c, r, retcode;
@@ -1075,7 +1161,7 @@ int main(int argc, char **argv)
 		POLL_N_FDS   = 3,
 	};
 
-	struct pollfd pfd[] = {
+	struct pollfd base_pfd[] = {
 		[POLL_SRVFD] = {
 			.fd = ctx.fd,
 			.events = POLLIN,
@@ -1091,10 +1177,22 @@ int main(int argc, char **argv)
 	};
 
 	while (!do_quit) {
+		struct pollfd *pfd;
+		struct instance **owners;
+		size_t count;
+		if (!collect_pollfds(base_pfd, POLL_N_FDS, &pfd, &owners, &count)) {
+			warnx("unable to collect poll descriptors");
+			retcode = EXIT_FAILURE;
+			break;
+		}
 		errno = 0;
-		r = poll(pfd, POLL_N_FDS, -1);
+		r = poll(pfd, (nfds_t) count, -1);
 
 		if (r < 0) {
+			int saved_errno = errno;
+			free(pfd);
+			free(owners);
+			errno = saved_errno;
 			if (errno == EINTR)
 				continue;
 
@@ -1104,8 +1202,14 @@ int main(int argc, char **argv)
 			break;
 		}
 
-		if (r == 0)
+		if (r == 0) {
+			free(pfd);
+			free(owners);
 			continue;
+		}
+
+		/* Dispatch the snapshot before input/tasks can delete its owners. */
+		handle_plugin_events(pfd, owners, count);
 
 		if (pfd[POLL_SRVFD].revents & POLLIN) {
 			struct ipc_ctx *client = ipc_accept(&ctx);
@@ -1126,6 +1230,8 @@ int main(int argc, char **argv)
 		if (pfd[POLL_EVENTFD].revents & POLLIN) {
 			handle_tasks();
 		}
+		free(pfd);
+		free(owners);
 
 		fflush(stderr);
 	}

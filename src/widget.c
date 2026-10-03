@@ -344,6 +344,7 @@ const char *widget_type(struct widget *w)
 		[WIDGET_VSCROLL]     = "vscroll",
 		[WIDGET_HSCROLL]     = "hscroll",
 		[WIDGET_PAD_BOX]     = "pad_box",
+		[WIDGET_TAILVIEW]    = "tailview",
 	};
 	if (!w)
 		return "NULL";

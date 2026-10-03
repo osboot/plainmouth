@@ -61,6 +61,7 @@ COMMON_SRC  = src/ipc.c src/request.c src/plugin.c src/dump.c \
 	      src/widget_select_opt.c \
 	      src/widget_spinbox.c \
 	      src/widget_textview.c \
+	      src/widget_tailview.c \
 	      src/widget_tooltip.c \
 	      src/widget_vbox.c \
 	      src/widget_vscroll.c \
@@ -134,6 +135,9 @@ PLUGINS_OBJ   = $(PLUGINS_SRC:.c=.o)
 PLUGINS_NAMES = $(patsubst src/plugins/%-main.c,%,$(PLUGINS_SRC))
 GARBAGE += $(PLUGINS_OBJ)
 
+$(PLUGINS_OBJ) src/plainmouthd.o src/plugin.o: src/plugin.h
+$(COMMON_OBJ) $(PLUGINS_OBJ) src/plainmouthd.o: src/widget.h
+
 plugin_objs = $(filter src/plugins/$(1)-%.o,$(PLUGINS_OBJ))
 
 define build_plugin =
@@ -187,6 +191,12 @@ tests/widget/widget_menu_test: tests/widget/widget_menu_test.o $(COMMON_SO)
 
 tests/widget/widget_menu_test.o: src/widget.h
 GARBAGE += tests/widget/widget_menu_test.o
+
+tests/widget/widget_tailview_test: tests/widget/widget_tailview_test.o $(COMMON_SO)
+	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS) -Wl,-rpath,$(CURDIR)
+
+tests/widget/widget_tailview_test.o: src/widget.h
+GARBAGE += tests/widget/widget_tailview_test.o
 
 tests/%.chk: tests/%
 	@timeout -s KILL 5s $(VALGRIND) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \

@@ -71,6 +71,7 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--help")) {
 			puts("Usage: plaindialog [--socket-file PATH] [--stdout|--stderr]\n"
 			     "       --msgbox|--yesno TEXT HEIGHT WIDTH\n"
+			     "       --tailbox FILE HEIGHT WIDTH\n"
 			     "       --inputbox TEXT HEIGHT WIDTH [INIT]\n"
 			     "       --menu TEXT HEIGHT WIDTH MENU_HEIGHT TAG ITEM ...");
 			return 0;
@@ -83,13 +84,14 @@ int main(int argc, char **argv)
 	bool input = i < argc && !strcmp(argv[i], "--inputbox");
 	bool yesno = i < argc && !strcmp(argv[i], "--yesno");
 	bool msgbox = i < argc && !strcmp(argv[i], "--msgbox");
+	bool tailbox = i < argc && !strcmp(argv[i], "--tailbox");
 	long height, width, visible = 0;
 	int remaining = argc - i;
-	if ((!menu && !input && !yesno && !msgbox) || remaining < 4 ||
+	if ((!menu && !input && !yesno && !msgbox && !tailbox) || remaining < 4 ||
 	    !positive_number(argv[i + 2], &height) ||
 	    !positive_number(argv[i + 3], &width) ||
 	    (input && remaining != 4 && remaining != 5) ||
-	    ((yesno || msgbox) && remaining != 4) ||
+	    ((yesno || msgbox || tailbox) && remaining != 4) ||
 	    (menu && (remaining < 7 || (remaining - 5) % 2 ||
 		      !positive_number(argv[i + 4], &visible)))) {
 		warnx("invalid or unsupported arguments; see --help");
@@ -126,16 +128,18 @@ int main(int argc, char **argv)
 	active_fd = ctx.fd;
 	if (interrupted)
 		goto out;
+	const char *plugin_name = tailbox ? "tailbox" : menu ? "menu"
+						: input      ? "inputbox"
+							     : "msgbox";
 	if (!ipc_pair_add(&request, "action", "create") ||
 	    !ipc_pair_add(&request, "id", id) ||
-	    !ipc_pair_add(&request, "plugin", menu ? "menu" : input ? "inputbox"
-								    : "msgbox") ||
+	    !ipc_pair_add(&request, "plugin", plugin_name) ||
 	    !ipc_pair_sprintf(&request, "height", "%ld", height) ||
 	    !ipc_pair_sprintf(&request, "width", "%ld", width) ||
 	    !ipc_pair_add(&request, "border", "true") ||
-	    !ipc_pair_add(&request, "text", argv[i + 1]) ||
+	    !ipc_pair_add(&request, tailbox ? "file" : "text", argv[i + 1]) ||
 	    !ipc_pair_add(&request, "button", yesno ? "Yes" : "OK") ||
-	    (!msgbox && !ipc_pair_add(&request, "button", yesno ? "No" : "Cancel")))
+	    (!msgbox && !tailbox && !ipc_pair_add(&request, "button", yesno ? "No" : "Cancel")))
 		goto out;
 	if (input && remaining == 5 && !ipc_pair_add(&request, "value", argv[i + 4]))
 		goto out;
