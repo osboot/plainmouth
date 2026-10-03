@@ -55,6 +55,7 @@ PKG_PROG_PKG_CONFIG
 
 PKG_CHECK_MODULES([NCURSES], [ncursesw], [], [AC_MSG_ERROR([libncursesw (from ncurses) could not be found])])
 PKG_CHECK_MODULES([PANEL],   [panelw],   [], [AC_MSG_ERROR([libpanelw (from ncurses) could not be found])])
+PKG_CHECK_MODULES([VTERM], [vterm >= 0.3], [], [AC_MSG_ERROR([libvterm >= 0.3 is required for termbox])])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

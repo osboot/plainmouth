@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <langinfo.h>
 #include <pty.h>
 #include <signal.h>
 #include <stdatomic.h>
@@ -37,7 +38,6 @@ static struct cleanup_jobs cleanup_jobs = LIST_HEAD_INITIALIZER(cleanup_jobs);
 struct termbox {
 	struct pollfd master;
 	struct cleanup_job *child;
-	struct termbox_output output;
 	struct termbox_input input;
 	struct widget *view, *button;
 	bool exited, failed, output_closed, input_closed;
@@ -45,7 +45,18 @@ struct termbox {
 };
 
 static struct widget_ops termbox_view_ops;
-static int (*view_scroll_input)(const struct widget *, wchar_t);
+
+static bool termbox_reply(void *data, const char *text, size_t length)
+{
+	struct termbox *st = data;
+	if (st->exited || st->input_closed)
+		return true;
+	if (!termbox_input_append_bytes(&st->input, text, length))
+		return false;
+	if (st->input.length)
+		st->master.events |= POLLOUT;
+	return true;
+}
 
 static bool termbox_queue_input(struct termbox *st, const char *text, size_t length)
 {
@@ -68,9 +79,6 @@ static int termbox_view_input(const struct widget *w, wchar_t key, bool keycode)
 
 	if (keycode) {
 		switch (key) {
-			case KEY_LEFT:
-			case KEY_RIGHT:
-				return view_scroll_input(w, key);
 			case KEY_ENTER:
 				text[0] = '\n';
 				break;
@@ -235,7 +243,7 @@ static bool termbox_spawn(struct termbox *st, const char *command)
 		if (strncmp(environ[i], "TERM=", 5))
 			environment[n++] = environ[i];
 
-	char term[] = "TERM=dumb";
+	char term[] = "TERM=xterm";
 	environment[n] = term;
 
 	char shell[] = "sh";
@@ -247,6 +255,7 @@ static bool termbox_spawn(struct termbox *st, const char *command)
 	sigemptyset(&defaults.sa_mask);
 	sigset_t empty;
 	sigemptyset(&empty);
+	bool utf8_input = !strcmp(nl_langinfo(CODESET), "UTF-8");
 
 	struct winsize size = {
 		.ws_row = (unsigned short) st->view->h,
@@ -264,6 +273,16 @@ static bool termbox_spawn(struct termbox *st, const char *command)
 		    sigaction(SIGCHLD, &defaults, NULL) || sigaction(SIGQUIT, &defaults, NULL) ||
 		    sigprocmask(SIG_SETMASK, &empty, NULL))
 			_exit(127);
+
+		/* Set this before exec so the command can subsequently change termios. */
+		if (utf8_input) {
+			struct termios attributes;
+			if (tcgetattr(STDIN_FILENO, &attributes) < 0)
+				_exit(127);
+			attributes.c_iflag |= IUTF8;
+			if (tcsetattr(STDIN_FILENO, TCSANOW, &attributes) < 0)
+				_exit(127);
+		}
 
 		bool closed = false;
 
@@ -330,7 +349,8 @@ static struct widget *termbox_create(struct request *req)
 	if (!req_read_int(req, "width", &width) || !req_read_int(req, "height", &height))
 		return NULL;
 
-	if (width < 3 || height < 4 || width > USHRT_MAX || height > USHRT_MAX) {
+	if (width < 3 || height < 4 || width > USHRT_MAX || height > USHRT_MAX ||
+	    (size_t) width > TERMBOX_SCREEN_LIMIT / (size_t) (height - 1)) {
 		req_error(req, "invalid termbox dimensions");
 		return NULL;
 	}
@@ -360,12 +380,11 @@ static struct widget *termbox_create(struct request *req)
 			goto fail;
 	}
 
-	st->view = make_tailview();
+	st->view = make_termbox_output();
 	if (!st->view)
 		goto fail;
 	if (!termbox_view_ops.input_event) {
 		termbox_view_ops = *st->view->ops;
-		view_scroll_input = termbox_view_ops.input;
 		termbox_view_ops.input_event = termbox_view_input;
 	}
 	st->view->ops = &termbox_view_ops;
@@ -388,6 +407,10 @@ static struct widget *termbox_create(struct request *req)
 
 	widget_measure_tree(root);
 	widget_layout_tree(root, x, y, width, height);
+	if (!termbox_output_start(st->view, termbox_reply, st)) {
+		req_error(req, "unable to initialize terminal screen");
+		goto fail;
+	}
 
 	if (!termbox_spawn(st, command)) {
 		req_error(req, "unable to start command: %s", strerror(errno));
@@ -424,7 +447,8 @@ static enum p_event_result termbox_event(struct widget *root, const struct pollf
 		ssize_t n = read(fd->fd, buffer, request);
 
 		if (n > 0) {
-			termbox_output_feed(&st->output, buffer, (size_t) n);
+			if (!termbox_output_feed(st->view, buffer, (size_t) n))
+				goto fail;
 			remaining -= (size_t) n;
 			changed = true;
 			continue;
@@ -438,7 +462,7 @@ static enum p_event_result termbox_event(struct widget *root, const struct pollf
 		 * Linux PTYs report EIO after the last slave closes.
 		 */
 		if (!n || (n < 0 && (errno == EIO || (errno == EAGAIN && (fd->revents & POLLHUP))))) {
-			termbox_output_finish(&st->output);
+			termbox_output_finish(st->view);
 			/* Keep the master open: EOF must not send HUP to a live child. */
 			st->output_closed = true;
 			st->input_closed = true;
@@ -461,9 +485,6 @@ static enum p_event_result termbox_event(struct widget *root, const struct pollf
 
 	if (!changed)
 		return P_EVENT_IDLE;
-
-	if (!widget_set(st->view, PROP_TEXT_VALUE, st->output.text))
-		goto fail;
 
 	return P_EVENT_REDRAW;
 fail:
@@ -489,12 +510,14 @@ static enum p_event_result termbox_child_event(struct widget *root)
 
 	if (info.si_pid) {
 		st->exited = true;
+		termbox_output_finish(st->view);
 		st->input.length = st->input.offset = 0;
 		st->master.events &= (short) ~POLLOUT;
 		if (info.si_code == CLD_EXITED)
 			st->exit_status = info.si_status;
 		else
 			st->exit_signal = info.si_status;
+		return P_EVENT_REDRAW;
 	}
 
 	return P_EVENT_IDLE;

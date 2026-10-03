@@ -2,20 +2,18 @@
 #ifndef PLAINMOUTH_TERMBOX_OUTPUT_H
 #define PLAINMOUTH_TERMBOX_OUTPUT_H
 
+#include <stdbool.h>
 #include <stddef.h>
-#include <wchar.h>
 
-#define TERMBOX_TEXT_LIMIT 65536
+struct widget;
 
-/* A bounded text transcript, not a terminal screen model. */
-struct termbox_output {
-	wchar_t text[TERMBOX_TEXT_LIMIT + 1];
-	size_t length, line_start, cursor;
-	mbstate_t multibyte;
-	int escape_state;
-};
+#define TERMBOX_SCREEN_LIMIT 65536
 
-void termbox_output_feed(struct termbox_output *out, const char *data, size_t length);
-void termbox_output_finish(struct termbox_output *out);
+typedef bool (*termbox_reply_fn)(void *, const char *, size_t);
+
+struct widget *make_termbox_output(void);
+bool termbox_output_start(struct widget *view, termbox_reply_fn reply, void *data);
+bool termbox_output_feed(struct widget *view, const char *data, size_t length);
+void termbox_output_finish(struct widget *view);
 
 #endif

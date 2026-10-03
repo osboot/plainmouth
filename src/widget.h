@@ -60,6 +60,7 @@ enum color_pair {
 	COLOR_PAIR_WINDOW,
 	COLOR_PAIR_BUTTON,
 	COLOR_PAIR_FOCUS,
+	COLOR_PAIR_TERMINAL, /* Start of the 64 basic terminal color pairs. */
 };
 
 int simple_round(float number);
@@ -88,6 +89,7 @@ enum widget_type {
 	WIDGET_VSCROLL,
 	WIDGET_PAD_BOX,
 	WIDGET_TAILVIEW,
+	WIDGET_TERMINAL,
 	WIDGET_COUNTS,
 };
 

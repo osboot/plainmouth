@@ -79,6 +79,16 @@ testcase_dump()
 	fi
 	"$topdir"/plainmouth action=dump id=tty filename="$current_dump"
 	"$topdir"/plainmouth action=delete id=tty
+	create_term screen 'printf "abcdef\rxy\033[K\n\033[31;1mRED\033[0m\033[2;10H!\033[3;1Hlast"'
+	await_result screen OUTPUT_CLOSED=1
+	await_result screen EXIT_STATUS=0
+	"$topdir"/plainmouth action=dump id=screen filename="$current_dump"
+	"$topdir"/plainmouth action=delete id=screen
+	# The emulator's replies use POLLOUT without the user-input control filter.
+	create_term reply 'stty -echo -icanon min 1 time 0; printf "\033[2;4H\033[6n"; reply=$(dd bs=1 count=6 2>/dev/null); test "$reply" = "$(printf "\033[2;4R")" || exit 4; printf "\033[Hreply ok"'
+	await_result reply EXIT_STATUS=0
+	await_text reply 'reply ok'
+	"$topdir"/plainmouth action=delete id=reply
 	# Drain more than one event's read budget even when HUP is also ready.
 	create_term large "head -c 98304 /dev/zero | tr '\000' x; printf '\nFINAL\n'; exit 3"
 	await_result large OUTPUT_CLOSED=1
@@ -105,7 +115,7 @@ testcase_dump()
 	status=0
 	"$topdir"/plainmouth action=set-value id=input input=discard button=1 >/dev/null || status=$?
 	test "$status" -eq 1
-	"$topdir"/plainmouth action=set-value id=input input=$'hl0 \304\203X\b\n'
+	"$topdir"/plainmouth action=set-value id=input input=$'hl0 \304\203\b\344\270\255\b\304\203X\b\n'
 	await_result input EXIT_STATUS=0
 	await_text input $'received: hl0 \304\203'
 	grep -qx BUTTON_1=0 "$termdir/result"
@@ -125,6 +135,10 @@ testcase_dump()
 	await_reaped "$pid"
 	local status=0
 	create_term bad '' >/dev/null || status=$?
+	test "$status" -eq 1
+	status=0
+	"$topdir"/plainmouth action=create plugin=termbox id=oversized command=true \
+		width=65535 height=65535 >/dev/null || status=$?
 	test "$status" -eq 1
 	"$topdir"/plaindialog --stdout --termbox 'printf "client\n"; exit 5' 6 32 >"$termdir/client" &
 	local client=$! id="plaindialog-$!" ready=false
@@ -151,7 +165,7 @@ testcase_view()
 {
 	trap '"$topdir"/plainmouth --quit >/dev/null 2>&1 || :' EXIT
 	"$topdir"/plaindialog --termbox \
-		'printf "Name: "; IFS= read -r name; printf "Hello, %s\n" "$name"' 10 60
+		'printf "\033[1;36mName:\033[0m "; IFS= read -r name; printf "\033[32mHello, %s\033[0m\n" "$name"' 10 60
 }
 
 exec 2>"$logfile"

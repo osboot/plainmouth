@@ -14,6 +14,7 @@ struct termbox_input {
 };
 
 bool termbox_input_append(struct termbox_input *input, const char *text, size_t length);
+bool termbox_input_append_bytes(struct termbox_input *input, const char *bytes, size_t length);
 bool termbox_input_flush(struct termbox_input *input, int fd);
 
 #endif

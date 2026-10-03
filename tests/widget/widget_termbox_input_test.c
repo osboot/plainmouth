@@ -29,6 +29,10 @@ int main(void)
 	assert(!termbox_input_append(input, "\t", 1));
 	assert(errno == EINVAL && input->length == original);
 
+	const char response[] = "\033[1;2R";
+	assert(termbox_input_append_bytes(input, response, sizeof(response) - 1));
+	assert(!memcmp(input->data + original, response, sizeof(response) - 1));
+
 	char *payload = malloc(TERMBOX_INPUT_LIMIT);
 	char *received = malloc(TERMBOX_INPUT_LIMIT);
 	assert(payload && received);

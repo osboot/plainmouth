@@ -329,4 +329,13 @@ and direct-child reaping to a thread. Plugin shutdown joins cleanup threads
 before unloading their code. Retaining the waitable child until cleanup
 prevents PID reuse during process-group signalling.
 
+Termbox's screen widget is implemented in its plugin and uses libvterm for
+screen state and escape-sequence parsing. The common widget library only
+knows its widget type; the libvterm dependency is linked into termbox.
+The screen is bounded to 65536 cells per screen, including an optional
+alternate screen, and retains no scrollback. Rendering occurs in the UI
+thread after output has been processed. Terminal replies append raw bytes
+to the same bounded write queue used by validated text input; POLLOUT is
+requested only while this queue is nonempty. Tab continues to change focus.
+
 ---

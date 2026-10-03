@@ -44,6 +44,21 @@ bool termbox_input_append(struct termbox_input *input, const char *text, size_t 
 	return true;
 }
 
+bool termbox_input_append_bytes(struct termbox_input *input, const char *bytes, size_t length)
+{
+	if (length > TERMBOX_INPUT_LIMIT - input->length) {
+		errno = ENOBUFS;
+		return false;
+	}
+	if (input->offset) {
+		memmove(input->data, input->data + input->offset, input->length);
+		input->offset = 0;
+	}
+	memcpy(input->data + input->length, bytes, length);
+	input->length += length;
+	return true;
+}
+
 bool termbox_input_flush(struct termbox_input *input, int fd)
 {
 	while (input->length) {

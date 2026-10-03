@@ -44,21 +44,33 @@ horizontally; `0` resets that offset. Vertical position follows the tail.
 `--tailboxbg` is not yet supported.
 
 `--termbox COMMAND HEIGHT WIDTH` is a plainmouth extension, not a dialog
-option. It runs `/bin/sh -c COMMAND` in a PTY with `TERM=dumb`, using the
+option. It runs `/bin/sh -c COMMAND` in a PTY with `TERM=xterm`, using the
 daemon's permissions, environment and current directory. The PTY size
 matches the output viewport. Daemon descriptors are not inherited by the
 executed shell. Only run commands you trust.
 
-Termbox displays the latest lines and supports horizontal scrolling with
-left/right arrows. When the output view has focus, printable text, Enter
+Termbox uses libvterm (version 0.3 or later) to interpret the command's output
+as a screen with the PTY's dimensions. Cursor movement, erasing, line wrapping,
+scroll regions and the alternate screen are handled by the emulator. The
+renderer supports wide and combining characters, basic foreground/background
+colors, bold, underline, italic, blink, reverse and conceal. Extended colors
+are approximated with the host terminal's eight basic colors. Screen storage
+is bounded to 65536 cells per screen; scrollback history is not retained.
+The screen and PTY retain their initial dimensions when the host terminal
+resizes. The renderer redraws the screen once per event batch.
+
+When the output view has focus, printable text, Enter
 and Backspace are forwarded to the command. Tab moves focus to the OK
-button; other control keys, function keys and escape sequences are not
+button; arrows, other control keys, function keys and escape sequences are not
 forwarded. The letters `h`, `l` and `0` are ordinary input. Echo and line
 editing are provided by the child PTY; no local editing or echo is added.
-It does not emulate a full terminal. It handles UTF-8, carriage returns, backspace
-and tabs, and discards escape sequences rather than interpreting cursor
-movement or colors. It retains at most 65536 wide characters and reads at
-most 64 KiB per event. Command exit leaves the window open. Closing with OK
+In a UTF-8 daemon locale, the child PTY initially enables `IUTF8` so that
+Backspace erases a complete UTF-8 character in canonical mode. The command
+can change these settings after startup. A cursor is shown at the emulator's
+current position while the command is running and requests cursor visibility.
+Terminal query replies are queued for nonblocking writes to the PTY using
+the same bounded queue as user input. It reads at most 64 KiB per event.
+Command exit leaves the screen visible and hides its cursor. Closing with OK
 returns 0 and no result text, independently of the command's exit status.
 
 Closing the window closes the PTY and sends SIGHUP to the command's process
