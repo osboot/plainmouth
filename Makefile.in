@@ -16,6 +16,7 @@ libexecdir = @libexecdir@
 pluginsdir = @libexecdir@/@PACKAGE_NAME@
 
 PLUGINSDIR := $(CURDIR)/plugins
+PTY_LIBS := @PTY_LIBS@
 
 PTHREAD_CFLAGS := @PTHREAD_CFLAGS@
 PTHREAD_LIBS   := @PTHREAD_LIBS@
@@ -132,7 +133,7 @@ plaindialog: Makefile $(COMMON_SO) $(OBJ_plaindialog)
 PLUGINS_LIBS  = -shared -ldl $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
 PLUGINS_SRC   = $(wildcard src/plugins/*.c)
 PLUGINS_OBJ   = $(PLUGINS_SRC:.c=.o)
-PLUGINS_NAMES = $(patsubst src/plugins/%-main.c,%,$(PLUGINS_SRC))
+PLUGINS_NAMES = $(patsubst src/plugins/%-main.c,%,$(filter %-main.c,$(PLUGINS_SRC)))
 GARBAGE += $(PLUGINS_OBJ)
 
 $(PLUGINS_OBJ) src/plainmouthd.o src/plugin.o: src/plugin.h
@@ -142,11 +143,13 @@ plugin_objs = $(filter src/plugins/$(1)-%.o,$(PLUGINS_OBJ))
 
 define build_plugin =
 $(PLUGINSDIR)/$(1).so: $$(call plugin_objs,$(1))
-	$$(call cmd_LINK,$$^) $(PLUGINS_LIBS)
+	$$(call cmd_LINK,$$^) $(PLUGINS_LIBS) $(if $(filter termbox,$(1)),$(PTY_LIBS))
 endef
 
 $(foreach n,$(PLUGINS_NAMES),\
 	$(eval $(call build_plugin,$(n))))
+
+src/plugins/termbox-main.o src/plugins/termbox-output.o: src/plugins/termbox-output.h
 
 ### Tests
 
@@ -197,6 +200,12 @@ tests/widget/widget_tailview_test: tests/widget/widget_tailview_test.o $(COMMON_
 
 tests/widget/widget_tailview_test.o: src/widget.h
 GARBAGE += tests/widget/widget_tailview_test.o
+
+tests/widget/widget_termbox_output_test: tests/widget/widget_termbox_output_test.o src/plugins/termbox-output.o
+	$(call cmd_LINK,$^)
+
+tests/widget/widget_termbox_output_test.o: src/plugins/termbox-output.h
+GARBAGE += tests/widget/widget_termbox_output_test.o
 
 tests/%.chk: tests/%
 	@timeout -s KILL 5s $(VALGRIND) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \

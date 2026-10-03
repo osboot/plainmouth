@@ -39,6 +39,8 @@ struct plugin {
 	/* Borrowed descriptors; this accessor must not change instance state. */
 	size_t (*p_pollfds)(struct widget *root, const struct pollfd **fds);
 	enum p_event_result (*p_handle_event)(struct widget *root, const struct pollfd *fd);
+	/* SIGCHLD can coalesce: check only this instance's child with WNOHANG. */
+	enum p_event_result (*p_handle_child_event)(struct widget *root);
 };
 
 bool load_plugins(const char *dirpath);

@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <sys/eventfd.h>
+#include <sys/signalfd.h>
 #include <sys/queue.h>
 
 #include <unistd.h>
@@ -12,6 +13,7 @@
 #include <locale.h>
 #include <getopt.h>
 #include <poll.h>
+#include <signal.h>
 #include <wchar.h>
 #include <errno.h>
 #include <error.h>
@@ -1037,30 +1039,75 @@ static bool collect_pollfds(const struct pollfd *base, size_t base_count,
 	return true;
 }
 
+static void plugin_event_result(struct instance *ins, enum p_event_result result)
+{
+	if (result == P_EVENT_ERROR) {
+		warnx("event handler failed for instance '%s'", ins->id);
+		ins->events_disabled = true;
+	}
+
+	if (result == P_EVENT_REDRAW)
+		ins->redraw_pending = true;
+
+	ui_check_instance_finished(ins);
+}
+
 static void handle_plugin_events(struct pollfd *fds, struct instance **owners, size_t count)
 {
-	bool redraw = false;
 	for (size_t i = 0; i < count; i++) {
 		struct instance *ins = owners[i];
 		if (!ins || !fds[i].revents || ins->finished || ins->events_disabled)
 			continue;
-		enum p_event_result result = ins->plugin->p_handle_event(ins->root, &fds[i]);
-		if (result == P_EVENT_ERROR) {
-			warnx("event handler failed for instance '%s'", ins->id);
-			ins->events_disabled = true;
-		}
-		if (result == P_EVENT_REDRAW)
-			ins->redraw_pending = true;
-		ui_check_instance_finished(ins);
+		plugin_event_result(ins, ins->plugin->p_handle_event(ins->root, &fds[i]));
 	}
+}
+
+static void handle_child_events(int fd)
+{
+	struct signalfd_siginfo info;
+	bool pending = false;
+
+	for (;;) {
+		ssize_t n = read(fd, &info, sizeof(info));
+
+		if (n == sizeof(info)) {
+			pending = true;
+			continue;
+		}
+		if (n < 0 && errno == EINTR)
+			continue;
+		if (n < 0 && errno == EAGAIN)
+			break;
+
+		warnx("unable to read child signal notification");
+		break;
+	}
+
+	if (!pending)
+		return;
+
+	struct instance *ins;
+
+	TAILQ_FOREACH(ins, &instances, entries) {
+		if (!ins->finished && !ins->events_disabled && ins->plugin->p_handle_child_event)
+			plugin_event_result(ins, ins->plugin->p_handle_child_event(ins->root));
+	}
+}
+
+static void redraw_plugin_events(void)
+{
+	bool redraw = false;
 	struct instance *ins;
 	TAILQ_FOREACH(ins, &instances, entries) {
 		if (!ins->redraw_pending)
 			continue;
+
 		struct widget *root = ins->root;
+
 		widget_measure_tree(root);
 		widget_layout_tree(root, root->lx, root->ly, root->w, root->h);
 		widget_render_tree(root);
+
 		ins->redraw_pending = false;
 		redraw = true;
 	}
@@ -1118,6 +1165,17 @@ int main(int argc, char **argv)
 	setlocale(LC_ALL, "");
 	setlocale(LC_CTYPE, "");
 
+	/* Every subsequently created thread inherits this blocked signal. */
+	sigset_t child_signals, original_signals;
+	sigemptyset(&child_signals);
+	sigaddset(&child_signals, SIGCHLD);
+	r = pthread_sigmask(SIG_BLOCK, &child_signals, &original_signals);
+	if (r)
+		error(EXIT_FAILURE, r, "pthread_sigmask");
+	int child_eventfd = signalfd(-1, &child_signals, SFD_CLOEXEC | SFD_NONBLOCK);
+	if (child_eventfd < 0)
+		err(EXIT_FAILURE, "signalfd");
+
 	LIST_INIT(&workers);
 	TAILQ_INIT(&instances);
 	TAILQ_INIT(&uitasks);
@@ -1158,7 +1216,8 @@ int main(int argc, char **argv)
 		POLL_SRVFD   = 0,
 		POLL_STDIN   = 1,
 		POLL_EVENTFD = 2,
-		POLL_N_FDS   = 3,
+		POLL_CHILDFD = 3,
+		POLL_N_FDS   = 4,
 	};
 
 	struct pollfd base_pfd[] = {
@@ -1172,6 +1231,10 @@ int main(int argc, char **argv)
 		},
 		[POLL_EVENTFD] = {
 			.fd = ui_eventfd,
+			.events = POLLIN,
+		},
+		[POLL_CHILDFD] = {
+			.fd = child_eventfd,
 			.events = POLLIN,
 		},
 	};
@@ -1210,6 +1273,9 @@ int main(int argc, char **argv)
 
 		/* Dispatch the snapshot before input/tasks can delete its owners. */
 		handle_plugin_events(pfd, owners, count);
+		if (pfd[POLL_CHILDFD].revents & POLLIN)
+			handle_child_events(child_eventfd);
+		redraw_plugin_events();
 
 		if (pfd[POLL_SRVFD].revents & POLLIN) {
 			struct ipc_ctx *client = ipc_accept(&ctx);
@@ -1259,6 +1325,12 @@ int main(int argc, char **argv)
 	ipc_free(&ctx);
 
 	close(ui_eventfd);
+	close(child_eventfd);
+
+	r = pthread_sigmask(SIG_SETMASK, &original_signals, NULL);
+	if (r)
+		error(0, r, "pthread_sigmask");
+
 	pthread_mutex_destroy(&ui_mutex);
 	pthread_cond_destroy(&ui_cond);
 

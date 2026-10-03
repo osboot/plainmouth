@@ -18,6 +18,14 @@ AC_PROG_CC
 # Checks for libraries.
 AX_PTHREAD([], [AC_MSG_ERROR([pthreads could not be found])])
 
+AC_CHECK_HEADER([pty.h], [], [AC_MSG_ERROR([pty.h is required for termbox])])
+saved_LIBS="$LIBS"
+AC_SEARCH_LIBS([forkpty], [util], [], [AC_MSG_ERROR([forkpty could not be found])])
+PTY_LIBS="$ac_cv_search_forkpty"
+AS_IF([test "$PTY_LIBS" = "none required"], [PTY_LIBS=""])
+LIBS="$saved_LIBS"
+AC_SUBST([PTY_LIBS])
+
 # Checks for header files.
 AC_CHECK_HEADERS([stdint.h sys/socket.h unistd.h])
 
@@ -29,7 +37,7 @@ AC_TYPE_SSIZE_T
 # Checks for library functions.
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
-AC_CHECK_FUNCS([memchr memmove socket strchr strdup strndup])
+AC_CHECK_FUNCS([close_range memchr memmove socket strchr strdup strndup])
 
 AC_MSG_NOTICE([checking for pkg-config...])
 

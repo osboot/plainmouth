@@ -279,7 +279,8 @@ run in the UI thread. All plugins must be rebuilt against
 the updated `struct plugin` definition.
 
 Before each `poll()`, the server copies plugin descriptors into its poll
-array alongside the terminal, IPC listener and internal eventfd. The
+array alongside the terminal, IPC listener, internal eventfd and the
+server's SIGCHLD signalfd. The
 event callback receives a copy including `revents`, and must handle
 error/hangup conditions as well as normal readiness. Callbacks should use
 nonblocking I/O where applicable and bound work per invocation.
@@ -303,5 +304,24 @@ Regular files are not polled directly because EOF still counts as read
 readiness. On each timer expiration, tailbox checks the open file and
 reads a bounded amount of data into a bounded buffer. File I/O and widget
 state changes occur in the UI thread; no additional worker is created.
+
+The server blocks SIGCHLD before creating threads and consumes it through
+one nonblocking signalfd. After a notification, it calls the optional
+`p_handle_child_event(root)` callback for every active interested instance:
+SIGCHLD notifications can coalesce. This callback runs in the UI thread
+and returns the same event result as `p_handle_event`. Plugins must check
+only their own children with nonblocking wait operations, never reap
+arbitrary children of the server. The command child restores its signal
+mask before exec.
+
+Termbox exposes its nonblocking PTY master through `p_pollfds` and checks
+its direct child with `waitid(..., WNOHANG | WNOWAIT)` in the child callback.
+Output is drained independently of child exit, including data accompanying
+a hangup. EOF removes the PTY from polling but retains the descriptor until
+deletion so it does not prematurely hang up a still-running command.
+Deletion terminates the process group and delegates bounded-grace cleanup
+and direct-child reaping to a thread. Plugin shutdown joins cleanup threads
+before unloading their code. Retaining the waitable child until cleanup
+prevents PID reuse during process-group signalling.
 
 ---

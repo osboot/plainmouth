@@ -15,6 +15,7 @@ plaindialog --yesno "Continue?" 6 40
 plaindialog --stdout --inputbox "Name:" 7 40 "initial value"
 plaindialog --stdout --menu "Choose:" 10 40 4 tag1 "First" tag2 "Second"
 plaindialog --tailbox /var/log/messages 10 60
+plaindialog --termbox 'printf "hello\n"; sleep 2' 10 60
 ```
 
 Text and menu results go to stderr by default, without a trailing newline.
@@ -41,6 +42,32 @@ not switch to the replacement file. Truncation followed by regrowth
 between checks may go unnoticed. Left/right arrows or `h`/`l` scroll
 horizontally; `0` resets that offset. Vertical position follows the tail.
 `--tailboxbg` is not yet supported.
+
+`--termbox COMMAND HEIGHT WIDTH` is a plainmouth extension, not a dialog
+option. It runs `/bin/sh -c COMMAND` in a PTY with `TERM=dumb`, using the
+daemon's permissions, environment and current directory. The PTY size
+matches the output viewport. Daemon descriptors are not inherited by the
+executed shell. Only run commands you trust.
+
+This first version displays the latest lines and supports horizontal
+scrolling as in tailbox; it does not forward keyboard input to the command
+or emulate a full terminal. It handles UTF-8, carriage returns, backspace
+and tabs, and discards escape sequences rather than interpreting cursor
+movement or colors. It retains at most 65536 wide characters and reads at
+most 64 KiB per event. Command exit leaves the window open. Closing with OK
+returns 0 and no result text, independently of the command's exit status.
+
+Closing the window closes the PTY and sends SIGHUP to the command's process
+group and SIGTERM to the direct child. Cleanup escalates to SIGKILL after
+up to 200 ms and reaps the direct child in a cleanup thread. Processes
+which leave the command's process group are not managed. An exited child
+remains waitable until the window is deleted, preventing its PID from
+being reused before process-group cleanup.
+
+The plainmouth result includes `PID`, `RUNNING`, `OUTPUT_CLOSED` and, once
+the command exits, `EXIT_STATUS` or `SIGNAL`. PTY output closure and child
+exit are independent events. An interactive example is available with
+`MODE=view tests/e2e-termbox.sh`.
 
 This is not a complete replacement for dialog. Dimensions and menu height
 must be positive integers; automatic sizing, ESC cancellation, dialog
