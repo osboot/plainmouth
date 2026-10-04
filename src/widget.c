@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "config.h"
 
+#include <sys/queue.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 #include <err.h>
+#include <errno.h>
+#include <limits.h>
 
 #include <curses.h>
 #include <panel.h>
@@ -15,6 +18,168 @@
 #include "widget.h"
 
 static attr_t style_attrs[COLOR_PAIR_FOCUS + 1];
+
+struct color_slot {
+	TAILQ_ENTRY(color_slot)
+	entries;
+	short pair;
+};
+TAILQ_HEAD(color_slots, color_slot);
+static struct color_slots color_slots = TAILQ_HEAD_INITIALIZER(color_slots);
+static int next_color_pair = COLOR_PAIR_FOCUS + 1;
+
+struct style_override {
+	int fg, bg, current_fg, current_bg;
+	attr_t attrs;
+	short pair;
+	bool has_fg, has_bg, has_attrs;
+};
+
+struct widget_styles {
+	struct style_override roles[COLOR_PAIR_FOCUS + 1];
+};
+
+short widget_color_pair_alloc(void)
+{
+	for (int pair = next_color_pair; pair < COLOR_PAIRS && pair <= SHRT_MAX; pair++) {
+		struct color_slot *slot;
+		TAILQ_FOREACH(slot, &color_slots, entries)
+		{
+			if (slot->pair == pair)
+				break;
+		}
+		if (slot)
+			continue;
+		slot = malloc(sizeof(*slot));
+		if (!slot)
+			return -1;
+		slot->pair = (short) pair;
+		TAILQ_INSERT_HEAD(&color_slots, slot, entries);
+		next_color_pair = pair + 1;
+		return slot->pair;
+	}
+	errno = ENOSPC;
+	return -1;
+}
+
+void widget_color_pair_free(short pair)
+{
+	struct color_slot *slot;
+	TAILQ_FOREACH(slot, &color_slots, entries)
+	{
+		if (slot->pair == pair) {
+			TAILQ_REMOVE(&color_slots, slot, entries);
+			free(slot);
+			if (pair < next_color_pair)
+				next_color_pair = pair;
+			return;
+		}
+	}
+}
+
+static bool style_update_pair(struct style_override *style, short base_pair)
+{
+	int fg, bg;
+	if (extended_pair_content(base_pair, &fg, &bg) == ERR)
+		return false;
+	if (style->has_fg)
+		fg = style->fg;
+	if (style->has_bg)
+		bg = style->bg;
+	if (fg != style->current_fg || bg != style->current_bg) {
+		if (init_extended_pair(style->pair, fg, bg) == ERR)
+			return false;
+		style->current_fg = fg;
+		style->current_bg = bg;
+	}
+	return true;
+}
+
+bool widget_style_override(struct widget *w, enum color_pair color,
+			   const int *fg, const int *bg, const attr_t *attrs, bool reset)
+{
+	if (!w || color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_FOCUS)
+		return false;
+	if (reset) {
+		if (w->styles) {
+			struct style_override *style = &w->styles->roles[color];
+			widget_color_pair_free(style->pair);
+			memset(style, 0, sizeof(*style));
+		}
+		return true;
+	}
+
+	struct widget_styles *styles = w->styles;
+	if (!styles) {
+		styles = calloc(1, sizeof(*styles));
+		if (!styles)
+			return false;
+	}
+	struct style_override updated = styles->roles[color];
+	short allocated = 0;
+	if (fg) {
+		updated.fg = *fg;
+		updated.has_fg = true;
+	}
+	if (bg) {
+		updated.bg = *bg;
+		updated.has_bg = true;
+	}
+	if (attrs) {
+		updated.attrs = *attrs;
+		updated.has_attrs = true;
+	}
+	if ((fg || bg) && !updated.pair) {
+		allocated = widget_color_pair_alloc();
+		if (allocated < 0)
+			goto fail;
+		updated.pair = allocated;
+		updated.current_fg = updated.current_bg = INT_MIN;
+	}
+	if (updated.pair) {
+		attr_t base_attrs;
+		short base_pair;
+		const struct widget *base = w->parent ? w->parent : w->style_owner;
+		if (!widget_style_resolve(base, color, &base_attrs, &base_pair) ||
+		    !style_update_pair(&updated, base_pair))
+			goto fail;
+	}
+	styles->roles[color] = updated;
+	w->styles = styles;
+	return true;
+
+fail:
+	if (allocated > 0)
+		widget_color_pair_free(allocated);
+	if (!w->styles)
+		free(styles);
+	return false;
+}
+
+bool widget_style_resolve(const struct widget *w, enum color_pair color,
+			  attr_t *attrs, short *pair)
+{
+	*attrs = widget_style_attrs(color);
+	*pair = (short) color;
+	if (color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_FOCUS)
+		return true;
+	if (w) {
+		const struct widget *base = w->parent ? w->parent : w->style_owner;
+		if (!widget_style_resolve(base, color, attrs, pair))
+			return false;
+	}
+	if (w && w->styles) {
+		struct style_override *style = &w->styles->roles[color];
+		if (style->pair) {
+			if (!style_update_pair(style, *pair))
+				return false;
+			*pair = style->pair;
+		}
+		if (style->has_attrs)
+			*attrs = style->attrs;
+	}
+	return true;
+}
 
 attr_t widget_style_attrs(enum color_pair color)
 {
@@ -35,6 +200,18 @@ void widget_style_apply(WINDOW *win, enum color_pair color)
 
 	wbkgd(win, COLOR_PAIR(color) | attrs);
 	wattr_set(win, attrs, (short) color, NULL);
+}
+
+void widget_style_apply_widget(struct widget *w, enum color_pair color)
+{
+	attr_t attrs;
+	short pair;
+	if (!widget_style_resolve(w, color, &attrs, &pair)) {
+		warnx("unable to resolve widget style");
+		return;
+	}
+	wbkgd(w->win, COLOR_PAIR(pair) | attrs);
+	wattr_set(w->win, attrs, pair, NULL);
 }
 
 int simple_round(float number)
@@ -212,9 +389,14 @@ void distribute_flex_axis(int count, const int *pref,
 	}
 }
 
-void widget_scrollbar_draw(WINDOW *scrollwin, enum color_pair color,
-		int scroll_pos, int content_size, bool vertical)
+void widget_scrollbar_draw(struct widget *w, enum color_pair color,
+			   int scroll_pos, int content_size, bool vertical)
 {
+	WINDOW *scrollwin = w->win;
+	attr_t attrs;
+	short pair;
+	if (!widget_style_resolve(w, color, &attrs, &pair))
+		return;
 	int view_w, view_h;
 	getmaxyx(scrollwin, view_h, view_w);
 
@@ -228,13 +410,13 @@ void widget_scrollbar_draw(WINDOW *scrollwin, enum color_pair color,
 	attr_t previous_attrs;
 	short previous_pair;
 	wattr_get(scrollwin, &previous_attrs, &previous_pair, NULL);
-	wattr_set(scrollwin, widget_style_attrs(color), (short) color, NULL);
+	wattr_set(scrollwin, attrs, pair, NULL);
 	for (int i = 0; i < view_size; i++) {
 		int y = vertical ? i : view_h - 1;
 		int x = vertical ? view_w - 1 : i;
 		mvwaddch(scrollwin, y, x, ACS_CKBOARD);
 	}
-	wattr_set(scrollwin, widget_style_attrs(color) | A_REVERSE, (short) color, NULL);
+	wattr_set(scrollwin, attrs | A_REVERSE, pair, NULL);
 	for (int i = 0; i < thumb_size; i++) {
 		chtype c = ' ';
 
@@ -272,7 +454,7 @@ void widget_scrollbar_render(struct widget *w, bool vertical)
 		return;
 
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
-	widget_scrollbar_draw(w->win, color, st->offset, st->content, vertical);
+	widget_scrollbar_draw(w, color, st->offset, st->content, vertical);
 }
 
 static void widget_sync_scrollbar(struct widget *source, struct widget *scrollbar,
@@ -444,6 +626,11 @@ void widget_free(struct widget *w)
 		w->state = NULL;
 	}
 
+	if (w->styles) {
+		for (int role = COLOR_PAIR_WINDOW; role <= COLOR_PAIR_FOCUS; role++)
+			widget_color_pair_free(w->styles->roles[role].pair);
+		free(w->styles);
+	}
 	free(w);
 }
 
@@ -619,7 +806,7 @@ void widget_render_tree(struct widget *w)
 	}
 
 	if (w->type != WIDGET_TERMINAL)
-		widget_style_apply(w->win, w->color_pair);
+		widget_style_apply_widget(w, w->color_pair);
 	werase(w->win);
 
 	if (w->ops && w->ops->render)

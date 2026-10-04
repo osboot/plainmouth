@@ -69,6 +69,7 @@ int main(void)
 	assert(screen);
 	assert(start_color() == OK);
 	assert(init_pair(COLOR_PAIR_WINDOW, COLOR_WHITE, COLOR_BLUE) == OK);
+	assert(init_pair(COLOR_PAIR_BUTTON, COLOR_BLACK, COLOR_WHITE) == OK);
 	struct widget *view = make_termbox_output();
 	assert(view);
 	widget_measure_tree(view);
@@ -89,6 +90,15 @@ int main(void)
 	assert(mvwin_wch(view->win, 1, 2, &red) == OK);
 	assert(getcchar(&red, chars, &attrs, &pair, NULL) == OK);
 	assert(pair_content(pair, &fg, &bg) == OK && fg == COLOR_RED);
+	struct widget *styled = make_button(L"Styled");
+	assert(styled);
+	int green = COLOR_GREEN;
+	assert(widget_style_override(styled, COLOR_PAIR_BUTTON, NULL, &green, NULL, false));
+	widget_measure_tree(styled);
+	widget_layout_tree(styled, 0, 0, 10, 1);
+	widget_render_tree(styled);
+	assert(pair_content(pair, &fg, &bg) == OK && fg == COLOR_RED);
+	widget_free(styled);
 	feed(view, "\033[?25l");
 	assert(!(view->attrs & ATTR_CAN_CURSOR));
 	feed(view, "\033[?25h\033[6n");

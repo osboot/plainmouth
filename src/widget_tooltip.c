@@ -23,13 +23,14 @@ struct widget_tooltip {
 static void tooltip_measure(struct widget *w) __attribute__((nonnull(1)));
 static void tooltip_render(struct widget *w) __attribute__((nonnull(1)));
 static int tooltip_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
-static struct widget *make_popup(const wchar_t *desc, int y, int x) __attribute__((nonnull(1)));
+static struct widget *make_popup(const wchar_t *desc, int y, int x, const struct widget *owner) __attribute__((nonnull(1)));
 static void tooltip_free(struct widget *w);
 
 
-struct widget *make_popup(const wchar_t *desc, int y, int x)
+struct widget *make_popup(const wchar_t *desc, int y, int x, const struct widget *owner)
 {
 	struct widget *root = make_window();
+	root->style_owner = owner;
 	struct widget *border = make_border_vbox(root);
 	struct widget *text = make_textview(desc);
 
@@ -53,7 +54,7 @@ void tooltip_render(struct widget *w)
 	struct widget_tooltip *st = w->state;
 
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
-	widget_style_apply(w->win, color);
+	widget_style_apply_widget(w, color);
 
 	mvwaddwstr(w->win, 0, 0, L"[?]");
 	wmove(w->win, 0, 0);
@@ -66,7 +67,7 @@ void tooltip_render(struct widget *w)
 		y += 1;
 
 		if (!st->panel) {
-			st->popup = make_popup(st->text, y, x);
+			st->popup = make_popup(st->text, y, x, w);
 			st->panel = new_panel(st->popup->win);
 		}
 		show_panel(st->panel);

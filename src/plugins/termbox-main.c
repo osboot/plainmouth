@@ -373,6 +373,7 @@ static struct widget *termbox_create(struct request *req)
 		return NULL;
 	}
 
+	root->style_owner = req->r_style_owner;
 	root->data = st;
 	st->master.fd = -1;
 	st->child = calloc(1, sizeof(*st->child));

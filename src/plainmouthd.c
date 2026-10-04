@@ -75,6 +75,33 @@ struct instance {
 };
 TAILQ_HEAD(instances, instance);
 
+struct named_style {
+	TAILQ_ENTRY(named_style)
+	entries;
+	char *name;
+	struct widget *source;
+};
+TAILQ_HEAD(named_styles, named_style);
+static struct named_styles named_styles = TAILQ_HEAD_INITIALIZER(named_styles);
+
+static struct named_style *find_named_style(const char *name)
+{
+	struct named_style *style;
+	TAILQ_FOREACH(style, &named_styles, entries)
+	{
+		if (streq(style->name, name))
+			return style;
+	}
+	return NULL;
+}
+
+static void free_named_style(struct named_style *style)
+{
+	widget_free(style->source);
+	free(style->name);
+	free(style);
+}
+
 static struct workers workers;
 static struct instances instances;
 static struct uitasks uitasks;
@@ -440,6 +467,16 @@ static int ui_process_task_create(struct ui_task *t)
 		return -1;
 	}
 
+	const char *style_name = req_get_val(&t->req, "style");
+	if (style_name) {
+		struct named_style *style = find_named_style(style_name);
+		if (!style) {
+			req_error(&t->req, "unknown style: %s", style_name);
+			return -1;
+		}
+		t->req.r_style_owner = style->source;
+	}
+
 	struct instance *wnew = calloc(1, sizeof(*wnew));
 	if (!wnew) {
 		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no memory",
@@ -746,6 +783,17 @@ static int ui_process_task_set_style(struct ui_task *t)
 	int pair, fg, bg;
 	attr_t attrs = A_NORMAL;
 	const char *attrs_name = req_get_val(&t->req, "attrs");
+	const char *id = req_get_val(&t->req, "id");
+	const char *style_name = req_get_val(&t->req, "style");
+	bool reset = false;
+	if (id && style_name) {
+		req_error(&t->req, "id and style cannot be combined");
+		return -1;
+	}
+	if (style_name && !*style_name) {
+		req_error(&t->req, "style name cannot be empty");
+		return -1;
+	}
 
 	name = req_get_val(&t->req, "name");
 	fg_name = req_get_val(&t->req, "fg");
@@ -768,9 +816,95 @@ static int ui_process_task_set_style(struct ui_task *t)
 	if (attrs_name && !parse_style_attrs(&t->req, attrs_name, &attrs))
 		return -1;
 
-	if (!fg_name && !bg_name && !attrs_name) {
+	if (!req_read_bool(&t->req, "reset", false, &reset))
+		return -1;
+	if (req_get_val(&t->req, "reset") && !id && !style_name) {
+		req_error(&t->req, "style reset requires an instance id or style name");
+		return -1;
+	}
+	if (reset && (fg_name || bg_name || attrs_name)) {
+		req_error(&t->req, "style reset cannot be combined with overrides");
+		return -1;
+	}
+	if (!fg_name && !bg_name && !attrs_name && !reset) {
 		req_error(&t->req, "missing style colors or attributes");
 		return -1;
+	}
+
+	if (id || style_name) {
+		struct instance *instance = NULL;
+		struct named_style *style = NULL;
+		bool new_style = false;
+		if (id) {
+			instance = ui_get_instance_by_id(t);
+			if (!instance)
+				return -1;
+		} else {
+			style = find_named_style(style_name);
+			if (!style && reset) {
+				req_error(&t->req, "unknown style: %s", style_name);
+				return -1;
+			}
+		}
+		if (pair == COLOR_PAIR_MAIN) {
+			req_error(&t->req, "main style is global only");
+			return -1;
+		}
+		const int *fg_value = NULL, *bg_value = NULL;
+		const attr_t *attrs_value = NULL;
+		if (fg_name) {
+			if (!convert_color(&t->req, fg_name, &fg))
+				return -1;
+			fg_value = &fg;
+		}
+		if (bg_name) {
+			if (!convert_color(&t->req, bg_name, &bg))
+				return -1;
+			bg_value = &bg;
+		}
+		if (attrs_name)
+			attrs_value = &attrs;
+		struct widget *target;
+		if (instance) {
+			target = instance->root;
+		} else {
+			if (!style) {
+				style = calloc(1, sizeof(*style));
+				if (!style) {
+					req_error(&t->req, "unable to allocate named style");
+					return -1;
+				}
+				style->name = strdup(style_name);
+				style->source = widget_create(WIDGET_WINDOW);
+				if (!style->name || !style->source) {
+					free_named_style(style);
+					req_error(&t->req, "unable to allocate named style");
+					return -1;
+				}
+				new_style = true;
+			}
+			target = style->source;
+		}
+		if (!widget_style_override(target, pair, fg_value, bg_value, attrs_value, reset)) {
+			if (new_style)
+				free_named_style(style);
+			req_error(&t->req, "unable to update style");
+			return -1;
+		}
+		if (new_style) {
+			TAILQ_INSERT_HEAD(&named_styles, style, entries);
+		}
+		if (instance) {
+			widget_render_tree(instance->root);
+		} else {
+			TAILQ_FOREACH(instance, &instances, entries)
+			{
+				if (instance->root && instance->root->style_owner == style->source)
+					widget_render_tree(instance->root);
+			}
+		}
+		ui_update();
+		return 0;
 	}
 
 	if (fg_name || bg_name) {
@@ -1417,6 +1551,11 @@ int main(int argc, char **argv)
 
 	free_instances();
 	unload_plugins();
+	while (!TAILQ_EMPTY(&named_styles)) {
+		struct named_style *style = TAILQ_FIRST(&named_styles);
+		TAILQ_REMOVE(&named_styles, style, entries);
+		free_named_style(style);
+	}
 
 	ipc_close(&ctx);
 	ipc_free(&ctx);

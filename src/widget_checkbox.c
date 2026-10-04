@@ -35,7 +35,7 @@ void checkbox_render(struct widget *w)
 	struct widget_checkbox *st = w->state;
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
-	widget_style_apply(w->win, color);
+	widget_style_apply_widget(w, color);
 
 	if (st->multisel)
 		mvwaddstr(w->win, 0, 0, (st->checked ? "[x]" : "[ ]"));

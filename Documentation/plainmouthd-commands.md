@@ -36,6 +36,52 @@ plainmouth action=set-style name=button attrs=bold
 plainmouth action=set-style name=focus attrs=normal
 ```
 
+Add `id=ID` to override the `window`, `button`, or `focus` role inside one
+existing dialog. The `main` role remains global. Local `fg`, `bg`, and `attrs`
+are independent: unspecified properties retain earlier local overrides or
+inherit the global role if never overridden. Subsequent global changes affect
+only the inherited properties. `attrs=normal` is an explicit local override.
+
+Use `reset=true` with `id` and `name` to remove all overrides for that role
+and resume inheritance. Reset cannot be combined with colors or attributes.
+Overrides are discarded when the dialog is deleted, including any allocated
+color pairs. If terminal color pairs are exhausted, a color override fails
+without changing the existing style; attribute-only overrides need no pair.
+
+```sh
+plainmouth action=set-style id=dialog1 name=window fg=yellow
+plainmouth action=set-style id=dialog1 name=focus attrs=bold,underline
+plainmouth action=set-style id=dialog1 name=window reset=true
+```
+
+Use `style=NAME` instead of `id` to define or update a named theme. `name`
+still selects the role (`window`, `button`, or `focus`). A theme inherits
+unspecified properties from the global role. The first successful definition
+creates the theme; an invalid request does not publish a new theme. Theme
+names must be nonempty. `id` and `style` cannot be combined in `set-style`.
+
+Pass `style=NAME` to `create` to select a previously defined theme. The server
+validates the name before invoking the plugin, which binds the theme before
+its first render. Unknown theme names reject creation. Existing dialogs share
+the theme by reference, so subsequent theme changes redraw all its users.
+Local instance overrides take priority over theme properties; theme properties
+take priority over global properties, independently for foreground, background,
+and text attributes.
+
+`reset=true` on a named theme clears that role's overrides while preserving
+the theme and its users. An instance reset resumes inheritance from its theme,
+or from the global role when no theme was selected. Themes live until server
+shutdown, independently of the dialogs using them; their color pairs are
+released on role reset or shutdown.
+
+```sh
+plainmouth action=set-style style=warning name=window fg=yellow bg=red attrs=bold
+plainmouth action=set-style style=warning name=focus fg=black bg=yellow
+plainmouth action=create plugin=msgbox id=dialog1 style=warning \
+    width=32 height=6 text=Warning button=OK
+plainmouth action=set-style style=warning name=window attrs=underline
+```
+
 ### hide-splash
 
 The command completely hides the screen with rendered widgets, restoring

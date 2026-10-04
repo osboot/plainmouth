@@ -124,6 +124,7 @@ static struct widget *tailbox_create(struct request *req)
 		free(st);
 		return NULL;
 	}
+	root->style_owner = req->r_style_owner;
 	root->data = st;
 	st->file_fd = st->timer.fd = -1;
 	st->file_fd = open(path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);

@@ -60,7 +60,6 @@ enum color_pair {
 	COLOR_PAIR_WINDOW,
 	COLOR_PAIR_BUTTON,
 	COLOR_PAIR_FOCUS,
-	COLOR_PAIR_TERMINAL, /* Start of the 64 basic terminal color pairs. */
 };
 
 int simple_round(float number);
@@ -173,6 +172,8 @@ struct widget {
 
 	/* Plugin block */
 	const char *instance_id;
+	struct widget_styles *styles; /* Owned overrides, normally on the dialog root. */
+	const struct widget *style_owner; /* Style inheritance for detached popups. */
 
 	/* Widget kind (label, button, container, etc.) */
 	enum widget_type type;
@@ -270,10 +271,17 @@ void widget_render_tree(struct widget *w);
 attr_t widget_style_attrs(enum color_pair color);
 void widget_style_set_attrs(enum color_pair color, attr_t attrs);
 void widget_style_apply(WINDOW *win, enum color_pair color);
+void widget_style_apply_widget(struct widget *w, enum color_pair color);
+bool widget_style_override(struct widget *w, enum color_pair color,
+		const int *fg, const int *bg, const attr_t *attrs, bool reset);
+bool widget_style_resolve(const struct widget *w, enum color_pair color,
+		attr_t *attrs, short *pair);
+short widget_color_pair_alloc(void);
+void widget_color_pair_free(short pair);
 void distribute_flex_axis(int count, const int *pref,
 		const int *min, const int *max, const int *grow,
 		const int *shrink, int available, int *out);
-void widget_scrollbar_draw(WINDOW *scrollwin, enum color_pair color,
+void widget_scrollbar_draw(struct widget *w, enum color_pair color,
 		int scroll_pos, int content_size, bool vertical);
 void widget_scrollbar_measure(struct widget *w, bool vertical);
 void widget_scrollbar_render(struct widget *w, bool vertical);

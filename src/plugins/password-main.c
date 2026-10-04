@@ -29,6 +29,7 @@ static struct widget *p_pass_create(struct request *req)
 	struct widget *root = make_window();
 	if (!root)
 		return NULL;
+	root->style_owner = req->r_style_owner;
 
 	struct widget *parent = root;
 

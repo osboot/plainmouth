@@ -62,7 +62,7 @@ void spinbox_render(struct widget *w)
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
 	werase(w->win);
-	widget_style_apply(w->win, color);
+	widget_style_apply_widget(w, color);
 
 	w_mvprintw(w->win, 0, 0, L"[%0*d]", st->width, st->value);
 

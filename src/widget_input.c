@@ -67,7 +67,7 @@ void input_render(struct widget *w)
 	struct widget_input *st = w->state;
 
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
-	widget_style_apply(w->win, color);
+	widget_style_apply_widget(w, color);
 
 	wmove(w->win, 0, 0);
 	wclrtoeol(w->win);

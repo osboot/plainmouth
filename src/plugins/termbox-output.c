@@ -15,6 +15,7 @@ struct termbox_screen {
 	VTermScreen *screen;
 	VTermPos cursor;
 	int rows, cols;
+	short pairs[64];
 	bool active, visible, reverse, failed;
 	termbox_reply_fn reply;
 	void *reply_data;
@@ -92,23 +93,23 @@ static short screen_color(VTermScreen *screen, const VTermColor *color, short fa
 	return best;
 }
 
-static short screen_pair(short fg, short bg)
+static short screen_pair(struct termbox_screen *st, short fg, short bg)
 {
-	static bool initialized[64];
-	int index = fg * 8 + bg;
-	int pair = COLOR_PAIR_TERMINAL + index;
-
-	if (fg < 0 || fg >= 8 || bg < 0 || bg >= 8 || pair >= COLOR_PAIRS)
+	if (fg < 0 || fg >= 8 || bg < 0 || bg >= 8)
 		return COLOR_PAIR_WINDOW;
 
-	if (!initialized[index]) {
-		if (init_pair((short) pair, fg, bg) == ERR)
+	int index = fg * 8 + bg;
+	if (!st->pairs[index]) {
+		short pair = widget_color_pair_alloc();
+		if (pair < 0)
 			return COLOR_PAIR_WINDOW;
-
-		initialized[index] = true;
+		if (init_pair(pair, fg, bg) == ERR) {
+			widget_color_pair_free(pair);
+			return COLOR_PAIR_WINDOW;
+		}
+		st->pairs[index] = pair;
 	}
-
-	return (short) pair;
+	return st->pairs[index];
 }
 
 static void screen_render(struct widget *w)
@@ -169,7 +170,7 @@ static void screen_render(struct widget *w)
 			if (has_colors()) {
 				short fg = screen_color(st->screen, &cell.fg, default_fg);
 				short bg = screen_color(st->screen, &cell.bg, default_bg);
-				pair = screen_pair(fg, bg);
+				pair = screen_pair(st, fg, bg);
 			}
 
 			cchar_t character;
@@ -189,6 +190,8 @@ static void screen_render(struct widget *w)
 static void screen_free(struct widget *w)
 {
 	struct termbox_screen *st = w->state;
+	for (size_t i = 0; i < sizeof(st->pairs) / sizeof(st->pairs[0]); i++)
+		widget_color_pair_free(st->pairs[i]);
 	if (st->terminal)
 		vterm_free(st->terminal);
 	free(st);

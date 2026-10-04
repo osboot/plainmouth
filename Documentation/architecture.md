@@ -343,4 +343,26 @@ the text setter continues to validate text rather than accept raw sequences.
 The daemon uses raw input while a terminal widget has focus, allowing Ctrl-C
 and flow-control characters to reach the child. Other widgets use cbreak.
 
+Global presentation roles can be overridden on a dialog's root widget.
+Descendants inherit those overrides through the widget tree; detached tooltip
+windows use their owning widget as a style source. Foreground, background and
+text attributes inherit independently from the global role until overridden.
+Resolution occurs during rendering, so inherited properties follow later
+global changes. Reset removes a role's overrides, and deleting the root frees
+all local style state.
+
+Named themes are unrendered style-source widgets owned by the server. Each
+creation request carries a borrowed reference to its selected theme; plugins
+attach that reference to the root before their initial rendering. The server
+rejects unknown names before calling the plugin. Resolution follows the style
+source chain and merges individual properties in this order: global role,
+named theme, local instance overrides. Theme updates redraw their users.
+Themes outlive their dialogs and are freed after all instances at shutdown.
+
+Local color overrides and termbox screen colors share a bounded color-pair
+allocator, excluding the four global role pairs. Colors used by a live widget
+are not reassigned to another owner. Pairs are released on reset or widget
+deletion. Local color requests fail if no pair is available; terminal screen
+colors fall back to the window pair when allocation fails.
+
 ---

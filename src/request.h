@@ -10,6 +10,7 @@
 struct request {
 	struct ipc_ctx     *r_ctx;
 	struct ipc_message *r_msg;
+	const struct widget *r_style_owner; /* Borrowed creation-time theme, set by the UI thread. */
 };
 
 static inline int req_fd(struct request *req)
