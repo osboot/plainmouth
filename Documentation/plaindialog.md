@@ -15,6 +15,7 @@ plaindialog --yesno "Continue?" 6 40
 plaindialog --stdout --inputbox "Name:" 7 40 "initial value"
 plaindialog --stdout --passwordbox "Password:" 7 40
 plaindialog --stdout --timebox "Time:" 7 40 12 30 0
+plaindialog --stdout --rangebox "Value:" 7 40 -100 100 25
 plaindialog --stdout --menu "Choose:" 10 40 4 tag1 "First" tag2 "Second"
 plaindialog --stdout --checklist "Choose:" 10 40 4 tag1 "First" on tag2 "Second" off
 plaindialog --stdout --radiolist "Choose:" 10 40 4 tag1 "First" on tag2 "Second" off
@@ -41,6 +42,13 @@ list and should normally be avoided.
 `--timebox TEXT HEIGHT WIDTH HOUR MINUTE SECOND` writes `HH:MM:SS`. A negative
 component selects the corresponding current local-time component. Hours of 24
 or greater and minutes or seconds of 60 or greater are rejected.
+
+`--rangebox TEXT HEIGHT WIDTH MIN MAX VALUE` selects a signed integer and
+writes it on OK, without a trailing newline. Bounds and initial value must
+fit a signed C `int`, with `MIN <= VALUE <= MAX`. Plainmouth presents a
+spinbox: Up/Down change its value, numeric input enters positive values,
+and Tab moves focus to the buttons. Its presentation differs from dialog's
+slider. Cancel emits no result and returns 1.
 
 Exit status is 0 for OK/Yes or Enter in an input/menu, 1 for Cancel/No, and
 255 for errors or interruption. Cancel/No produces no result text. Created

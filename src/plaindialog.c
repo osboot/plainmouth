@@ -97,6 +97,7 @@ int main(int argc, char **argv)
 			     "       --inputbox TEXT HEIGHT WIDTH [INIT]\n"
 			     "       --passwordbox TEXT HEIGHT WIDTH [INIT]\n"
 			     "       --timebox TEXT HEIGHT WIDTH HOUR MINUTE SECOND\n"
+			     "       --rangebox TEXT HEIGHT WIDTH MIN MAX VALUE\n"
 			     "       --menu TEXT HEIGHT WIDTH MENU_HEIGHT TAG ITEM ...\n"
 			     "       --checklist|--radiolist TEXT HEIGHT WIDTH LIST_HEIGHT\n"
 			     "           TAG ITEM STATUS ...");
@@ -112,6 +113,7 @@ int main(int argc, char **argv)
 	bool input = i < argc && !strcmp(argv[i], "--inputbox");
 	bool password = i < argc && !strcmp(argv[i], "--passwordbox");
 	bool timebox = i < argc && !strcmp(argv[i], "--timebox");
+	bool rangebox = i < argc && !strcmp(argv[i], "--rangebox");
 	bool yesno = i < argc && !strcmp(argv[i], "--yesno");
 	bool msgbox = i < argc && !strcmp(argv[i], "--msgbox");
 	bool tailbox = i < argc && !strcmp(argv[i], "--tailbox");
@@ -120,12 +122,16 @@ int main(int argc, char **argv)
 	bool choice_list = checklist || radiolist;
 	long height, width, visible = 0;
 	long hour = 0, minute = 0, second = 0;
+	long range_min = 0, range_max = 0, range_value = 0;
 	int remaining = argc - i;
-	if ((!menu && !choice_list && !input && !password && !timebox && !yesno && !msgbox && !tailbox && !textbox && !termbox) || remaining < 4 ||
+	if ((!menu && !choice_list && !input && !password && !timebox && !rangebox && !yesno && !msgbox && !tailbox && !textbox && !termbox) || remaining < 4 ||
 	    !positive_number(argv[i + 2], &height) ||
 	    !positive_number(argv[i + 3], &width) ||
 	    (input && remaining != 4 && remaining != 5) ||
 	    (password && remaining != 4 && remaining != 5) ||
+	    (rangebox && (remaining != 7 || !parse_number(argv[i + 4], &range_min) ||
+			 !parse_number(argv[i + 5], &range_max) || !parse_number(argv[i + 6], &range_value) ||
+			 range_min > range_max || range_value < range_min || range_value > range_max)) ||
 	    (timebox && (remaining != 7 || !parse_number(argv[i + 4], &hour) ||
 			 !parse_number(argv[i + 5], &minute) ||
 			 !parse_number(argv[i + 6], &second) || hour >= 24 || minute >= 60 || second >= 60)) ||
@@ -216,6 +222,9 @@ int main(int argc, char **argv)
 	} else if (timebox) {
 		plugin_name = "timebox";
 
+	} else if (rangebox) {
+		plugin_name = "rangebox";
+
 	} else if (input) {
 		plugin_name = "inputbox";
 	}
@@ -233,6 +242,10 @@ int main(int argc, char **argv)
 	if (input && remaining == 5 && !ipc_pair_add(&request, "value", argv[i + 4]))
 		goto out;
 	if (password && remaining == 5 && !ipc_pair_add(&request, "value", argv[i + 4]))
+		goto out;
+	if (rangebox && (!ipc_pair_sprintf(&request, "min", "%ld", range_min) ||
+			 !ipc_pair_sprintf(&request, "max", "%ld", range_max) ||
+			 !ipc_pair_sprintf(&request, "value", "%ld", range_value)))
 		goto out;
 	if (timebox && (!ipc_pair_sprintf(&request, "hour", "%ld", hour) ||
 			!ipc_pair_sprintf(&request, "minute", "%ld", minute) ||
@@ -277,15 +290,19 @@ int main(int argc, char **argv)
 		goto out;
 	const char *cancel = get_result(&result, "BUTTON_2");
 	status = cancel && !strcmp(cancel, "1") ? 1 : 0;
-	if (!status && (input || password || menu)) {
+	if (!status && (input || password || menu || rangebox)) {
 		const char *result_key = "SELECTED";
 		if (input)
 			result_key = "INPUT_1";
 		else if (password)
 			result_key = "PASSWORD_1";
+		else if (rangebox)
+			result_key = "VALUE";
 		const char *value = get_result(&result, result_key);
 		long selected;
-		if (!value || (menu && (!positive_number(value, &selected) ||
+		if (!value || (rangebox && (!parse_number(value, &range_value) ||
+					   range_value < range_min || range_value > range_max)) ||
+		    (menu && (!positive_number(value, &selected) ||
 					selected > (remaining - 5) / 2))) {
 			warnx("invalid plugin result");
 			status = 255;

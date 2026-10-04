@@ -5,6 +5,7 @@
 #include <sys/queue.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <limits.h>
 #include <wchar.h>
 #include <err.h>
 
@@ -20,11 +21,11 @@ struct widget_spinbox {
 	int value;
 
 	int width;
-	int edit_buf;
+	long long edit_buf;
 	int edit_len;
 };
 
-static int spinbox_clamp(int v, int min, int max);
+static int spinbox_clamp(long long v, int min, int max);
 static void spinbox_commit(struct widget_spinbox *s) __attribute__((nonnull(1)));
 static void spinbox_measure(struct widget *w) __attribute__((nonnull(1)));
 static void spinbox_render(struct widget *w) __attribute__((nonnull(1)));
@@ -34,11 +35,11 @@ static bool spinbox_setter(struct widget *w, enum widget_property prop, const vo
 static void spinbox_free(struct widget *w);
 
 
-int spinbox_clamp(int v, int min, int max)
+int spinbox_clamp(long long v, int min, int max)
 {
 	if (v < min) return min;
 	if (v > max) return max;
-	return v;
+	return (int) v;
 }
 
 void spinbox_commit(struct widget_spinbox *s)
@@ -82,11 +83,11 @@ int spinbox_input(const struct widget *w, wchar_t key)
 
 	switch (key) {
 		case KEY_UP:
-			st->value = spinbox_clamp(st->value + st->step, st->min, st->max);
+			st->value = spinbox_clamp((long long) st->value + st->step, st->min, st->max);
 			return 1;
 
 		case KEY_DOWN:
-			st->value = spinbox_clamp(st->value - st->step, st->min, st->max);
+			st->value = spinbox_clamp((long long) st->value - st->step, st->min, st->max);
 			return 1;
 
 		case KEY_BACKSPACE:
@@ -100,7 +101,7 @@ int spinbox_input(const struct widget *w, wchar_t key)
 	}
 
 	if (key >= L'0' && key <= L'9') {
-		st->edit_buf = (st->edit_buf * 10) + (key - L'0');
+		st->edit_buf = MIN((st->edit_buf * 10) + (key - L'0'), (long long) INT_MAX);
 		st->edit_len++;
 
 		if (st->edit_len >= st->width)

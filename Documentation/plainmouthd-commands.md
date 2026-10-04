@@ -231,6 +231,8 @@ plugin=termbox:  input=<text>
 plugin=termbox:  button=1 clicked=<true|false>
 plugin=timebox:  spinbox=<spinbox-id> value=<number>
 plugin=timebox:  button=<button-id> clicked=<true|false>
+plugin=rangebox: value=<number>
+plugin=rangebox: button=<button-id> clicked=<true|false>
 ```
 
 For termbox, `input` appends text to the child PTY's bounded write queue.
@@ -254,6 +256,15 @@ Enter in the input or a clicked button completes the instance.
 updates must be separate requests. An empty `value` clears the input.
 As with password, input values and completion flags are validated before
 changing state.
+
+### rangebox
+
+Creation requires `width`, `height`, `min`, `max`, and `value`. The initial
+value must lie within the inclusive signed integer bounds. Optional fields
+are `text`, `border`, `x`, `y`, `style`, and repeated `button` labels.
+Results contain `VALUE` and `BUTTON_N` states. A clicked button completes
+the instance. `set-value value=N` clamps to the configured range; button
+and value updates must be separate requests.
 
 ### menu
 
