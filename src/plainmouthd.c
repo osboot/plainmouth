@@ -45,6 +45,7 @@ enum ui_task_type {
 	UI_TASK_SET_TITLE,
 	UI_TASK_SET_STYLE,
 	UI_TASK_LIST_PLUGINS,
+	UI_TASK_COUNT,
 };
 
 struct ui_task {
@@ -971,6 +972,35 @@ static int ui_process_task_unknown(struct ui_task *t)
 	return -1;
 }
 
+struct ui_command {
+	const char *action;
+	int (*handler)(struct ui_task *task);
+	bool requires_id;
+};
+
+static const struct ui_command ui_commands[UI_TASK_COUNT] = {
+	[UI_TASK_NONE] = { NULL,           ui_process_task_unknown,      false },
+	[UI_TASK_DUMP] = { "dump",         ui_process_task_dump,         true  },
+	[UI_TASK_CREATE] = { "create",       ui_process_task_create,       true  },
+	[UI_TASK_UPDATE] = { "update",       ui_process_task_update,       true  },
+	[UI_TASK_SET_VALUE] = { "set-value",    ui_process_task_set_value,    true  },
+	[UI_TASK_DELETE] = { "delete",       ui_process_task_delete,       true  },
+	[UI_TASK_FOCUS] = { "focus",        ui_process_task_focus,        true  },
+	[UI_TASK_RESULT] = { "result",       ui_process_task_result,       true  },
+	[UI_TASK_SHOW_SPLASH] = { "show-splash",  ui_process_task_show_splash,  false },
+	[UI_TASK_HIDE_SPLASH] = { "hide-splash",  ui_process_task_hide_splash,  false },
+	[UI_TASK_SET_TITLE] = { "set-title",    ui_process_task_set_title,    false },
+	[UI_TASK_SET_STYLE] = { "set-style",    ui_process_task_set_style,    false },
+	[UI_TASK_LIST_PLUGINS] = { "list-plugins", ui_process_task_list_plugins, false },
+};
+
+static enum ui_task_type find_ui_command(const char *action)
+{
+	for (enum ui_task_type type = UI_TASK_NONE + 1; type < UI_TASK_COUNT; type++)
+		if (streq(ui_commands[type].action, action))
+			return type;
+	return UI_TASK_NONE;
+}
 
 static void ui_process_tasks(void)
 {
@@ -985,24 +1015,8 @@ static void ui_process_tasks(void)
 	pthread_mutex_unlock(&ui_mutex);
 
 	while (t) {
-		int rc;
 		struct ui_task *next = TAILQ_NEXT(t, entries);
-
-		switch (t->type) {
-			case UI_TASK_DUMP:		rc = ui_process_task_dump(t);		break;
-			case UI_TASK_CREATE:		rc = ui_process_task_create(t);		break;
-			case UI_TASK_UPDATE:		rc = ui_process_task_update(t);		break;
-			case UI_TASK_SET_VALUE:		rc = ui_process_task_set_value(t);	break;
-			case UI_TASK_DELETE:		rc = ui_process_task_delete(t);		break;
-			case UI_TASK_FOCUS:		rc = ui_process_task_focus(t);		break;
-			case UI_TASK_RESULT:		rc = ui_process_task_result(t);		break;
-			case UI_TASK_SHOW_SPLASH:	rc = ui_process_task_show_splash(t);	break;
-			case UI_TASK_HIDE_SPLASH:	rc = ui_process_task_hide_splash(t);	break;
-			case UI_TASK_SET_TITLE:		rc = ui_process_task_set_title(t);	break;
-			case UI_TASK_SET_STYLE:		rc = ui_process_task_set_style(t);	break;
-			case UI_TASK_LIST_PLUGINS:	rc = ui_process_task_list_plugins(t);	break;
-			case UI_TASK_NONE:		rc = ui_process_task_unknown(t);	break;
-		}
+		int rc = ui_commands[t->type].handler(t);
 
 		pthread_mutex_lock(&ui_mutex);
 		t->rc = rc;
@@ -1084,38 +1098,15 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 		return ui_enqueue_and_wait(t);
 	}
 
-	enum ui_task_type ttype = UI_TASK_NONE;
-
-	if (streq(action, "create"))		ttype = UI_TASK_CREATE;
-	else if (streq(action, "update"))	ttype = UI_TASK_UPDATE;
-	else if (streq(action, "set-value"))	ttype = UI_TASK_SET_VALUE;
-	else if (streq(action, "delete"))	ttype = UI_TASK_DELETE;
-	else if (streq(action, "focus"))	ttype = UI_TASK_FOCUS;
-	else if (streq(action, "result"))	ttype = UI_TASK_RESULT;
-	else if (streq(action, "show-splash"))	ttype = UI_TASK_SHOW_SPLASH;
-	else if (streq(action, "hide-splash"))	ttype = UI_TASK_HIDE_SPLASH;
-	else if (streq(action, "set-title"))	ttype = UI_TASK_SET_TITLE;
-	else if (streq(action, "set-style"))	ttype = UI_TASK_SET_STYLE;
-	else if (streq(action, "list-plugins"))	ttype = UI_TASK_LIST_PLUGINS;
-	else if (streq(action, "dump"))		ttype = UI_TASK_DUMP;
-	else {
+	enum ui_task_type ttype = find_ui_command(action);
+	if (ttype == UI_TASK_NONE) {
 		ipc_send_string(req_fd(&req), "RESPDATA %s ERR=unknown action", req_id(&req));
 		return -1;
 	}
 
-	switch (ttype) {
-		case UI_TASK_SHOW_SPLASH:
-		case UI_TASK_HIDE_SPLASH:
-		case UI_TASK_SET_TITLE:
-		case UI_TASK_SET_STYLE:
-		case UI_TASK_LIST_PLUGINS:
-			break;
-		default:
-			if (!req_get_val(&req, "id")) {
-				ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: id", req_id(&req));
-				return -1;
-			}
-			break;
+	if (ui_commands[ttype].requires_id && !req_get_val(&req, "id")) {
+		ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: id", req_id(&req));
+		return -1;
 	}
 
 	struct ui_task *t = ui_task_create(ttype, &req);

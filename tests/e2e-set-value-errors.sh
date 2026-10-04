@@ -6,17 +6,33 @@ testsdir="${progfile%/*}"
 
 . "$testsdir"/init-test
 
-expect_error()
+expect_command_error()
 {
 	local expected="$1" actual status=0
 	shift
-	actual=$("$topdir"/plainmouth action=set-value "$@") || status=$?
+	actual=$("$topdir"/plainmouth "$@") || status=$?
 	test "$status" -eq 1
 	test "$actual" = "ERR=$expected"
 }
 
+expect_error()
+{
+	local expected="$1"
+	shift
+	expect_command_error "$expected" action=set-value "$@"
+}
+
 testcase_dump()
 {
+	expect_command_error "field is missing: action" id=missing
+	expect_command_error "unknown action" action=unknown
+	expect_command_error "unknown action" action=unknown id=missing
+	for action in create update set-value delete focus result wait-result dump; do
+		expect_command_error "field is missing: id" "action=$action"
+	done
+	test "$("$topdir"/plainmouth action=ping)" = PONG=1
+	"$topdir"/plainmouth action=list-plugins >/dev/null
+
 	"$topdir"/plainmouth plugin=msgbox action=create id=msg width=30 height=5 button=OK
 	"$topdir"/plainmouth plugin=form action=create id=form width=40 height=7 \
 		hbox=start label=Name input=initial hbox=end button=OK
