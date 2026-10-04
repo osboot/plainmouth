@@ -30,6 +30,8 @@
 #include "daemon_instance.h"
 #include "daemon_task.h"
 #include "daemon_worker.h"
+#include "daemon_event.h"
+
 static SCREEN *scr = NULL;
 
 static _Atomic int do_quit = 0;
@@ -554,134 +556,6 @@ static void curses_finish(void)
 	delscreen(scr);
 }
 
-static size_t instance_pollfds(struct instance *ins, const struct pollfd **fds)
-{
-	*fds = NULL;
-	if (ins->finished || ins->events_disabled || !ins->plugin->p_pollfds ||
-	    !ins->plugin->p_handle_event)
-		return 0;
-	return ins->plugin->p_pollfds(ins->root, fds);
-}
-
-static bool collect_pollfds(const struct pollfd *base, size_t base_count,
-			    struct pollfd **out, struct instance ***owners, size_t *count)
-{
-	size_t total = base_count;
-	struct instance *ins;
-	const struct pollfd *fds;
-	for (ins = daemon_instance_first(); ins; ins = daemon_instance_next(ins))
-	{
-		size_t n = instance_pollfds(ins, &fds);
-		if ((n && !fds) || n > SIZE_MAX / sizeof(**owners) - total ||
-		    n > SIZE_MAX / sizeof(**out) - total)
-			return false;
-		total += n;
-	}
-	if ((size_t) (nfds_t) total != total)
-		return false;
-	*out = calloc(total, sizeof(**out));
-	*owners = calloc(total, sizeof(**owners));
-	if (!*out || !*owners) {
-		free(*out);
-		free(*owners);
-		return false;
-	}
-	memcpy(*out, base, base_count * sizeof(**out));
-	size_t pos = base_count;
-	for (ins = daemon_instance_first(); ins; ins = daemon_instance_next(ins))
-	{
-		size_t n = instance_pollfds(ins, &fds);
-		if ((n && !fds) || n > total - pos) {
-			free(*out);
-			free(*owners);
-			return false;
-		}
-		for (size_t i = 0; i < n; i++, pos++) {
-			(*out)[pos] = fds[i];
-			(*out)[pos].revents = 0;
-			(*owners)[pos] = ins;
-		}
-	}
-	*count = total;
-	return true;
-}
-
-static void plugin_event_result(struct instance *ins, enum p_event_result result)
-{
-	if (result == P_EVENT_ERROR) {
-		warnx("event handler failed for instance '%s'", ins->id);
-		ins->events_disabled = true;
-	}
-
-	if (result == P_EVENT_REDRAW)
-		ins->redraw_pending = true;
-
-	daemon_instance_check_finished(ins);
-}
-
-static void handle_plugin_events(struct pollfd *fds, struct instance **owners, size_t count)
-{
-	for (size_t i = 0; i < count; i++) {
-		struct instance *ins = owners[i];
-		if (!ins || !fds[i].revents || ins->finished || ins->events_disabled)
-			continue;
-		plugin_event_result(ins, ins->plugin->p_handle_event(ins->root, &fds[i]));
-	}
-}
-
-static void handle_child_events(int fd)
-{
-	struct signalfd_siginfo info;
-	bool pending = false;
-
-	for (;;) {
-		ssize_t n = read(fd, &info, sizeof(info));
-
-		if (n == sizeof(info)) {
-			pending = true;
-			continue;
-		}
-		if (n < 0 && errno == EINTR)
-			continue;
-		if (n < 0 && errno == EAGAIN)
-			break;
-
-		warnx("unable to read child signal notification");
-		break;
-	}
-
-	if (!pending)
-		return;
-
-	struct instance *ins;
-
-	for (ins = daemon_instance_first(); ins; ins = daemon_instance_next(ins)) {
-		if (!ins->finished && !ins->events_disabled && ins->plugin->p_handle_child_event)
-			plugin_event_result(ins, ins->plugin->p_handle_child_event(ins->root));
-	}
-}
-
-static void redraw_plugin_events(void)
-{
-	bool redraw = false;
-	struct instance *ins;
-	for (ins = daemon_instance_first(); ins; ins = daemon_instance_next(ins)) {
-		if (!ins->redraw_pending)
-			continue;
-
-		struct widget *root = ins->root;
-
-		widget_measure_tree(root);
-		widget_layout_tree(root, root->lx, root->ly, root->w, root->h);
-		widget_render_tree(root);
-
-		ins->redraw_pending = false;
-		redraw = true;
-	}
-	if (redraw)
-		ui_update();
-}
-
 int main(int argc, char **argv)
 {
 	int c, r, retcode;
@@ -794,21 +668,19 @@ int main(int argc, char **argv)
 	};
 
 	while (!do_quit) {
-		struct pollfd *pfd;
-		struct instance **owners;
-		size_t count;
-		if (!collect_pollfds(base_pfd, POLL_N_FDS, &pfd, &owners, &count)) {
+		struct daemon_events events;
+		if (!daemon_events_collect(base_pfd, POLL_N_FDS, &events)) {
 			warnx("unable to collect poll descriptors");
 			retcode = EXIT_FAILURE;
 			break;
 		}
 		errno = 0;
-		r = poll(pfd, (nfds_t) count, -1);
+		struct pollfd *pfd = events.fds;
+		r = poll(pfd, (nfds_t) events.count, -1);
 
 		if (r < 0) {
 			int saved_errno = errno;
-			free(pfd);
-			free(owners);
+			daemon_events_free(&events);
 			errno = saved_errno;
 			if (errno == EINTR)
 				continue;
@@ -820,16 +692,16 @@ int main(int argc, char **argv)
 		}
 
 		if (r == 0) {
-			free(pfd);
-			free(owners);
+			daemon_events_free(&events);
 			continue;
 		}
 
 		/* Dispatch the snapshot before input/tasks can delete its owners. */
-		handle_plugin_events(pfd, owners, count);
+		daemon_events_dispatch(&events);
 		if (pfd[POLL_CHILDFD].revents & POLLIN)
-			handle_child_events(child_eventfd);
-		redraw_plugin_events();
+			daemon_events_handle_children(child_eventfd);
+		if (daemon_events_redraw())
+			ui_update();
 
 		if (pfd[POLL_SRVFD].revents & POLLIN) {
 			struct ipc_ctx *client = ipc_accept(&ctx);
@@ -843,8 +715,7 @@ int main(int argc, char **argv)
 		if (pfd[POLL_EVENTFD].revents & POLLIN) {
 			handle_tasks();
 		}
-		free(pfd);
-		free(owners);
+		daemon_events_free(&events);
 
 		fflush(stderr);
 	}

@@ -304,6 +304,14 @@ sources fire together, callbacks must account for earlier callbacks in
 that batch; descriptor changes take effect on the next poll iteration.
 The instance's delete hook closes its descriptors and frees source state.
 
+The internal `daemon_event` module collects and frees poll snapshots,
+dispatches descriptor and child callbacks, and renders roots with pending
+redraws. A snapshot owns both its descriptor array and the parallel owner
+array; the instance pointers are borrowed. All operations run in the UI
+thread. The main loop dispatches plugin events before input and IPC tasks
+can delete their owners, and retains ownership of the SIGCHLD signalfd and
+the final screen update. Collection failure leaves an empty snapshot.
+
 The tailbox plugin uses a periodic `CLOCK_MONOTONIC` timerfd as its source.
 Regular files are not polled directly because EOF still counts as read
 readiness. On each timer expiration, tailbox checks the open file and
