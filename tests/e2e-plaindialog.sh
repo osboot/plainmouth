@@ -36,7 +36,18 @@ run_case()
 		else
 			[ "$setter" != default-stderr ] || setter=finished=true
 			if [[ "$setter" = option=* ]]; then
-				"$topdir"/plainmouth action=set-value id="$id" "$setter" finished=true
+				local choice=false arg
+				for arg in "$@"; do
+					if [ "$arg" = --checklist ] || [ "$arg" = --radiolist ]; then
+						choice=true
+					fi
+				done
+				if [ "$choice" = true ]; then
+					"$topdir"/plainmouth action=set-value id="$id" "$setter"
+					"$topdir"/plainmouth action=set-value id="$id" button=1
+				else
+					"$topdir"/plainmouth action=set-value id="$id" "$setter" finished=true
+				fi
 			else
 				"$topdir"/plainmouth action=set-value id="$id" "$setter"
 			fi
@@ -58,19 +69,41 @@ testcase()
 	run_case 0 '' button=1 --msgbox 'Message' 6 32
 	run_case 1 '' button=2 --yesno 'Continue?' 6 32
 	run_case 0 initial button=1 --stdout --inputbox 'Name:' 7 32 initial
+	run_case 0 secret button=1 --stdout --passwordbox 'Password:' 7 32 secret
+	run_case 0 '07:08:09' button=1 --stdout --timebox 'Time:' 7 32 7 8 9
 	run_case 0 'second tag' option=2 --stdout --menu 'Choose:' 9 40 3 \
 		first 'First item' 'second tag' 'Second item'
+	run_case 0 'second tag' option=2 --stdout --radiolist 'Choose one:' 10 44 3 \
+		first 'First item' on 'second tag' 'Second item' off third 'Third item' off
+	run_case 0 '"first tag" "third\"tag"' option=3 --stdout --checklist 'Choose several:' 10 48 3 \
+		'first tag' 'First item' on second 'Second item' off 'third"tag' 'Third item' off
 	if [ "$MODE" = dump ]; then
 		run_case 0 initial default-stderr --inputbox 'Name:' 7 32 initial
 		run_case 0 '' finished=true --stdout --inputbox 'Name:' 7 32
 		run_case 1 '' button=2 --stdout --inputbox 'Name:' 7 32 secret
+		run_case 1 '' button=2 --stdout --passwordbox 'Password:' 7 32 secret
+		run_case 1 '' button=2 --stdout --timebox 'Time:' 7 32 12 34 56
 		run_case 1 '' button=2 --stdout --menu 'Choose:' 9 40 3 first Item
+		run_case 1 '' button=2 --stdout --radiolist 'Choose:' 9 40 3 first Item on
+		run_case 0 '' button=1 --stdout --checklist 'Choose:' 9 40 3 first Item off
 		run_case 255 '' signal --stdout --inputbox 'Interrupted:' 7 32
 		local status=0
 		"$topdir"/plaindialog --msgbox Text 0 20 >/dev/null 2>&1 || status=$?
 		test "$status" -eq 255
 		status=0
 		"$topdir"/plaindialog --menu Text 8 30 2 tag >/dev/null 2>&1 || status=$?
+		test "$status" -eq 255
+		status=0
+		"$topdir"/plaindialog --checklist Text 8 30 2 tag Item maybe >/dev/null 2>&1 || status=$?
+		test "$status" -eq 255
+		status=0
+		"$topdir"/plaindialog --radiolist Text 8 30 2 tag Item >/dev/null 2>&1 || status=$?
+		test "$status" -eq 255
+		status=0
+		"$topdir"/plaindialog --timebox Time 7 32 24 0 0 >/dev/null 2>&1 || status=$?
+		test "$status" -eq 255
+		status=0
+		"$topdir"/plaindialog --timebox Time 7 32 0 minute 0 >/dev/null 2>&1 || status=$?
 		test "$status" -eq 255
 		status=0
 		"$topdir"/plaindialog --socket-file "$PLAINMOUTH_SOCKET.missing" \

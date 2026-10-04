@@ -29,7 +29,7 @@ testcase_dump()
 	expect_error "field is missing: input or button" id=form
 	expect_error "field is missing: spinbox or button" id=time
 	expect_error "field is missing: option or button" id=list
-	expect_error "field is missing: value or finished" id=pass
+	expect_error "field is missing: value, finished or button" id=pass
 	expect_error "field is missing: value" id=meter
 	expect_error "field is missing: value" id=form input=1
 	expect_error "field is missing: value" id=time spinbox=1
@@ -52,6 +52,8 @@ testcase_dump()
 	expect_error "ambiguous target: button and input" id=form button=1 input=1 value=text
 	expect_error "ambiguous target: button and spinbox" id=time button=1 spinbox=1 value=10
 	expect_error "ambiguous target: button and option" id=list button=1 option=1
+	expect_error "widget not found: button=99" id=pass button=99
+	expect_error "ambiguous target: button and input" id=pass button=1 value=secret
 
 	"$topdir"/plainmouth action=set-value id=form input=1 value=
 	test "$("$topdir"/plainmouth action=result id=form)" = "$(printf 'INPUT_1=\nBUTTON_1=0')"

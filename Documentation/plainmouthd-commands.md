@@ -141,9 +141,11 @@ Integers must fit in a signed C `int` and contain no trailing characters.
 Booleans accept `1/0`, `true/false`, and `yes/no` (case-insensitive).
 `clicked` and `selected` default to true when omitted. Form input, timebox
 spinbox, and meter updates require `value`; an empty text value is valid.
-Password updates require `value` or `finished`, and validate both before
-changing the widget. Meter and spinbox values retain the widget's range
-clamping behavior.
+Password updates require `value`, `finished`, or a button target, and validate
+the request before changing the widget. Password creation accepts `value` for
+initial contents and repeated `button` fields. Timebox creation accepts
+optional `hour`, `minute`, and `second` values in their normal clock ranges.
+Meter and spinbox values retain the widget's range clamping behavior.
 
 ### delete
 
@@ -224,6 +226,7 @@ plugin=menu:     option=<option-id> [finished=<true|false>]
 plugin=menu:     button=<button-id> clicked=<true|false>
 plugin=msgbox:   button=<button-id> clicked=<true|false>
 plugin=password: value=<text> [finished=<true|false>]
+plugin=password: button=<button-id> clicked=<true|false>
 plugin=termbox:  input=<text>
 plugin=termbox:  button=1 clicked=<true|false>
 plugin=timebox:  spinbox=<spinbox-id> value=<number>

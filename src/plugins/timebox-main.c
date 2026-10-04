@@ -26,10 +26,19 @@ static struct widget *p_timebox_create(struct request *req)
 	int begin_y = req_get_int(req, "y", -1);
 	int height  = req_get_int(req, "height", -1);
 	int width   = req_get_int(req, "width",  -1);
+	int h = 0, m = 0, s = 0;
 
 	if (height < 0 || width < 0) {
 		ipc_send_string(req_fd(req), "RESPDATA %s ERR='width' and 'height' parameters must be specified",
 				req_id(req));
+		return NULL;
+	}
+	if ((req_get_val(req, "hour") && !req_read_int(req, "hour", &h)) ||
+	    (req_get_val(req, "minute") && !req_read_int(req, "minute", &m)) ||
+	    (req_get_val(req, "second") && !req_read_int(req, "second", &s)))
+		return NULL;
+	if (h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59) {
+		req_error(req, "invalid timebox value");
 		return NULL;
 	}
 
@@ -51,10 +60,6 @@ static struct widget *p_timebox_create(struct request *req)
 		widget_add(parent, txt);
 		txt->flex_h = 1;
 	}
-
-	int h, m, s;
-
-	h = m = s = 0;
 
 	struct widget *hbox1 = make_hbox();
 	struct widget *hour  = make_spinbox(0, 23, 1, h, 2);

@@ -13,16 +13,34 @@ Supported invocations:
 plaindialog --msgbox "Message" 6 40
 plaindialog --yesno "Continue?" 6 40
 plaindialog --stdout --inputbox "Name:" 7 40 "initial value"
+plaindialog --stdout --passwordbox "Password:" 7 40
+plaindialog --stdout --timebox "Time:" 7 40 12 30 0
 plaindialog --stdout --menu "Choose:" 10 40 4 tag1 "First" tag2 "Second"
+plaindialog --stdout --checklist "Choose:" 10 40 4 tag1 "First" on tag2 "Second" off
+plaindialog --stdout --radiolist "Choose:" 10 40 4 tag1 "First" on tag2 "Second" off
 plaindialog --tailbox /var/log/messages 10 60
 plaindialog --textbox /etc/hosts 10 60
 plaindialog --termbox 'printf "hello\n"; sleep 2' 10 60
 ```
 
-Text and menu results go to stderr by default, without a trailing newline.
+Input, password, time, menu, checklist and radiolist results go to stderr by
+default, without a trailing newline.
 `--stdout` and `--stderr` select the output stream. Menu results contain the
 original tag, not the displayed item or numeric option ID. Tags are held by
 the client and mapped using the option's creation index.
+
+`--checklist` and `--radiolist` use `TAG ITEM STATUS` triples, where status is
+`on` or `off`. Radiolist writes the selected tag. Checklist writes every
+selected tag in creation order, quoted and separated by spaces; backslashes
+and double quotes inside tags are escaped. An empty checklist writes nothing.
+
+`--passwordbox TEXT HEIGHT WIDTH [INIT]` behaves like inputbox but masks its
+contents. As with dialog, an initial password is visible in the process argument
+list and should normally be avoided.
+
+`--timebox TEXT HEIGHT WIDTH HOUR MINUTE SECOND` writes `HH:MM:SS`. A negative
+component selects the corresponding current local-time component. Hours of 24
+or greater and minutes or seconds of 60 or greater are rejected.
 
 Exit status is 0 for OK/Yes or Enter in an input/menu, 1 for Cancel/No, and
 255 for errors or interruption. Cancel/No produces no result text. Created

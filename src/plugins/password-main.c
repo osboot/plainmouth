@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "config.h"
 
+#include <stdlib.h>
 #include <unistd.h>
 #include <err.h>
 
@@ -34,18 +35,24 @@ static struct widget *p_pass_create(struct request *req)
 	struct widget *parent = root;
 
 	if (req_get_bool(req, "border", false)) {
-		struct widget *border = make_border_vbox(parent);
-		parent = border;
+		parent = make_border_vbox(parent);
+		if (!parent)
+			goto fail;
 	}
 
 	wchar_t *top_text __free(ptr) = req_get_wchars(req, "text");
 
 	if (top_text) {
 		struct widget *txt = make_textview(top_text);
+		if (!txt)
+			goto fail;
 		widget_add(parent, txt);
 	}
 
 	struct widget *hbox = make_hbox();
+	if (!hbox)
+		goto fail;
+	hbox->flex_h = 0;
 	widget_add(parent, hbox);
 
 	wchar_t *left_text __free(ptr) = req_get_wchars(req, "label");
@@ -54,20 +61,23 @@ static struct widget *p_pass_create(struct request *req)
 		struct widget *label = make_label(left_text);
 		if (!label) {
 			warnx("unable to create label");
-			widget_free(root);
-			return NULL;
+			goto fail;
 		}
 
 		widget_add(hbox, label);
 	}
 
 	wchar_t *placeholder __free(ptr) = req_get_wchars(req, "placeholder");
+	wchar_t *value __free(ptr) = req_get_wchars(req, "value");
 
-	struct widget *input = make_input_password(NULL, placeholder);
+	if ((req_get_val(req, "placeholder") && !placeholder) ||
+	    (req_get_val(req, "value") && !value))
+		goto fail;
+
+	struct widget *input = make_input_password(value, placeholder);
 	if (!input) {
 		warnx("unable to create input");
-		widget_free(root);
-		return NULL;
+		goto fail;
 	}
 	input->w_id = INPUT_ID;
 
@@ -79,10 +89,32 @@ static struct widget *p_pass_create(struct request *req)
 		struct widget *tooltip = make_tooltip(tooltip_text);
 		if (!tooltip) {
 			warnx("unable to create tooltip");
-			widget_free(root);
-			return NULL;
+			goto fail;
 		}
 		widget_add(hbox, tooltip);
+	}
+
+	struct ipc_pair *p = req_data(req);
+	struct widget *buttons = NULL;
+	int button_id = 1;
+	for (size_t i = 0; i < p->num_kv; i++) {
+		if (!streq(p->kv[i].key, "button"))
+			continue;
+		if (!buttons) {
+			buttons = make_hbox();
+			if (!buttons)
+				goto fail;
+			buttons->flex_h = 0;
+			widget_add(parent, buttons);
+		}
+		wchar_t *label __free(ptr) = req_get_kv_wchars(p->kv + i);
+		if (!label)
+			goto fail;
+		struct widget *button = make_button(label);
+		if (!button)
+			goto fail;
+		button->w_id = button_id++;
+		widget_add(buttons, button);
 	}
 
 	widget_measure_tree(root);
@@ -93,6 +125,10 @@ static struct widget *p_pass_create(struct request *req)
 	widget_render_tree(root);
 
 	return root;
+
+fail:
+	widget_free(root);
+	return NULL;
 }
 
 static bool collect_results(struct widget *w, void *data)
@@ -106,6 +142,12 @@ static bool collect_results(struct widget *w, void *data)
 		ipc_send_string(req_fd(req), "RESPDATA %s PASSWORD_%d=%ls",
 				req_id(req), w->w_id, text);
 	}
+	if (w->w_id > 0 && w->type == WIDGET_BUTTON) {
+		bool clicked = false;
+		widget_get(w, PROP_BUTTON_STATE, &clicked);
+		ipc_send_string(req_fd(req), "RESPDATA %s BUTTON_%d=%d",
+				req_id(req), w->w_id, clicked);
+	}
 
 	return true;
 }
@@ -118,11 +160,34 @@ static enum p_retcode p_pass_result(struct request *req, struct widget *root)
 
 static enum p_retcode p_pass_set_value(struct request *req, struct widget *root)
 {
+	const char *button = req_get_val(req, "button");
+	if (button) {
+		if (req_get_val(req, "value") || req_get_val(req, "finished")) {
+			req_error(req, "ambiguous target: button and input");
+			return P_RET_ERR;
+		}
+		int id;
+		bool clicked;
+		if (!req_read_int(req, "button", &id) ||
+		    !req_read_bool(req, "clicked", true, &clicked))
+			return P_RET_ERR;
+		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, id);
+		if (!w) {
+			req_error(req, "widget not found: button=%d", id);
+			return P_RET_ERR;
+		}
+		if (!widget_set(w, PROP_BUTTON_STATE, &clicked)) {
+			req_error(req, "unable to set value: clicked");
+			return P_RET_ERR;
+		}
+		return P_RET_OK;
+	}
+
 	bool has_value = req_get_val(req, "value") != NULL;
 	bool has_finished = req_get_val(req, "finished") != NULL;
 	bool finished;
 	if (!has_value && !has_finished) {
-		req_error(req, "field is missing: value or finished");
+		req_error(req, "field is missing: value, finished or button");
 		return P_RET_ERR;
 	}
 	if (!req_read_bool(req, "finished", false, &finished))
@@ -150,13 +215,17 @@ static enum p_retcode p_pass_set_value(struct request *req, struct widget *root)
 
 static bool p_pass_finished(struct widget *root)
 {
-	bool is_finished = false;
 	struct widget *input = find_widget_by_id(root, INPUT_ID);
-
+	bool finished = false;
 	if (input)
-		widget_get(input, PROP_INPUT_STATE, &is_finished);
-
-	return is_finished;
+		widget_get(input, PROP_INPUT_STATE, &finished);
+	for (int id = 1; !finished; id++) {
+		struct widget *button = find_widget_by_type_and_id(root, WIDGET_BUTTON, id);
+		if (!button)
+			break;
+		widget_get(button, PROP_BUTTON_STATE, &finished);
+	}
+	return finished;
 }
 
 PLUGIN_EXPORT
