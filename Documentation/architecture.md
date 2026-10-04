@@ -376,6 +376,16 @@ use the same mutex. Plugins and widget operations run in the UI thread;
 shutdown frees instances after joining workers and before unloading plugins
 or freeing theme sources.
 
+The internal `daemon_task` module owns the UI task queue and its eventfd.
+Workers create tasks with borrowed request pointers, submit them, and wait
+for each task's own completion flag under the queue mutex. The submitting
+worker frees its task after reading the handler's return value; its IPC
+message and connection remain alive throughout the wait. The UI thread
+dispatches a detached snapshot without holding the mutex during handlers.
+It saves the next task pointer before publishing completion, since the
+worker may immediately free the completed task. New submissions are handled
+in a later dispatch. The queue is freed only after all workers are joined.
+
 Local color overrides and termbox screen colors share a bounded color-pair
 allocator, excluding the four global role pairs. Colors used by a live widget
 are not reassigned to another owner. Pairs are released on reset or widget

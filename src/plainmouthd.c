@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "config.h"
 
-#include <sys/eventfd.h>
 #include <sys/signalfd.h>
 #include <sys/queue.h>
 
@@ -29,36 +28,7 @@
 #include "widget.h"
 #include "daemon_style.h"
 #include "daemon_instance.h"
-
-/*
- * UI task types — what operations need to be performed in the main thread
- */
-enum ui_task_type {
-	UI_TASK_NONE = 0,
-	UI_TASK_DUMP,
-	UI_TASK_CREATE,
-	UI_TASK_UPDATE,
-	UI_TASK_SET_VALUE,
-	UI_TASK_DELETE,
-	UI_TASK_FOCUS,
-	UI_TASK_RESULT,
-	UI_TASK_SHOW_SPLASH,
-	UI_TASK_HIDE_SPLASH,
-	UI_TASK_SET_TITLE,
-	UI_TASK_SET_STYLE,
-	UI_TASK_LIST_PLUGINS,
-	UI_TASK_COUNT,
-};
-
-struct ui_task {
-	TAILQ_ENTRY(ui_task) entries;
-
-	enum ui_task_type type;
-	uint64_t id;
-	struct request req;
-	int rc;
-};
-TAILQ_HEAD(uitasks, ui_task);
+#include "daemon_task.h"
 
 struct worker {
 	LIST_ENTRY(worker) entries;
@@ -67,16 +37,7 @@ struct worker {
 LIST_HEAD(workers, worker);
 
 static struct workers workers;
-static struct uitasks uitasks;
-
-static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t  ui_cond  = PTHREAD_COND_INITIALIZER;
-
-static _Atomic uint64_t done_task_id = 0;
-static _Atomic uint64_t next_task_id = 1;
-
 static SCREEN *scr = NULL;
-static int ui_eventfd = -1;
 
 static _Atomic int do_quit = 0;
 
@@ -126,58 +87,6 @@ print_version(const char *progname)
 	       "\n",
 	       progname);
 	exit(EXIT_SUCCESS);
-}
-
-static inline void ui_wakeup(void)
-{
-	uint64_t one = 1;
-	if (write(ui_eventfd, &one, sizeof(one)) < 0 && errno != EAGAIN)
-		warn("write(eventfd)");
-}
-
-static struct ui_task *ui_task_create(enum ui_task_type type, struct request *req)
-{
-	if (pthread_equal(pthread_self(), ui_thread))
-		errx(EXIT_FAILURE, "ui_task_create called from UI thread");
-
-	struct ui_task *t = calloc(1, sizeof(*t));
-	if (!t) {
-		warn("calloc(ui_task)");
-		return NULL;
-	}
-
-	t->type = type;
-	t->req = *req;
-	t->rc = 0;
-	t->id = next_task_id++;
-
-	return t;
-}
-
-/*
- * Queue the task and wait for it to be completed.
- * Returns the field t->rc (0 = ok, < 0 = error).
- */
-static int ui_enqueue_and_wait(struct ui_task *t)
-{
-	if (pthread_equal(pthread_self(), ui_thread))
-		errx(EXIT_FAILURE, "ui_enqueue_and_wait called from UI thread");
-
-	pthread_mutex_lock(&ui_mutex);
-	TAILQ_INSERT_TAIL(&uitasks, t, entries);
-	ui_wakeup();
-	pthread_mutex_unlock(&ui_mutex);
-
-	pthread_mutex_lock(&ui_mutex);
-	while (done_task_id < t->id) {
-		pthread_cond_wait(&ui_cond, &ui_mutex);
-	}
-	pthread_mutex_unlock(&ui_mutex);
-
-	int rc = t->rc;
-	free(t);
-
-	return rc;
 }
 
 static void ui_update_cursor(void)
@@ -486,33 +395,9 @@ static enum ui_task_type find_ui_command(const char *action)
 	return UI_TASK_NONE;
 }
 
-static void ui_process_tasks(void)
+static int ui_dispatch_task(struct ui_task *t)
 {
-	struct ui_task *t;
-
-	if (!pthread_equal(pthread_self(), ui_thread))
-		errx(EXIT_FAILURE, "ui_process_tasks called not from UI thread");
-
-	pthread_mutex_lock(&ui_mutex);
-	t = TAILQ_FIRST(&uitasks);
-	TAILQ_INIT(&uitasks);
-	pthread_mutex_unlock(&ui_mutex);
-
-	while (t) {
-		struct ui_task *next = TAILQ_NEXT(t, entries);
-		int rc = ui_commands[t->type].handler(t);
-
-		pthread_mutex_lock(&ui_mutex);
-		t->rc = rc;
-		done_task_id = t->id;
-		pthread_cond_broadcast(&ui_cond);
-		pthread_mutex_unlock(&ui_mutex);
-
-		t = next;
-	}
-
-	if (debug_file)
-		fflush(stderr);
+	return ui_commands[t->type].handler(t);
 }
 
 static int event_loop_iter(void *data __attribute__((unused)))
@@ -535,7 +420,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 
 	if (streq(action, "quit")) {
 		do_quit = 1;
-		ui_wakeup();
+		daemon_task_wakeup();
 		return 0;
 
 	} else if (streq(action, "ping")) {
@@ -560,12 +445,12 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 		if (!daemon_instance_wait(&req))
 			return -1;
 
-		struct ui_task *t = ui_task_create(UI_TASK_RESULT, &req);
+		struct ui_task *t = daemon_task_create(UI_TASK_RESULT, &req);
 		if (!t) {
 			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=no memory", req_id(&req));
 			return -1;
 		}
-		return ui_enqueue_and_wait(t);
+		return daemon_task_submit_and_wait(t);
 	}
 
 	enum ui_task_type ttype = find_ui_command(action);
@@ -579,13 +464,13 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 		return -1;
 	}
 
-	struct ui_task *t = ui_task_create(ttype, &req);
+	struct ui_task *t = daemon_task_create(ttype, &req);
 	if (!t) {
 		ipc_send_string(req_fd(&req), "RESPDATA %s ERR=no memory", req_id(&req));
 		return -1;
 	}
 
-	return ui_enqueue_and_wait(t);
+	return daemon_task_submit_and_wait(t);
 }
 
 static void handle_input(void)
@@ -632,10 +517,9 @@ static void handle_input(void)
 
 static void handle_tasks(void)
 {
-	uint64_t val;
-	while (read(ui_eventfd, &val, sizeof(val)) > 0);
-
-	ui_process_tasks();
+	daemon_task_dispatch(ui_dispatch_task);
+	if (debug_file)
+		fflush(stderr);
 }
 
 static void curses_init(FILE *inf, FILE *outf)
@@ -872,7 +756,6 @@ int main(int argc, char **argv)
 		err(EXIT_FAILURE, "signalfd");
 
 	LIST_INIT(&workers);
-	TAILQ_INIT(&uitasks);
 
 	retcode = EXIT_SUCCESS;
 
@@ -889,10 +772,7 @@ int main(int argc, char **argv)
 	if (r != 0)
 		error(EXIT_FAILURE, r, "pthread_attr_init");
 
-	ui_eventfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK | EFD_SEMAPHORE);
-	if (ui_eventfd == -1)
-		err(EXIT_FAILURE, "eventfd");
-
+	daemon_task_init();
 	ui_thread = pthread_self();
 
 	struct ipc_ctx ctx;
@@ -924,7 +804,7 @@ int main(int argc, char **argv)
 			.events = POLLIN,
 		},
 		[POLL_EVENTFD] = {
-			.fd = ui_eventfd,
+			.fd = daemon_task_fd(),
 			.events = POLLIN,
 		},
 		[POLL_CHILDFD] = {
@@ -1019,15 +899,12 @@ int main(int argc, char **argv)
 	ipc_close(&ctx);
 	ipc_free(&ctx);
 
-	close(ui_eventfd);
+	daemon_task_free();
 	close(child_eventfd);
 
 	r = pthread_sigmask(SIG_SETMASK, &original_signals, NULL);
 	if (r)
 		error(0, r, "pthread_sigmask");
-
-	pthread_mutex_destroy(&ui_mutex);
-	pthread_cond_destroy(&ui_cond);
 
 	curses_finish();
 
