@@ -29,6 +29,8 @@ struct ui_task {
 /* Initialize/free on the UI thread; free only after joining all workers. */
 void daemon_task_init(void);
 void daemon_task_free(void);
+/* UI-thread only; reject new submissions and release queued waiters. */
+void daemon_task_stop(void);
 int daemon_task_fd(void);
 void daemon_task_wakeup(void);
 

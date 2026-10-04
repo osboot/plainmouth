@@ -81,6 +81,14 @@ static void wait_for_submission(void)
 	assert(fd.revents == POLLIN);
 }
 
+static void *stopped_worker(void *data)
+{
+	struct ui_task *task = daemon_task_create(UI_TASK_RESULT, data);
+	assert(task);
+	assert(daemon_task_submit_and_wait(task) == -1);
+	return NULL;
+}
+
 int main(void)
 {
 	struct request req = { 0 };
@@ -104,6 +112,15 @@ int main(void)
 	assert(pthread_join(first, NULL) == 0);
 	assert(pthread_join(second, NULL) == 0);
 	assert(handled == 2);
+	daemon_task_dispatch(handle_task);
+	assert(handled == 2);
+	assert(pthread_create(&first, NULL, stopped_worker, &req) == 0);
+	wait_for_submission();
+	daemon_task_stop();
+	assert(pthread_join(first, NULL) == 0);
+	/* Submission after stop must return without waiting for a UI dispatch. */
+	assert(pthread_create(&second, NULL, stopped_worker, &req) == 0);
+	assert(pthread_join(second, NULL) == 0);
 	daemon_task_dispatch(handle_task);
 	assert(handled == 2);
 	daemon_task_free();

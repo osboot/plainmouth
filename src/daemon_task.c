@@ -27,6 +27,7 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 static pthread_t ui_thread;
 static int event_fd = -1;
+static bool stopping;
 
 void daemon_task_init(void)
 {
@@ -92,6 +93,11 @@ int daemon_task_submit_and_wait(struct ui_task *task)
 	int rc;
 
 	pthread_mutex_lock(&mutex);
+	if (stopping) {
+		pthread_mutex_unlock(&mutex);
+		free(state);
+		return -1;
+	}
 	TAILQ_INSERT_TAIL(&tasks, state, entries);
 	if (!wakeup()) {
 		TAILQ_REMOVE(&tasks, state, entries);
@@ -105,6 +111,22 @@ int daemon_task_submit_and_wait(struct ui_task *task)
 	pthread_mutex_unlock(&mutex);
 	free(state);
 	return rc;
+}
+
+void daemon_task_stop(void)
+{
+	pthread_mutex_lock(&mutex);
+	stopping = true;
+
+	struct task_state *state;
+	while ((state = TAILQ_FIRST(&tasks))) {
+		TAILQ_REMOVE(&tasks, state, entries);
+		state->rc = -1;
+		state->done = true;
+	}
+
+	pthread_cond_broadcast(&cond);
+	pthread_mutex_unlock(&mutex);
 }
 
 void daemon_task_dispatch(int (*handler)(struct ui_task *task))

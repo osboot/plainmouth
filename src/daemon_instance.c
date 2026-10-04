@@ -23,6 +23,7 @@ static struct widgethead focusable = TAILQ_HEAD_INITIALIZER(focusable);
 static struct widget *focused;
 static pthread_mutex_t instances_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t instance_cond = PTHREAD_COND_INITIALIZER;
+static bool stopping;
 
 struct instance *daemon_instance_find(const char *id)
 {
@@ -306,6 +307,11 @@ bool daemon_instance_wait(struct request *req)
 	const char *id = req_get_val(req, "id");
 	pthread_mutex_lock(&instances_mutex);
 	for (;;) {
+		if (stopping) {
+			pthread_mutex_unlock(&instances_mutex);
+			req_error(req, "server stopping");
+			return false;
+		}
 		struct instance *instance = daemon_instance_find(id);
 		if (!instance) {
 			pthread_mutex_unlock(&instances_mutex);
@@ -318,4 +324,12 @@ bool daemon_instance_wait(struct request *req)
 	}
 	pthread_mutex_unlock(&instances_mutex);
 	return true;
+}
+
+void daemon_instances_stop(void)
+{
+	pthread_mutex_lock(&instances_mutex);
+	stopping = true;
+	pthread_cond_broadcast(&instance_cond);
+	pthread_mutex_unlock(&instances_mutex);
 }

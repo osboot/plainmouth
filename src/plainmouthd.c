@@ -29,17 +29,11 @@
 #include "daemon_style.h"
 #include "daemon_instance.h"
 #include "daemon_task.h"
-
-struct worker {
-	LIST_ENTRY(worker) entries;
-	pthread_t thread_id;
-};
-LIST_HEAD(workers, worker);
-
-static struct workers workers;
+#include "daemon_worker.h"
 static SCREEN *scr = NULL;
 
 static _Atomic int do_quit = 0;
+static _Thread_local bool quit_requested;
 
 static bool use_terminal = true;
 static char *debug_file = NULL;
@@ -402,6 +396,11 @@ static int ui_dispatch_task(struct ui_task *t)
 
 static int event_loop_iter(void *data __attribute__((unused)))
 {
+	/* The IPC loop has sent the quit response before reaching this callback. */
+	if (quit_requested) {
+		do_quit = 1;
+		daemon_task_wakeup();
+	}
 	return do_quit == 0;
 }
 
@@ -419,8 +418,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 	}
 
 	if (streq(action, "quit")) {
-		do_quit = 1;
-		daemon_task_wakeup();
+		quit_requested = true;
 		return 0;
 
 	} else if (streq(action, "ping")) {
@@ -518,6 +516,7 @@ static void handle_input(void)
 static void handle_tasks(void)
 {
 	daemon_task_dispatch(ui_dispatch_task);
+	daemon_workers_reap();
 	if (debug_file)
 		fflush(stderr);
 }
@@ -553,17 +552,6 @@ static void curses_finish(void)
 	reset_color_pairs();
 	endwin();
 	delscreen(scr);
-}
-
-static void *thread_connection(void *arg)
-{
-	struct ipc_ctx *ctx = arg;
-
-	ipc_event_loop(ctx);
-	ipc_close(ctx);
-	free(ctx);
-
-	return NULL;
 }
 
 static size_t instance_pollfds(struct instance *ins, const struct pollfd **fds)
@@ -755,8 +743,6 @@ int main(int argc, char **argv)
 	if (child_eventfd < 0)
 		err(EXIT_FAILURE, "signalfd");
 
-	LIST_INIT(&workers);
-
 	retcode = EXIT_SUCCESS;
 
 	pluginsdir = getenv("PLAINMOUTH_PLUGINSDIR");
@@ -765,12 +751,6 @@ int main(int argc, char **argv)
 		pluginsdir = PLUGINSDIR;
 
 	load_plugins(pluginsdir);
-
-	pthread_attr_t attr;
-
-	r = pthread_attr_init(&attr);
-	if (r != 0)
-		error(EXIT_FAILURE, r, "pthread_attr_init");
 
 	daemon_task_init();
 	ui_thread = pthread_self();
@@ -854,15 +834,8 @@ int main(int argc, char **argv)
 		if (pfd[POLL_SRVFD].revents & POLLIN) {
 			struct ipc_ctx *client = ipc_accept(&ctx);
 
-			if (client) {
-				struct worker *worker = calloc(1, sizeof(*worker));
-
-				r = pthread_create(&worker->thread_id, &attr, &thread_connection, client);
-				if (r != 0)
-					error(EXIT_FAILURE, r, "pthread_create");
-
-				LIST_INSERT_HEAD(&workers, worker, entries);
-			}
+			if (client)
+				daemon_worker_start(client);
 		}
 		if (pfd[POLL_STDIN].revents & POLLIN) {
 			handle_input();
@@ -876,21 +849,10 @@ int main(int argc, char **argv)
 		fflush(stderr);
 	}
 
-	r = pthread_attr_destroy(&attr);
-	if (r != 0)
-		error(0, r, "pthread_attr_destroy");
-
-	struct worker *w1 = LIST_FIRST(&workers);
-	while (w1 != NULL) {
-		struct worker *w2 = LIST_NEXT(w1, entries);
-
-		r = pthread_join(w1->thread_id, NULL);
-		if (r != 0)
-			error(0, r, "pthread_join");
-
-		free(w1);
-		w1 = w2;
-	}
+	do_quit = 1;
+	daemon_task_stop();
+	daemon_instances_stop();
+	daemon_workers_stop();
 
 	daemon_instances_free();
 	unload_plugins();

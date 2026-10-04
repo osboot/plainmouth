@@ -386,6 +386,19 @@ It saves the next task pointer before publishing completion, since the
 worker may immediately free the completed task. New submissions are handled
 in a later dispatch. The queue is freed only after all workers are joined.
 
+The `daemon_worker` module owns accepted IPC contexts and joinable client
+threads. Completed workers notify the UI through the task eventfd and are
+joined and freed during normal operation. Each worker retains a separate
+close-on-exec socket descriptor for shutdown, so an IPC-side close cannot
+make shutdown target a reused descriptor. The worker frees its IPC buffers
+and messages before publishing completion.
+
+Shutdown first stops task submission and releases queued task waiters, then
+releases instance result waiters. It shuts down client sockets to interrupt
+blocked reads and writes, joins workers, and finally frees UI resources.
+The quit connection requests shutdown at its next IPC loop iteration, after
+the protocol response has been sent.
+
 Local color overrides and termbox screen colors share a bounded color-pair
 allocator, excluding the four global role pairs. Colors used by a live widget
 are not reassigned to another owner. Pairs are released on reset or widget

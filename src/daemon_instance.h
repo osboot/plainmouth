@@ -36,5 +36,7 @@ struct widget *daemon_focus_get(void);
 void daemon_focus_next(void);
 /* Worker-thread only; returns no instance pointer across the mutex boundary. */
 bool daemon_instance_wait(struct request *req);
+/* UI-thread only; release current waiters and reject subsequent waits. */
+void daemon_instances_stop(void);
 
 #endif
