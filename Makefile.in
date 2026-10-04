@@ -75,7 +75,7 @@ COMMON_LIBS = $(NCURSES_LIBS) $(PANEL_LIBS)
 GARBAGE += $(COMMON_SO) $(COMMON_OBJ)
 
 PROGS += plainmouthd
-SRC_plainmouthd = src/plainmouthd.c src/daemon_style.c
+SRC_plainmouthd = src/plainmouthd.c src/daemon_style.c src/daemon_instance.c
 OBJ_plainmouthd = $(SRC_plainmouthd:.c=.o)
 LIB_plainmouthd = $(PTHREAD_LIBS) $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
 GARBAGE += plainmouthd $(OBJ_plainmouthd)
@@ -142,6 +142,8 @@ $(PLUGINS_OBJ) src/plainmouthd.o src/plugin.o: src/plugin.h
 $(COMMON_OBJ) $(PLUGINS_OBJ) src/plainmouthd.o: src/widget.h
 src/plainmouthd.o src/daemon_style.o: src/daemon_style.h
 src/daemon_style.o: src/widget.h src/request.h
+src/plainmouthd.o src/daemon_instance.o: src/daemon_instance.h
+src/daemon_instance.o: src/daemon_style.h src/widget.h src/plugin.h src/request.h
 
 plugin_objs = $(filter src/plugins/$(1)-%.o,$(PLUGINS_OBJ))
 

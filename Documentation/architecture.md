@@ -366,6 +366,16 @@ and redraws the affected roots after a successful update; the style module
 does not access the instance list or UI task queue. Borrowed theme sources
 remain valid until shutdown, when the daemon frees instances before themes.
 
+The internal `daemon_instance` module owns the instance list, panels, widget
+registration and focus state. Its lookup and iteration APIs return borrowed
+pointers for the UI thread; callers finish processing a poll snapshot before
+deleting its owners. Worker threads only use its blocking wait API, which
+keeps instance lookup and completion reads under the module's mutex and
+returns no instance pointer. Publication, removal and completion notification
+use the same mutex. Plugins and widget operations run in the UI thread;
+shutdown frees instances after joining workers and before unloading plugins
+or freeing theme sources.
+
 Local color overrides and termbox screen colors share a bounded color-pair
 allocator, excluding the four global role pairs. Colors used by a live widget
 are not reassigned to another owner. Pairs are released on reset or widget

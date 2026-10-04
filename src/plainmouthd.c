@@ -28,6 +28,7 @@
 #include "request.h"
 #include "widget.h"
 #include "daemon_style.h"
+#include "daemon_instance.h"
 
 /*
  * UI task types — what operations need to be performed in the main thread
@@ -65,30 +66,11 @@ struct worker {
 };
 LIST_HEAD(workers, worker);
 
-struct instance {
-	TAILQ_ENTRY(instance) entries;
-	const char *id;
-	struct plugin *plugin;
-	struct widget *root;
-	PANEL *panel;
-	bool finished;
-	bool events_disabled;
-	bool redraw_pending;
-};
-TAILQ_HEAD(instances, instance);
-
 static struct workers workers;
-static struct instances instances;
 static struct uitasks uitasks;
-static struct widgethead focusable;
-
-static struct widget *focused = NULL;
 
 static pthread_mutex_t ui_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  ui_cond  = PTHREAD_COND_INITIALIZER;
-
-static pthread_mutex_t instances_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t  instance_cond   = PTHREAD_COND_INITIALIZER;
 
 static _Atomic uint64_t done_task_id = 0;
 static _Atomic uint64_t next_task_id = 1;
@@ -146,94 +128,6 @@ print_version(const char *progname)
 	exit(EXIT_SUCCESS);
 }
 
-static struct instance *find_instance(const char *id)
-{
-	if (!id)
-		return NULL;
-
-	struct instance *instance;
-	TAILQ_FOREACH(instance, &instances, entries) {
-		if (streq(instance->id, id))
-			return instance;
-	}
-	return NULL;
-}
-
-static void use_instance_widgets(struct instance *ins, struct widget *w)
-{
-	struct widget *child;
-
-	TAILQ_FOREACH_REVERSE(child, &w->children, widgethead, siblings) {
-		use_instance_widgets(ins, child);
-	}
-
-	w->instance_id = ins->id;
-
-	if (w->attrs & ATTR_CAN_FOCUS) {
-		TAILQ_INSERT_HEAD(&focusable, w, focuses);
-	}
-}
-
-static void release_instance(struct instance *instance)
-{
-	if (IS_DEBUG())
-		warnx("release instance '%s'", instance->id);
-
-	TAILQ_REMOVE(&instances, instance, entries);
-
-	struct widget *w1 = TAILQ_FIRST(&focusable);
-	while (w1) {
-		struct widget *w2 = TAILQ_NEXT(w1, focuses);
-		if (streq(w1->instance_id, instance->id)) {
-			if (w1 == focused)
-				focused = NULL;
-			TAILQ_REMOVE(&focusable, w1, focuses);
-		}
-		w1 = w2;
-	}
-
-	if (instance->panel) {
-		if (IS_DEBUG())
-			warnx("destroy panel of instance '%s'", instance->id);
-		if (del_panel(instance->panel) == ERR)
-			warnx("unable to destroy panel of instance '%s'", instance->id);
-		instance->panel = NULL;
-	}
-
-	if (instance->root) {
-		if (instance->plugin && instance->plugin->p_delete_instance &&
-		    instance->plugin->p_delete_instance(instance->root) != P_RET_OK) {
-			warnx("plugin delete callback failed for instance '%s'", instance->id);
-		}
-
-		widget_free(instance->root);
-		instance->root = NULL;
-	}
-
-	free((char *) instance->id);
-	free(instance);
-}
-
-static void free_instances(void)
-{
-	while (!TAILQ_EMPTY(&instances))
-		release_instance(TAILQ_FIRST(&instances));
-}
-
-static void widget_ensure_visible(struct widget *w)
-{
-	struct widget *child = w;
-	struct widget *cur = w->parent;
-
-	while (cur) {
-		if (cur->ops && cur->ops->ensure_visible)
-			cur->ops->ensure_visible(cur, child);
-
-		child = cur;
-		cur = cur->parent;
-	}
-}
-
 static inline void ui_wakeup(void)
 {
 	uint64_t one = 1;
@@ -286,21 +180,9 @@ static int ui_enqueue_and_wait(struct ui_task *t)
 	return rc;
 }
 
-static inline void ui_check_instance_finished(struct instance *w)
-{
-	if (w && !w->finished && w->plugin->p_finished) {
-		w->finished = w->plugin->p_finished(w->root);
-
-		if (w->finished) {
-			pthread_mutex_lock(&instances_mutex);
-			pthread_cond_broadcast(&instance_cond);
-			pthread_mutex_unlock(&instances_mutex);
-		}
-	}
-}
-
 static void ui_update_cursor(void)
 {
+	struct widget *focused = daemon_focus_get();
 	int y, x;
 	struct instance *focused_ins = NULL;
 
@@ -309,7 +191,7 @@ static void ui_update_cursor(void)
 		return;
 	}
 
-	focused_ins = find_instance(focused->instance_id);
+	focused_ins = daemon_instance_find(focused->instance_id);
 	if (!focused_ins || focused_ins->finished) {
 		curs_set(0);
 		return;
@@ -328,6 +210,7 @@ static void ui_update_cursor(void)
 
 static void ui_update(void)
 {
+	struct widget *focused = daemon_focus_get();
 	static bool terminal_input = false;
 
 	if (!use_terminal)
@@ -357,53 +240,10 @@ static void ui_update(void)
 	doupdate();
 }
 
-static void ui_focused(bool state)
-{
-	if (!focused)
-		return;
-
-	if (state) {
-		if (IS_DEBUG())
-			warnx("%s (%p) in focus", widget_type(focused), focused->win);
-
-		focused->flags |= FLAG_INFOCUS;
-
-		widget_ensure_visible(focused);
-
-		/*
-		 * This is necessary to ensure that the panel with the widget
-		 * in focus is on top of everything else.
-		 */
-		struct instance *ins = find_instance(focused->instance_id);
-		widget_render_tree(ins->root);
-		top_panel(ins->panel);
-	} else {
-		if (IS_DEBUG())
-			warnx("%s (%p) lost focus", widget_type(focused), focused->win);
-
-		focused->flags &= ~FLAG_INFOCUS;
-		widget_render_tree(focused);
-	}
-}
-
-static void ui_next_focused(void)
-{
-	if (focused) {
-		ui_focused(false);
-		focused = TAILQ_NEXT(focused, focuses);
-	}
-	if (!focused)
-		focused = TAILQ_FIRST(&focusable);
-	if (focused) {
-		ui_focused(true);
-		ui_update();
-	}
-}
-
 static struct instance *ui_get_instance_by_id(struct ui_task *t)
 {
 	const char *instance_id = req_get_val(&t->req, "id");
-	struct instance *instance = find_instance(instance_id);
+	struct instance *instance = daemon_instance_find(instance_id);
 
 	if (!instance) {
 		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no instance found by id: %s",
@@ -418,98 +258,9 @@ static int ui_process_task_create(struct ui_task *t)
 {
 	if (!pthread_equal(pthread_self(), ui_thread))
 		errx(EXIT_FAILURE, "ui_task_create called not from UI thread");
-
-	const char *instance_id = req_get_val(&t->req, "id");
-	struct instance *instance = find_instance(instance_id);
-
-	if (instance) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=instance with '%s' already exists",
-				req_id(&t->req), instance_id);
+	if (!daemon_instance_create(&t->req))
 		return -1;
-	}
-
-	const char *plugin_name = req_get_val(&t->req, "plugin");
-	if (!plugin_name) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=field is missing: plugin",
-				req_id(&t->req));
-		return -1;
-	}
-
-	struct plugin *plugin = find_plugin(plugin_name);
-	if (!plugin) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=plugin not found",
-				req_id(&t->req));
-		return -1;
-	}
-
-	const char *style_name = req_get_val(&t->req, "style");
-	if (style_name) {
-		struct widget *style = daemon_style_find(style_name);
-		if (!style) {
-			req_error(&t->req, "unknown style: %s", style_name);
-			return -1;
-		}
-		t->req.r_style_owner = style;
-	}
-
-	struct instance *wnew = calloc(1, sizeof(*wnew));
-	if (!wnew) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=no memory",
-				req_id(&t->req));
-		return -1;
-	}
-
-	wnew->id = strdup(instance_id);
-	if (!wnew->id) {
-		req_error(&t->req, "no memory");
-		free(wnew);
-		return -1;
-	}
-	wnew->plugin = plugin;
-
-	if (plugin->p_create_instance) {
-		wnew->root = plugin->p_create_instance(&t->req);
-		if (!wnew->root) {
-			ipc_send_string(req_fd(&t->req),
-					"RESPDATA %s ERR=unable to create instance",
-					req_id(&t->req));
-			free((char *) wnew->id);
-			free(wnew);
-			return -1;
-		}
-
-		wnew->panel = new_panel(wnew->root->win);
-		if (!wnew->panel) {
-			ipc_send_string(req_fd(&t->req),
-					"RESPDATA %s ERR=unable to create panel",
-					req_id(&t->req));
-			if (wnew->plugin && wnew->plugin->p_delete_instance &&
-			    wnew->plugin->p_delete_instance(wnew->root) != P_RET_OK) {
-				warnx("plugin delete callback failed for instance '%s'", wnew->id);
-			}
-			widget_free(wnew->root);
-			free((char *) wnew->id);
-			free(wnew);
-			return -1;
-		}
-	}
-
-	// A plugin without a callback is always finished.
-	wnew->finished = (plugin->p_finished == NULL);
-
-	pthread_mutex_lock(&instances_mutex);
-
-	use_instance_widgets(wnew, wnew->root);
-	TAILQ_INSERT_TAIL(&instances, wnew, entries);
-
-	pthread_mutex_unlock(&instances_mutex);
-
-	if (!focused)
-		focused = TAILQ_FIRST(&focusable);
-
-	ui_focused(true);
 	ui_update();
-
 	return 0;
 }
 
@@ -528,7 +279,7 @@ static int ui_process_task_update(struct ui_task *t)
 	}
 	widget_render_tree(instance->root);
 
-	ui_check_instance_finished(instance);
+	daemon_instance_check_finished(instance);
 	ui_update();
 
 	return 0;
@@ -554,7 +305,7 @@ static int ui_process_task_set_value(struct ui_task *t)
 
 	widget_render_tree(instance->root);
 
-	ui_check_instance_finished(instance);
+	daemon_instance_check_finished(instance);
 	ui_update();
 
 	return 0;
@@ -569,10 +320,7 @@ static int ui_process_task_delete(struct ui_task *t)
 	if (!instance)
 		return -1;
 
-	pthread_mutex_lock(&instances_mutex);
-	release_instance(instance);
-	pthread_cond_broadcast(&instance_cond);
-	pthread_mutex_unlock(&instances_mutex);
+	daemon_instance_delete(instance);
 
 	ui_update();
 
@@ -588,16 +336,8 @@ static int ui_process_task_focus(struct ui_task *t)
 	if (!instance)
 		return -1;
 
-	struct widget *w;
-
-	TAILQ_FOREACH(w, &focusable, focuses) {
-		if (streq(w->instance_id, instance->id)) {
-			focused = w;
-			top_panel(instance->panel);
-			ui_update();
-			break;
-		}
-	}
+	if (daemon_instance_focus(instance))
+		ui_update();
 
 	return 0;
 }
@@ -665,7 +405,7 @@ static int ui_process_task_set_style(struct ui_task *t)
 	if (!changed)
 		widget_style_apply(stdscr, COLOR_PAIR_MAIN);
 	struct instance *instance;
-	TAILQ_FOREACH(instance, &instances, entries) {
+	for (instance = daemon_instance_first(); instance; instance = daemon_instance_next(instance)) {
 		if (!changed || instance->root == changed ||
 		    (instance->root && instance->root->style_owner == changed))
 			widget_render_tree(instance->root);
@@ -817,22 +557,8 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 			return -1;
 		}
 
-		struct instance *instance;
-
-		pthread_mutex_lock(&instances_mutex);
-		while (1) {
-			instance = find_instance(instance_id);
-			if (!instance) {
-				pthread_mutex_unlock(&instances_mutex);
-				ipc_send_string(req_fd(&req), "RESPDATA %s ERR=no instance", req_id(&req));
-				return -1;
-			}
-			if (instance->finished)
-				break;
-
-			pthread_cond_wait(&instance_cond, &instances_mutex);
-		}
-		pthread_mutex_unlock(&instances_mutex);
+		if (!daemon_instance_wait(&req))
+			return -1;
 
 		struct ui_task *t = ui_task_create(UI_TASK_RESULT, &req);
 		if (!t) {
@@ -864,6 +590,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 
 static void handle_input(void)
 {
+	struct widget *focused = daemon_focus_get();
 	wint_t code;
 	int ret = get_wch(&code);
 
@@ -884,19 +611,21 @@ static void handle_input(void)
 	}
 
 	if (code == L'\t') {
-		ui_next_focused();
+		daemon_focus_next();
+		if (daemon_focus_get())
+			ui_update();
 		return;
 	}
 
 	if (focused && focused->ops && (focused->ops->input_event || focused->ops->input)) {
-		struct instance *instance = find_instance(focused->instance_id);
+		struct instance *instance = daemon_instance_find(focused->instance_id);
 
 		if (focused->ops->input_event)
 			focused->ops->input_event(focused, (wchar_t) code, ret == KEY_CODE_YES);
 		else
 			focused->ops->input(focused, (wchar_t) code);
 
-		ui_check_instance_finished(instance);
+		daemon_instance_check_finished(instance);
 		ui_update();
 	}
 }
@@ -968,7 +697,7 @@ static bool collect_pollfds(const struct pollfd *base, size_t base_count,
 	size_t total = base_count;
 	struct instance *ins;
 	const struct pollfd *fds;
-	TAILQ_FOREACH(ins, &instances, entries)
+	for (ins = daemon_instance_first(); ins; ins = daemon_instance_next(ins))
 	{
 		size_t n = instance_pollfds(ins, &fds);
 		if ((n && !fds) || n > SIZE_MAX / sizeof(**owners) - total ||
@@ -987,7 +716,7 @@ static bool collect_pollfds(const struct pollfd *base, size_t base_count,
 	}
 	memcpy(*out, base, base_count * sizeof(**out));
 	size_t pos = base_count;
-	TAILQ_FOREACH(ins, &instances, entries)
+	for (ins = daemon_instance_first(); ins; ins = daemon_instance_next(ins))
 	{
 		size_t n = instance_pollfds(ins, &fds);
 		if ((n && !fds) || n > total - pos) {
@@ -1015,7 +744,7 @@ static void plugin_event_result(struct instance *ins, enum p_event_result result
 	if (result == P_EVENT_REDRAW)
 		ins->redraw_pending = true;
 
-	ui_check_instance_finished(ins);
+	daemon_instance_check_finished(ins);
 }
 
 static void handle_plugin_events(struct pollfd *fds, struct instance **owners, size_t count)
@@ -1054,7 +783,7 @@ static void handle_child_events(int fd)
 
 	struct instance *ins;
 
-	TAILQ_FOREACH(ins, &instances, entries) {
+	for (ins = daemon_instance_first(); ins; ins = daemon_instance_next(ins)) {
 		if (!ins->finished && !ins->events_disabled && ins->plugin->p_handle_child_event)
 			plugin_event_result(ins, ins->plugin->p_handle_child_event(ins->root));
 	}
@@ -1064,7 +793,7 @@ static void redraw_plugin_events(void)
 {
 	bool redraw = false;
 	struct instance *ins;
-	TAILQ_FOREACH(ins, &instances, entries) {
+	for (ins = daemon_instance_first(); ins; ins = daemon_instance_next(ins)) {
 		if (!ins->redraw_pending)
 			continue;
 
@@ -1143,7 +872,6 @@ int main(int argc, char **argv)
 		err(EXIT_FAILURE, "signalfd");
 
 	LIST_INIT(&workers);
-	TAILQ_INIT(&instances);
 	TAILQ_INIT(&uitasks);
 
 	retcode = EXIT_SUCCESS;
@@ -1284,7 +1012,7 @@ int main(int argc, char **argv)
 		w1 = w2;
 	}
 
-	free_instances();
+	daemon_instances_free();
 	unload_plugins();
 	daemon_styles_free();
 
