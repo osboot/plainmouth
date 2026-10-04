@@ -72,6 +72,7 @@ int main(int argc, char **argv)
 			puts("Usage: plaindialog [--socket-file PATH] [--stdout|--stderr]\n"
 			     "       --msgbox|--yesno TEXT HEIGHT WIDTH\n"
 			     "       --tailbox FILE HEIGHT WIDTH\n"
+			     "       --textbox FILE HEIGHT WIDTH\n"
 			     "       --termbox COMMAND HEIGHT WIDTH\n"
 			     "       --inputbox TEXT HEIGHT WIDTH [INIT]\n"
 			     "       --menu TEXT HEIGHT WIDTH MENU_HEIGHT TAG ITEM ...");
@@ -86,14 +87,15 @@ int main(int argc, char **argv)
 	bool yesno = i < argc && !strcmp(argv[i], "--yesno");
 	bool msgbox = i < argc && !strcmp(argv[i], "--msgbox");
 	bool tailbox = i < argc && !strcmp(argv[i], "--tailbox");
+	bool textbox = i < argc && !strcmp(argv[i], "--textbox");
 	bool termbox = i < argc && !strcmp(argv[i], "--termbox");
 	long height, width, visible = 0;
 	int remaining = argc - i;
-	if ((!menu && !input && !yesno && !msgbox && !tailbox && !termbox) || remaining < 4 ||
+	if ((!menu && !input && !yesno && !msgbox && !tailbox && !textbox && !termbox) || remaining < 4 ||
 	    !positive_number(argv[i + 2], &height) ||
 	    !positive_number(argv[i + 3], &width) ||
 	    (input && remaining != 4 && remaining != 5) ||
-	    ((yesno || msgbox || tailbox || termbox) && remaining != 4) ||
+	    ((yesno || msgbox || tailbox || textbox || termbox) && remaining != 4) ||
 	    (menu && (remaining < 7 || (remaining - 5) % 2 ||
 		      !positive_number(argv[i + 4], &visible)))) {
 		warnx("invalid or unsupported arguments; see --help");
@@ -148,6 +150,10 @@ int main(int argc, char **argv)
 		plugin_name = "tailbox";
 		content_field = "file";
 
+	} else if (textbox) {
+		plugin_name = "textbox";
+		content_field = "file";
+
 	} else if (menu) {
 		plugin_name = "menu";
 
@@ -163,7 +169,7 @@ int main(int argc, char **argv)
 	    !ipc_pair_add(&request, "border", "true") ||
 	    !ipc_pair_add(&request, content_field, argv[i + 1]) ||
 	    !ipc_pair_add(&request, "button", yesno ? "Yes" : "OK") ||
-	    (!msgbox && !tailbox && !termbox && !ipc_pair_add(&request, "button", yesno ? "No" : "Cancel")))
+	    (!msgbox && !tailbox && !textbox && !termbox && !ipc_pair_add(&request, "button", yesno ? "No" : "Cancel")))
 		goto out;
 	if (input && remaining == 5 && !ipc_pair_add(&request, "value", argv[i + 4]))
 		goto out;

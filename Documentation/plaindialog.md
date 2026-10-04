@@ -15,6 +15,7 @@ plaindialog --yesno "Continue?" 6 40
 plaindialog --stdout --inputbox "Name:" 7 40 "initial value"
 plaindialog --stdout --menu "Choose:" 10 40 4 tag1 "First" tag2 "Second"
 plaindialog --tailbox /var/log/messages 10 60
+plaindialog --textbox /etc/hosts 10 60
 plaindialog --termbox 'printf "hello\n"; sleep 2' 10 60
 ```
 
@@ -41,6 +42,14 @@ size clears the buffer and restarts reading. Replacing the pathname does
 not switch to the replacement file. Truncation followed by regrowth
 between checks may go unnoticed. Left/right arrows or `h`/`l` scroll
 horizontally; `0` resets that offset. Vertical position follows the tail.
+`--textbox FILE HEIGHT WIDTH` displays a snapshot read by the server. Arrow
+keys and Page Up/Down scroll the text; Tab selects the OK button. Closing
+returns 0 without emitting text. Only regular files up to 65536 bytes are
+accepted, with a maximum rectangular content area of 1048576 cells. Oversized
+files are rejected rather than silently truncated. Tabs use eight-column stops;
+invalid multibyte sequences, NUL and other nonprinting characters become `?`.
+Later file changes are not followed. File paths refer to the server's filesystem.
+
 `--tailboxbg` is not yet supported.
 
 `--termbox COMMAND HEIGHT WIDTH` is a plainmouth extension, not a dialog

@@ -86,6 +86,10 @@ static void view_widget(struct widget *w, struct view *view, struct coord origin
 		}
 	}
 
+	/* A pad box window already contains the clipped, scrolled contents. */
+	if (w->type == WIDGET_PAD_BOX)
+		return;
+
 	struct widget *c;
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		view_widget(c, view, my, draw);

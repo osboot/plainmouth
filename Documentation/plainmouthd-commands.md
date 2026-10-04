@@ -206,6 +206,14 @@ action=set-value id=<instance-id> button=<button-id> clicked=<true|false>
 
 Other plugins expose the following `set-value` fields:
 
+The `textbox` plugin accepts `file=PATH`, `width=`, `height=`, optional `border=`,
+`x=`, `y=` and `style=` at creation. It reads a regular file once (at most
+65536 bytes and 1048576 rectangular screen cells), starting at the top.
+`set-value id=ID scroll-x=N scroll-y=N` moves its viewport using nonnegative,
+zero-based column/line offsets, clamped to the content. Either offset may be
+omitted. `set-value id=ID button=1 [clicked=true|false]` sets the OK button;
+the result is `BUTTON_1`. Use scrolling and button fields in separate requests.
+
 ```text
 plugin=form:     input=<input-id> value=<text>
 plugin=form:     button=<button-id> clicked=<true|false>
