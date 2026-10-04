@@ -359,6 +359,13 @@ source chain and merges individual properties in this order: global role,
 named theme, local instance overrides. Theme updates redraw their users.
 Themes outlive their dialogs and are freed after all instances at shutdown.
 
+The daemon's internal `daemon_style` module owns named sources and handles
+style request validation, color and attribute parsing, and applying overrides.
+All its operations run in the UI thread. The daemon supplies instance lookup
+and redraws the affected roots after a successful update; the style module
+does not access the instance list or UI task queue. Borrowed theme sources
+remain valid until shutdown, when the daemon frees instances before themes.
+
 Local color overrides and termbox screen colors share a bounded color-pair
 allocator, excluding the four global role pairs. Colors used by a live widget
 are not reassigned to another owner. Pairs are released on reset or widget

@@ -27,6 +27,7 @@
 #include "plugin.h"
 #include "request.h"
 #include "widget.h"
+#include "daemon_style.h"
 
 /*
  * UI task types — what operations need to be performed in the main thread
@@ -75,33 +76,6 @@ struct instance {
 	bool redraw_pending;
 };
 TAILQ_HEAD(instances, instance);
-
-struct named_style {
-	TAILQ_ENTRY(named_style)
-	entries;
-	char *name;
-	struct widget *source;
-};
-TAILQ_HEAD(named_styles, named_style);
-static struct named_styles named_styles = TAILQ_HEAD_INITIALIZER(named_styles);
-
-static struct named_style *find_named_style(const char *name)
-{
-	struct named_style *style;
-	TAILQ_FOREACH(style, &named_styles, entries)
-	{
-		if (streq(style->name, name))
-			return style;
-	}
-	return NULL;
-}
-
-static void free_named_style(struct named_style *style)
-{
-	widget_free(style->source);
-	free(style->name);
-	free(style);
-}
 
 static struct workers workers;
 static struct instances instances;
@@ -470,12 +444,12 @@ static int ui_process_task_create(struct ui_task *t)
 
 	const char *style_name = req_get_val(&t->req, "style");
 	if (style_name) {
-		struct named_style *style = find_named_style(style_name);
+		struct widget *style = daemon_style_find(style_name);
 		if (!style) {
 			req_error(&t->req, "unknown style: %s", style_name);
 			return -1;
 		}
-		t->req.r_style_owner = style->source;
+		t->req.r_style_owner = style;
 	}
 
 	struct instance *wnew = calloc(1, sizeof(*wnew));
@@ -676,255 +650,25 @@ static int ui_process_task_set_title(struct ui_task *t)
 	return 0;
 }
 
-static bool convert_color(struct request *req, const char *color, int *cnum)
+static struct widget *style_lookup_instance(void *data)
 {
-	static const char *builtin_colors[8] = {
-		[COLOR_BLACK]   = "black",
-		[COLOR_RED]     = "red",
-		[COLOR_GREEN]   = "green",
-		[COLOR_YELLOW]  = "yellow",
-		[COLOR_BLUE]    = "blue",
-		[COLOR_MAGENTA] = "magenta",
-		[COLOR_CYAN]    = "cyan",
-		[COLOR_WHITE]   = "white",
-	};
-	int num;
-
-	if (!color) {
-		ipc_send_string(req_fd(req), "RESPDATA %s ERR=missing color name",
-				req_id(req));
-		return false;
-	}
-
-	for (num = 0; num < 8; num++)
-		if (builtin_colors[num] && streq(color, builtin_colors[num]))
-			goto has_number;
-
-	if (streq(color, "default")) {
-		num = -1;
-		goto has_number;
-	}
-
-	if (strlen(color) > 5 && strneq("color", color, 5)) {
-		char *end;
-		errno = 0;
-		long value = strtol(color + 5, &end, 10);
-		if (errno || *end || value < 0 || value >= COLORS ||
-		    color[5] < '0' || color[5] > '9') {
-			req_error(req, "invalid color number: %s", color);
-			return false;
-		}
-		num = (int) value;
-		goto has_number;
-	}
-
-	ipc_send_string(req_fd(req), "RESPDATA %s ERR=unknown color name: %s",
-			req_id(req), color);
-	return false;
-
-has_number:
-	if (num >= COLORS) {
-		ipc_send_string(req_fd(req), "RESPDATA %s ERR=color out of range: %s",
-				req_id(req), color);
-		return false;
-	}
-
-	*cnum = num;
-	return true;
-}
-
-static bool parse_style_attrs(struct request *req, const char *text, attr_t *attrs)
-{
-	static const struct {
-		const char *name;
-		attr_t value;
-	} names[] = {
-		{ "bold",      A_BOLD      },
-		{ "dim",       A_DIM       },
-		{ "underline", A_UNDERLINE },
-		{ "reverse",   A_REVERSE   },
-		{ "blink",     A_BLINK     },
-		{ "italic",    A_ITALIC    },
-	};
-
-	*attrs = A_NORMAL;
-	if (streq(text, "normal"))
-		return true;
-
-	char *copy = strdup(text);
-	if (!copy) {
-		req_error(req, "unable to allocate style attributes");
-		return false;
-	}
-
-	bool valid = true;
-	char *remaining = copy, *token;
-	while ((token = strsep(&remaining, ","))) {
-		bool found = false;
-		for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
-			if (streq(token, names[i].name)) {
-				*attrs |= names[i].value;
-				found = true;
-				break;
-			}
-		}
-		if (!found) {
-			req_error(req, "unknown style attribute: %s", token);
-			valid = false;
-			break;
-		}
-	}
-	free(copy);
-	return valid;
+	struct instance *instance = ui_get_instance_by_id(data);
+	return instance ? instance->root : NULL;
 }
 
 static int ui_process_task_set_style(struct ui_task *t)
 {
-	const char *name, *fg_name, *bg_name;
-	int pair, fg, bg;
-	attr_t attrs = A_NORMAL;
-	const char *attrs_name = req_get_val(&t->req, "attrs");
-	const char *id = req_get_val(&t->req, "id");
-	const char *style_name = req_get_val(&t->req, "style");
-	bool reset = false;
-	if (id && style_name) {
-		req_error(&t->req, "id and style cannot be combined");
-		return -1;
-	}
-	if (style_name && !*style_name) {
-		req_error(&t->req, "style name cannot be empty");
-		return -1;
-	}
-
-	name = req_get_val(&t->req, "name");
-	fg_name = req_get_val(&t->req, "fg");
-	bg_name = req_get_val(&t->req, "bg");
-
-	if (streq(name, "main"))
-		pair = COLOR_PAIR_MAIN;
-	else if (streq(name, "window"))
-		pair = COLOR_PAIR_WINDOW;
-	else if (streq(name, "button"))
-		pair = COLOR_PAIR_BUTTON;
-	else if (streq(name, "focus"))
-		pair = COLOR_PAIR_FOCUS;
-	else {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unknown style: %s",
-				req_id(&t->req), name);
-		return -1;
-	}
-
-	if (attrs_name && !parse_style_attrs(&t->req, attrs_name, &attrs))
+	struct widget *changed;
+	if (!daemon_style_apply(&t->req, style_lookup_instance, t, &changed))
 		return -1;
 
-	if (!req_read_bool(&t->req, "reset", false, &reset))
-		return -1;
-	if (req_get_val(&t->req, "reset") && !id && !style_name) {
-		req_error(&t->req, "style reset requires an instance id or style name");
-		return -1;
-	}
-	if (reset && (fg_name || bg_name || attrs_name)) {
-		req_error(&t->req, "style reset cannot be combined with overrides");
-		return -1;
-	}
-	if (!fg_name && !bg_name && !attrs_name && !reset) {
-		req_error(&t->req, "missing style colors or attributes");
-		return -1;
-	}
-
-	if (id || style_name) {
-		struct instance *instance = NULL;
-		struct named_style *style = NULL;
-		bool new_style = false;
-		if (id) {
-			instance = ui_get_instance_by_id(t);
-			if (!instance)
-				return -1;
-		} else {
-			style = find_named_style(style_name);
-			if (!style && reset) {
-				req_error(&t->req, "unknown style: %s", style_name);
-				return -1;
-			}
-		}
-		if (pair == COLOR_PAIR_MAIN) {
-			req_error(&t->req, "main style is global only");
-			return -1;
-		}
-		const int *fg_value = NULL, *bg_value = NULL;
-		const attr_t *attrs_value = NULL;
-		if (fg_name) {
-			if (!convert_color(&t->req, fg_name, &fg))
-				return -1;
-			fg_value = &fg;
-		}
-		if (bg_name) {
-			if (!convert_color(&t->req, bg_name, &bg))
-				return -1;
-			bg_value = &bg;
-		}
-		if (attrs_name)
-			attrs_value = &attrs;
-		struct widget *target;
-		if (instance) {
-			target = instance->root;
-		} else {
-			if (!style) {
-				style = calloc(1, sizeof(*style));
-				if (!style) {
-					req_error(&t->req, "unable to allocate named style");
-					return -1;
-				}
-				style->name = strdup(style_name);
-				style->source = widget_create(WIDGET_WINDOW);
-				if (!style->name || !style->source) {
-					free_named_style(style);
-					req_error(&t->req, "unable to allocate named style");
-					return -1;
-				}
-				new_style = true;
-			}
-			target = style->source;
-		}
-		if (!widget_style_override(target, pair, fg_value, bg_value, attrs_value, reset)) {
-			if (new_style)
-				free_named_style(style);
-			req_error(&t->req, "unable to update style");
-			return -1;
-		}
-		if (new_style) {
-			TAILQ_INSERT_HEAD(&named_styles, style, entries);
-		}
-		if (instance) {
-			widget_render_tree(instance->root);
-		} else {
-			TAILQ_FOREACH(instance, &instances, entries)
-			{
-				if (instance->root && instance->root->style_owner == style->source)
-					widget_render_tree(instance->root);
-			}
-		}
-		ui_update();
-		return 0;
-	}
-
-	if (fg_name || bg_name) {
-		if (!convert_color(&t->req, fg_name, &fg) ||
-		    !convert_color(&t->req, bg_name, &bg))
-			return -1;
-		if (init_extended_pair(pair, fg, bg) == ERR) {
-			req_error(&t->req, "unable to update color pair");
-			return -1;
-		}
-	}
-	if (attrs_name)
-		widget_style_set_attrs(pair, attrs);
-
-	widget_style_apply(stdscr, COLOR_PAIR_MAIN);
+	if (!changed)
+		widget_style_apply(stdscr, COLOR_PAIR_MAIN);
 	struct instance *instance;
-	TAILQ_FOREACH(instance, &instances, entries)
-	{
-		widget_render_tree(instance->root);
+	TAILQ_FOREACH(instance, &instances, entries) {
+		if (!changed || instance->root == changed ||
+		    (instance->root && instance->root->style_owner == changed))
+			widget_render_tree(instance->root);
 	}
 	ui_update();
 	return 0;
@@ -1542,11 +1286,7 @@ int main(int argc, char **argv)
 
 	free_instances();
 	unload_plugins();
-	while (!TAILQ_EMPTY(&named_styles)) {
-		struct named_style *style = TAILQ_FIRST(&named_styles);
-		TAILQ_REMOVE(&named_styles, style, entries);
-		free_named_style(style);
-	}
+	daemon_styles_free();
 
 	ipc_close(&ctx);
 	ipc_free(&ctx);
