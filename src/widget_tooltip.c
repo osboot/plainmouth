@@ -53,7 +53,7 @@ void tooltip_render(struct widget *w)
 	struct widget_tooltip *st = w->state;
 
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
-	wbkgd(w->win, COLOR_PAIR(color));
+	widget_style_apply(w->win, color);
 
 	mvwaddwstr(w->win, 0, 0, L"[?]");
 	wmove(w->win, 0, 0);

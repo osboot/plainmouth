@@ -14,6 +14,29 @@
 #include "macros.h"
 #include "widget.h"
 
+static attr_t style_attrs[COLOR_PAIR_FOCUS + 1];
+
+attr_t widget_style_attrs(enum color_pair color)
+{
+	if (color < COLOR_PAIR_MAIN || color > COLOR_PAIR_FOCUS)
+		return A_NORMAL;
+	return style_attrs[color];
+}
+
+void widget_style_set_attrs(enum color_pair color, attr_t attrs)
+{
+	if (color >= COLOR_PAIR_MAIN && color <= COLOR_PAIR_FOCUS)
+		style_attrs[color] = attrs;
+}
+
+void widget_style_apply(WINDOW *win, enum color_pair color)
+{
+	attr_t attrs = widget_style_attrs(color);
+
+	wbkgd(win, COLOR_PAIR(color) | attrs);
+	wattr_set(win, attrs, (short) color, NULL);
+}
+
 int simple_round(float number)
 {
 	// Example: 15.4 + 0.5 = 15.9 -> 15
@@ -202,15 +225,16 @@ void widget_scrollbar_draw(WINDOW *scrollwin, enum color_pair color,
 	int thumb_size = MAX(1, (view_size * view_size) / content_size);
 	int thumb_pos = (scroll_pos * (view_size - thumb_size)) / (content_size - view_size);
 
-	wattron(scrollwin, COLOR_PAIR(color) | A_NORMAL);
+	attr_t previous_attrs;
+	short previous_pair;
+	wattr_get(scrollwin, &previous_attrs, &previous_pair, NULL);
+	wattr_set(scrollwin, widget_style_attrs(color), (short) color, NULL);
 	for (int i = 0; i < view_size; i++) {
 		int y = vertical ? i : view_h - 1;
 		int x = vertical ? view_w - 1 : i;
 		mvwaddch(scrollwin, y, x, ACS_CKBOARD);
 	}
-	wattroff(scrollwin, COLOR_PAIR(color) | A_NORMAL);
-
-	wattron(scrollwin, COLOR_PAIR(color) | A_REVERSE);
+	wattr_set(scrollwin, widget_style_attrs(color) | A_REVERSE, (short) color, NULL);
 	for (int i = 0; i < thumb_size; i++) {
 		chtype c = ' ';
 
@@ -225,7 +249,7 @@ void widget_scrollbar_draw(WINDOW *scrollwin, enum color_pair color,
 		int x = vertical ? view_w - 1 : thumb_pos + i;
 		mvwaddch(scrollwin, y, x, c);
 	}
-	wattroff(scrollwin, COLOR_PAIR(color) | A_REVERSE);
+	wattr_set(scrollwin, previous_attrs, previous_pair, NULL);
 }
 
 void widget_scrollbar_measure(struct widget *w, bool vertical)
@@ -594,6 +618,8 @@ void widget_render_tree(struct widget *w)
 			return;
 	}
 
+	if (w->type != WIDGET_TERMINAL)
+		widget_style_apply(w->win, w->color_pair);
 	werase(w->win);
 
 	if (w->ops && w->ops->render)

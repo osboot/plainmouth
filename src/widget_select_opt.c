@@ -51,7 +51,7 @@ void selopt_layout(struct widget *w)
 void selopt_render(struct widget *w)
 {
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
-	wbkgd(w->win, COLOR_PAIR(color));
+	widget_style_apply(w->win, color);
 
 	struct widget *hbox = TAILQ_FIRST(&w->children);
 

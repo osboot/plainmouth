@@ -267,6 +267,9 @@ void widget_measure_tree(struct widget *w);
 void widget_layout_tree(struct widget *w, int lx, int ly, int width, int height);
 void widget_hide_tree(struct widget *w);
 void widget_render_tree(struct widget *w);
+attr_t widget_style_attrs(enum color_pair color);
+void widget_style_set_attrs(enum color_pair color, attr_t attrs);
+void widget_style_apply(WINDOW *win, enum color_pair color);
 void distribute_flex_axis(int count, const int *pref,
 		const int *min, const int *max, const int *grow,
 		const int *shrink, int available, int *out);

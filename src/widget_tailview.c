@@ -83,7 +83,7 @@ static void tailview_render(struct widget *w)
 		const wchar_t *end = wcschr(text, L'\n');
 		text = end ? end + 1 : text + wcslen(text);
 	}
-	wbkgd(w->win, COLOR_PAIR((w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair));
+	widget_style_apply(w->win, (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair);
 	werase(w->win);
 	for (int y = 0; y < w->h && *text; y++) {
 		int col = 0;

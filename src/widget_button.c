@@ -39,7 +39,7 @@ void button_render(struct widget *w)
 
 	enum color_pair color = (w->flags & FLAG_INFOCUS) ? COLOR_PAIR_FOCUS : w->color_pair;
 
-	wbkgd(w->win, COLOR_PAIR(color));
+	widget_style_apply(w->win, color);
 	w_mvprintw(w->win, 0, 0, L"[%ls]", st->text);
 }
 

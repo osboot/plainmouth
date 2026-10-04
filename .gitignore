@@ -29,6 +29,7 @@ tests/ncurses-leaks/panel
 tests/warray/warray_test
 tests/widget/widget_flex_axis_test
 tests/widget/widget_menu_test
+tests/widget/widget_style_test
 tests/widget/widget_tailview_test
 tests/widget/widget_termbox_output_test
 tests/widget/widget_termbox_input_test

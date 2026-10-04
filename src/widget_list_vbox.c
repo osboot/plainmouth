@@ -73,7 +73,7 @@ void list_vbox_layout(struct widget *w)
 void list_vbox_render(struct widget *w)
 {
 	werase(w->win);
-	wbkgd(w->win, COLOR_PAIR(w->color_pair));
+	widget_style_apply(w->win, w->color_pair);
 
 	int y = 0;
 

@@ -199,6 +199,12 @@ tests/widget/widget_menu_test: tests/widget/widget_menu_test.o $(COMMON_SO)
 tests/widget/widget_menu_test.o: src/widget.h
 GARBAGE += tests/widget/widget_menu_test.o
 
+tests/widget/widget_style_test: tests/widget/widget_style_test.o $(COMMON_SO)
+	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS) -Wl,-rpath,$(CURDIR)
+
+tests/widget/widget_style_test.o: src/widget.h
+GARBAGE += tests/widget/widget_style_test.o
+
 tests/widget/widget_tailview_test: tests/widget/widget_tailview_test.o $(COMMON_SO)
 	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS) -Wl,-rpath,$(CURDIR)
 

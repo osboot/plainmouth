@@ -668,7 +668,15 @@ static bool convert_color(struct request *req, const char *color, int *cnum)
 	}
 
 	if (strlen(color) > 5 && strneq("color", color, 5)) {
-		num = atoi(color + 5);
+		char *end;
+		errno = 0;
+		long value = strtol(color + 5, &end, 10);
+		if (errno || *end || value < 0 || value >= COLORS ||
+		    color[5] < '0' || color[5] > '9') {
+			req_error(req, "invalid color number: %s", color);
+			return false;
+		}
+		num = (int) value;
 		goto has_number;
 	}
 
@@ -687,35 +695,103 @@ has_number:
 	return true;
 }
 
+static bool parse_style_attrs(struct request *req, const char *text, attr_t *attrs)
+{
+	static const struct {
+		const char *name;
+		attr_t value;
+	} names[] = {
+		{ "bold",      A_BOLD      },
+		{ "dim",       A_DIM       },
+		{ "underline", A_UNDERLINE },
+		{ "reverse",   A_REVERSE   },
+		{ "blink",     A_BLINK     },
+		{ "italic",    A_ITALIC    },
+	};
+
+	*attrs = A_NORMAL;
+	if (streq(text, "normal"))
+		return true;
+
+	char *copy = strdup(text);
+	if (!copy) {
+		req_error(req, "unable to allocate style attributes");
+		return false;
+	}
+
+	bool valid = true;
+	char *remaining = copy, *token;
+	while ((token = strsep(&remaining, ","))) {
+		bool found = false;
+		for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+			if (streq(token, names[i].name)) {
+				*attrs |= names[i].value;
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			req_error(req, "unknown style attribute: %s", token);
+			valid = false;
+			break;
+		}
+	}
+	free(copy);
+	return valid;
+}
+
 static int ui_process_task_set_style(struct ui_task *t)
 {
 	const char *name, *fg_name, *bg_name;
 	int pair, fg, bg;
+	attr_t attrs = A_NORMAL;
+	const char *attrs_name = req_get_val(&t->req, "attrs");
 
-	name    = req_get_val(&t->req, "name");
+	name = req_get_val(&t->req, "name");
 	fg_name = req_get_val(&t->req, "fg");
 	bg_name = req_get_val(&t->req, "bg");
 
-	if (streq(name, "main"))        pair = COLOR_PAIR_MAIN;
-	else if (streq(name, "window")) pair = COLOR_PAIR_WINDOW;
-	else if (streq(name, "button")) pair = COLOR_PAIR_BUTTON;
-	else if (streq(name, "focus"))  pair = COLOR_PAIR_FOCUS;
+	if (streq(name, "main"))
+		pair = COLOR_PAIR_MAIN;
+	else if (streq(name, "window"))
+		pair = COLOR_PAIR_WINDOW;
+	else if (streq(name, "button"))
+		pair = COLOR_PAIR_BUTTON;
+	else if (streq(name, "focus"))
+		pair = COLOR_PAIR_FOCUS;
 	else {
 		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unknown style: %s",
 				req_id(&t->req), name);
 		return -1;
 	}
 
-	if (!convert_color(&t->req, fg_name, &fg) ||
-	    !convert_color(&t->req, bg_name, &bg))
+	if (attrs_name && !parse_style_attrs(&t->req, attrs_name, &attrs))
 		return -1;
 
-	if (init_extended_pair(pair, fg, bg) == ERR) {
-		ipc_send_string(req_fd(&t->req), "RESPDATA %s ERR=unable to update color pair",
-				req_id(&t->req));
+	if (!fg_name && !bg_name && !attrs_name) {
+		req_error(&t->req, "missing style colors or attributes");
 		return -1;
 	}
 
+	if (fg_name || bg_name) {
+		if (!convert_color(&t->req, fg_name, &fg) ||
+		    !convert_color(&t->req, bg_name, &bg))
+			return -1;
+		if (init_extended_pair(pair, fg, bg) == ERR) {
+			req_error(&t->req, "unable to update color pair");
+			return -1;
+		}
+	}
+	if (attrs_name)
+		widget_style_set_attrs(pair, attrs);
+
+	widget_style_apply(stdscr, COLOR_PAIR_MAIN);
+	struct instance *instance;
+	TAILQ_FOREACH(instance, &instances, entries)
+	{
+		widget_render_tree(instance->root);
+	}
+	ui_update();
 	return 0;
 }
 

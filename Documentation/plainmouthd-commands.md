@@ -17,6 +17,25 @@ widgets.
 
 Defines the color scheme for different categories and states of widgets.
 
+`name` selects a global style: `main`, `window`, `button`, or `focus`.
+Set both `fg` and `bg` to change its colors. The optional `attrs` field
+replaces its text attributes with a comma-separated list of `bold`, `dim`,
+`underline`, `reverse`, `blink`, or `italic`. Use `attrs=normal` to clear
+attributes. Attribute names are case-sensitive and contain no spaces.
+
+Colors and attributes can be changed together or separately. Omitted
+attributes keep their current value; an attribute-only update keeps colors.
+Invalid attributes or colors reject the request before applying the style.
+Changes redraw existing visible dialogs and apply to subsequently created
+widgets. Attribute appearance depends on the terminal's capabilities.
+The command's output screen in `termbox` retains its own terminal attributes.
+
+```sh
+plainmouth action=set-style name=focus fg=white bg=green attrs=bold,underline
+plainmouth action=set-style name=button attrs=bold
+plainmouth action=set-style name=focus attrs=normal
+```
+
 ### hide-splash
 
 The command completely hides the screen with rendered widgets, restoring
