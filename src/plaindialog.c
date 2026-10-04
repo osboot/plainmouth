@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -76,6 +77,117 @@ static bool output_quoted(FILE *output, const char *text)
 	return fputc('"', output) != EOF;
 }
 
+enum gauge_state {
+	GAUGE_PERCENT,
+	GAUGE_BLOCK_PERCENT,
+	GAUGE_BLOCK_TEXT,
+};
+
+struct gauge_input {
+	enum gauge_state state;
+	long value;
+	size_t text_len;
+	char text[8192];
+};
+
+static bool gauge_line(struct ipc_ctx *ctx, const char *id,
+		       struct gauge_input *input, const char *line)
+{
+	if (input->state == GAUGE_BLOCK_TEXT && strcmp(line, "XXX")) {
+		size_t len = strlen(line);
+		if (input->text_len + len + 1 >= sizeof(input->text))
+			return false;
+		memcpy(input->text + input->text_len, line, len);
+		input->text_len += len;
+		input->text[input->text_len++] = '\n';
+		return true;
+	}
+	if (input->state == GAUGE_PERCENT && !strcmp(line, "XXX")) {
+		input->state = GAUGE_BLOCK_PERCENT;
+		input->text_len = 0;
+		return true;
+	}
+	if (input->state != GAUGE_BLOCK_TEXT) {
+		if (!parse_number(line, &input->value) || input->value < 0 || input->value > 100)
+			return false;
+		if (input->state == GAUGE_BLOCK_PERCENT) {
+			input->state = GAUGE_BLOCK_TEXT;
+			return true;
+		}
+	}
+	struct ipc_pair request = { 0 };
+	bool ok = ipc_pair_add(&request, "action", "update") &&
+		  ipc_pair_add(&request, "id", id) &&
+		  ipc_pair_sprintf(&request, "value", "%ld", input->value);
+	if (ok && input->state == GAUGE_BLOCK_TEXT) {
+		if (input->text_len)
+			input->text_len--;
+		input->text[input->text_len] = '\0';
+		ok = ipc_pair_add(&request, "text", input->text);
+	}
+	if (ok && !interrupted)
+		ok = ipc_send_message2(ctx, &request, NULL);
+	else
+		ok = false;
+	ipc_pair_free(&request);
+	input->state = GAUGE_PERCENT;
+	return ok;
+}
+
+static bool gauge_stream(struct ipc_ctx *ctx, const char *id)
+{
+	struct gauge_input input = { 0 };
+	char line[8192], buffer[1024];
+	size_t len = 0;
+	struct pollfd fd = { .fd = STDIN_FILENO, .events = POLLIN };
+	while (!interrupted) {
+		int ready = poll(&fd, 1, 100);
+		if (ready < 0) {
+			if (errno == EINTR)
+				continue;
+			warn("waiting for gauge input");
+			return false;
+		}
+		if (!ready || interrupted)
+			continue;
+		ssize_t n = read(STDIN_FILENO, buffer, sizeof(buffer));
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			warn("reading gauge input");
+			return false;
+		}
+		if (!n) {
+			if (len) {
+				line[len] = '\0';
+				if (!gauge_line(ctx, id, &input, line))
+					break;
+			}
+			if (input.state == GAUGE_PERCENT)
+				return !interrupted;
+			break;
+		}
+		for (ssize_t i = 0; i < n; i++) {
+			if (buffer[i] == '\n') {
+				if (len && line[len - 1] == '\r')
+					len--;
+				line[len] = '\0';
+				if (!gauge_line(ctx, id, &input, line))
+					goto invalid;
+				len = 0;
+			} else {
+				if (!buffer[i] || len + 1 >= sizeof(line))
+					goto invalid;
+				line[len++] = buffer[i];
+			}
+		}
+	}
+invalid:
+	if (!interrupted)
+		warnx("invalid gauge input or update failure");
+	return false;
+}
+
 int main(int argc, char **argv)
 {
 	const char *socket_file = getenv("PLAINMOUTH_SOCKET");
@@ -98,6 +210,7 @@ int main(int argc, char **argv)
 			     "       --passwordbox TEXT HEIGHT WIDTH [INIT]\n"
 			     "       --timebox TEXT HEIGHT WIDTH HOUR MINUTE SECOND\n"
 			     "       --rangebox TEXT HEIGHT WIDTH MIN MAX VALUE\n"
+			     "       --gauge TEXT HEIGHT WIDTH [PERCENT]\n"
 			     "       --menu TEXT HEIGHT WIDTH MENU_HEIGHT TAG ITEM ...\n"
 			     "       --checklist|--radiolist TEXT HEIGHT WIDTH LIST_HEIGHT\n"
 			     "           TAG ITEM STATUS ...");
@@ -114,6 +227,7 @@ int main(int argc, char **argv)
 	bool password = i < argc && !strcmp(argv[i], "--passwordbox");
 	bool timebox = i < argc && !strcmp(argv[i], "--timebox");
 	bool rangebox = i < argc && !strcmp(argv[i], "--rangebox");
+	bool gauge = i < argc && !strcmp(argv[i], "--gauge");
 	bool yesno = i < argc && !strcmp(argv[i], "--yesno");
 	bool msgbox = i < argc && !strcmp(argv[i], "--msgbox");
 	bool tailbox = i < argc && !strcmp(argv[i], "--tailbox");
@@ -123,15 +237,18 @@ int main(int argc, char **argv)
 	long height, width, visible = 0;
 	long hour = 0, minute = 0, second = 0;
 	long range_min = 0, range_max = 0, range_value = 0;
+	long percent = 0;
 	int remaining = argc - i;
-	if ((!menu && !choice_list && !input && !password && !timebox && !rangebox && !yesno && !msgbox && !tailbox && !textbox && !termbox) || remaining < 4 ||
+	if ((!menu && !choice_list && !input && !password && !timebox && !rangebox && !gauge && !yesno && !msgbox && !tailbox && !textbox && !termbox) || remaining < 4 ||
 	    !positive_number(argv[i + 2], &height) ||
 	    !positive_number(argv[i + 3], &width) ||
 	    (input && remaining != 4 && remaining != 5) ||
 	    (password && remaining != 4 && remaining != 5) ||
+	    (gauge && (remaining != 4 && remaining != 5)) ||
+	    (gauge && remaining == 5 && (!parse_number(argv[i + 4], &percent) || percent < 0 || percent > 100)) ||
 	    (rangebox && (remaining != 7 || !parse_number(argv[i + 4], &range_min) ||
-			 !parse_number(argv[i + 5], &range_max) || !parse_number(argv[i + 6], &range_value) ||
-			 range_min > range_max || range_value < range_min || range_value > range_max)) ||
+			  !parse_number(argv[i + 5], &range_max) || !parse_number(argv[i + 6], &range_value) ||
+			  range_min > range_max || range_value < range_min || range_value > range_max)) ||
 	    (timebox && (remaining != 7 || !parse_number(argv[i + 4], &hour) ||
 			 !parse_number(argv[i + 5], &minute) ||
 			 !parse_number(argv[i + 6], &second) || hour >= 24 || minute >= 60 || second >= 60)) ||
@@ -225,6 +342,9 @@ int main(int argc, char **argv)
 	} else if (rangebox) {
 		plugin_name = "rangebox";
 
+	} else if (gauge) {
+		plugin_name = "gauge";
+
 	} else if (input) {
 		plugin_name = "inputbox";
 	}
@@ -236,8 +356,10 @@ int main(int argc, char **argv)
 	    !ipc_pair_sprintf(&request, "width", "%ld", width) ||
 	    !ipc_pair_add(&request, "border", "true") ||
 	    !ipc_pair_add(&request, content_field, argv[i + 1]) ||
-	    !ipc_pair_add(&request, "button", yesno ? "Yes" : "OK") ||
-	    (!msgbox && !tailbox && !textbox && !termbox && !ipc_pair_add(&request, "button", yesno ? "No" : "Cancel")))
+	    (!gauge && !ipc_pair_add(&request, "button", yesno ? "Yes" : "OK")) ||
+	    (!gauge && !msgbox && !tailbox && !textbox && !termbox && !ipc_pair_add(&request, "button", yesno ? "No" : "Cancel")))
+		goto out;
+	if (gauge && !ipc_pair_sprintf(&request, "value", "%ld", percent))
 		goto out;
 	if (input && remaining == 5 && !ipc_pair_add(&request, "value", argv[i + 4]))
 		goto out;
@@ -285,6 +407,11 @@ int main(int argc, char **argv)
 	created = true;
 	ipc_pair_free(&result);
 	memset(&result, 0, sizeof(result));
+	if (gauge) {
+		if (gauge_stream(&ctx, id))
+			status = 0;
+		goto out;
+	}
 	if (interrupted || !action(&ctx, id, "focus", NULL) ||
 	    !action(&ctx, id, "wait-result", &result) || interrupted)
 		goto out;
@@ -300,10 +427,9 @@ int main(int argc, char **argv)
 			result_key = "VALUE";
 		const char *value = get_result(&result, result_key);
 		long selected;
-		if (!value || (rangebox && (!parse_number(value, &range_value) ||
-					   range_value < range_min || range_value > range_max)) ||
+		if (!value || (rangebox && (!parse_number(value, &range_value) || range_value < range_min || range_value > range_max)) ||
 		    (menu && (!positive_number(value, &selected) ||
-					selected > (remaining - 5) / 2))) {
+			      selected > (remaining - 5) / 2))) {
 			warnx("invalid plugin result");
 			status = 255;
 		} else {

@@ -18,13 +18,12 @@ struct widget_label {
 	int ncols;
 };
 
-static void label_init_lines(struct widget_label *st, const wchar_t *text) __attribute__((nonnull(1)));
+static bool label_init_lines(struct widget_label *st, const wchar_t *text) __attribute__((nonnull(1)));
 static void label_measure(struct widget *w) __attribute__((nonnull(1)));
 static void label_render(struct widget *w) __attribute__((nonnull(1)));
 static void label_free(struct widget *w);
 
-
-void label_init_lines(struct widget_label *st, const wchar_t *text)
+bool label_init_lines(struct widget_label *st, const wchar_t *text)
 {
 	warray_init(&st->lines);
 	st->ncols = 0;
@@ -36,7 +35,8 @@ void label_init_lines(struct widget_label *st, const wchar_t *text)
 			e = s + wcslen(s);
 
 		size_t len = (size_t) (e - s);
-		warray_push(&st->lines, s, len);
+		if (warray_push(&st->lines, s, len) < 0)
+			return false;
 
 		int line_width = 0;
 		for (size_t i = 0; i < len; i++) {
@@ -49,8 +49,10 @@ void label_init_lines(struct widget_label *st, const wchar_t *text)
 		s = (*e == L'\n') ? e + 1 : e;
 	}
 
-	if (*text && text[wcslen(text) - 1] == L'\n')
-		warray_push(&st->lines, L"", 0);
+	if (*text && text[wcslen(text) - 1] == L'\n' &&
+	    warray_push(&st->lines, L"", 0) < 0)
+		return false;
+	return true;
 }
 
 void label_measure(struct widget *w)
@@ -93,19 +95,33 @@ void label_free(struct widget *w)
 	}
 }
 
+static bool label_setter(struct widget *w, enum widget_property prop, const void *value)
+{
+	if (prop != PROP_TEXT_VALUE)
+		return false;
+	struct widget *replacement = make_label(value);
+	if (!replacement)
+		return false;
+	void *old = w->state;
+	w->state = replacement->state;
+	replacement->state = old;
+	widget_free(replacement);
+	return true;
+}
+
 static const struct widget_ops label_ops = {
-	.measure          = label_measure,
-	.layout           = NULL,
-	.render           = label_render,
-	.finalize_render  = NULL,
+	.measure = label_measure,
+	.layout = NULL,
+	.render = label_render,
+	.finalize_render = NULL,
 	.child_render_win = NULL,
-	.free             = label_free,
-	.input            = NULL,
-	.add_child        = NULL,
-	.ensure_visible   = NULL,
-	.setter           = NULL,
-	.getter           = NULL,
-	.getter_index     = NULL,
+	.free = label_free,
+	.input = NULL,
+	.add_child = NULL,
+	.ensure_visible = NULL,
+	.setter = label_setter,
+	.getter = NULL,
+	.getter_index = NULL,
 };
 
 struct widget *make_label(const wchar_t *line)
@@ -121,10 +137,13 @@ struct widget *make_label(const wchar_t *line)
 		return NULL;
 	}
 
-	label_init_lines(state, line);
-
-	w->state      = state;
-	w->ops        = &label_ops;
+	w->state = state;
+	w->ops = &label_ops;
+	if (!label_init_lines(state, line)) {
+		warn("make_label: allocating lines");
+		widget_free(w);
+		return NULL;
+	}
 	w->color_pair = COLOR_PAIR_WINDOW;
 
 	w->flex_w = 0;

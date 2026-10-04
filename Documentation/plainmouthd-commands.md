@@ -257,6 +257,15 @@ updates must be separate requests. An empty `value` clears the input.
 As with password, input values and completion flags are validated before
 changing state.
 
+### gauge
+
+Create with `plugin=gauge text=TEXT width=N height=N value=PERCENT` and
+optional `border=true`. Percentages must be between 0 and 100. Use
+`action=update id=ID value=PERCENT [text=TEXT]` to update the indicator and
+optionally replace its prompt. `action=set-value` accepts the same fields.
+There are no buttons or completion result: the client deletes the instance
+when its input ends, including after a value of 100.
+
 ### rangebox
 
 Creation requires `width`, `height`, `min`, `max`, and `value`. The initial

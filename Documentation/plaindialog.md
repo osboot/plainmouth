@@ -16,6 +16,7 @@ plaindialog --stdout --inputbox "Name:" 7 40 "initial value"
 plaindialog --stdout --passwordbox "Password:" 7 40
 plaindialog --stdout --timebox "Time:" 7 40 12 30 0
 plaindialog --stdout --rangebox "Value:" 7 40 -100 100 25
+printf '25\n100\n' | plaindialog --gauge "Progress" 7 40 0
 plaindialog --stdout --menu "Choose:" 10 40 4 tag1 "First" tag2 "Second"
 plaindialog --stdout --checklist "Choose:" 10 40 4 tag1 "First" on tag2 "Second" off
 plaindialog --stdout --radiolist "Choose:" 10 40 4 tag1 "First" on tag2 "Second" off
@@ -49,6 +50,18 @@ fit a signed C `int`, with `MIN <= VALUE <= MAX`. Plainmouth presents a
 spinbox: Up/Down change its value, numeric input enters positive values,
 and Tab moves focus to the buttons. Its presentation differs from dialog's
 slider. Cancel emits no result and returns 1.
+
+`--gauge TEXT HEIGHT WIDTH [PERCENT]` displays progress until stdin reaches
+EOF, then returns 0 without result text. The initial percentage defaults to
+0. Each input line supplies a percentage from 0 to 100. A block consisting
+of `XXX`, a percentage, new prompt lines and a closing `XXX` updates both
+the percentage and prompt. Updates remain possible after 100%; there are
+no buttons or keyboard input. Prompt text is clipped to the available area,
+with the progress indicator always on the last content row.
+Lines and prompt blocks must be shorter than
+8192 bytes. Invalid percentages, NUL bytes, oversized input and incomplete
+blocks return 255 and remove the window. A final line without a newline is
+accepted. Try `MODE=view tests/e2e-gauge.sh` to see timed updates.
 
 Exit status is 0 for OK/Yes or Enter in an input/menu, 1 for Cancel/No, and
 255 for errors or interruption. Cancel/No produces no result text. Created
