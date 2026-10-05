@@ -67,7 +67,7 @@ void spinbox_render(struct widget *w)
 
 	w_mvprintw(w->win, 0, 0, L"[%0*d]", st->width, st->value);
 
-	wnoutrefresh(w->win);
+	widget_noutrefresh(w);
 }
 
 void spinbox_free(struct widget *w)

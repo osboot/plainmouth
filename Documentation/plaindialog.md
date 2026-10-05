@@ -20,6 +20,8 @@ printf '25\n100\n' | plaindialog --gauge "Progress" 7 40 0
 plaindialog --stdout --menu "Choose:" 10 40 4 tag1 "First" tag2 "Second"
 plaindialog --stdout --checklist "Choose:" 10 40 4 tag1 "First" on tag2 "Second" off
 plaindialog --stdout --radiolist "Choose:" 10 40 4 tag1 "First" on tag2 "Second" off
+plaindialog --stdout --form "Details:" 10 48 4 \
+  "Name:" 1 1 "Alice" 1 8 20 40 "Status:" 2 1 "fixed" 2 8 -10 0
 plaindialog --tailbox /var/log/messages 10 60
 plaindialog --textbox /etc/hosts 10 60
 plaindialog --termbox 'printf "hello\n"; sleep 2' 10 60
@@ -48,6 +50,35 @@ reject it, as in dialog. With radiolist, an explicit separator precedes its
 unquoted single-tag result. Menu and other single-value widgets are unaffected
 by `--output-separator`. These options must precede the widget option, like
 the output-stream options.
+
+`--form TEXT HEIGHT WIDTH FORM_HEIGHT` takes repeated groups of eight
+arguments: `LABEL LABEL_Y LABEL_X ITEM ITEM_Y ITEM_X FLEN ILEN`. Coordinates
+are one-based; zero and negative coordinates refer to the first row/column,
+as in dialog. A positive `FLEN` sets the visible width of an editable field.
+Negative `FLEN` creates a read-only field with that absolute width; zero
+creates a read-only field sized to its initial text. An empty read-only
+field occupies one blank cell. `ILEN` is the maximum number of wide
+characters, with zero defaulting to the visible width. Negative limits and
+an editable initial value exceeding the limit are rejected.
+
+Form results contain editable values in argument order, without quoting,
+followed by a newline after each value, including empty values and the last
+one. Read-only values are omitted. `--output-separator` and `--separator`
+replace that newline, including with an empty string. Cancel and interruption
+produce no values. Explicit `--separate-output` is rejected, as in dialog;
+forms already use separate output by default.
+
+`FORM_HEIGHT` specifies the preferred height of the scrollable form area,
+including any horizontal scrollbar; zero uses the available space. The area
+may shrink to fit the window. Field placement and horizontal scrolling use
+plainmouth's positioned layout; Tab moves focus and scrolls the field into
+view. Enter keeps the input editable; select OK to submit the form. Navigation
+follows plainmouth, including its focus traversal order. Coordinates and
+extents are limited to 4096 per axis, with at most 1048576 canvas cells.
+Labels and initial values must be valid single-line printable text in the
+client's character locale, which should match the daemon's locale.
+Input limits use wide characters rather than dialog's byte-based buffers;
+initial values are rejected rather than silently truncated.
 
 Button labels can be customized before the widget option:
 `--ok-label TEXT`, `--cancel-label TEXT`, `--yes-label TEXT`,
@@ -188,6 +219,7 @@ outside the five-second `make check` timeout:
 
 ```sh
 CHECK_CLIENT=yes tests/e2e-plaindialog.sh
+CHECK_CLIENT=yes tests/e2e-plaindialog-form.sh
 ```
 
 The argument and result conventions are based on the

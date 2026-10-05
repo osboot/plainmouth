@@ -223,6 +223,12 @@ static struct widget *p_form_create(struct request *req)
 	}
 
 	bool positioned = layout && streq(layout, "positioned");
+	int visible = 0;
+	if (positioned && req_get_val(req, "visible") &&
+	    (!req_read_int(req, "visible", &visible) || visible < 0 || visible > 4096)) {
+		req_error(req, "invalid value: visible");
+		goto fail;
+	}
 
 	if (positioned && !form_positioned_fields(original, scroll))
 		goto fail;
@@ -323,6 +329,11 @@ static struct widget *p_form_create(struct request *req)
 	}
 
 	widget_measure_tree(root);
+	if (positioned && visible > 0) {
+		scroll->pref_h = visible;
+		scroll->max_h = visible;
+		scroll->flex_h = 0;
+	}
 
 	position_center(width, height, &begin_y, &begin_x);
 

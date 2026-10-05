@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <locale.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -11,6 +12,7 @@
 #include <strings.h>
 #include <time.h>
 #include <unistd.h>
+#include <wchar.h>
 #include <err.h>
 
 #include "ipc.h"
@@ -29,6 +31,7 @@ enum dialog_type {
 	DIALOG_TAILBOX,
 	DIALOG_TEXTBOX,
 	DIALOG_TERMBOX,
+	DIALOG_FORM,
 	DIALOG_COUNT,
 };
 
@@ -76,6 +79,7 @@ static const struct dialog_spec dialogs[DIALOG_COUNT] = {
 	[DIALOG_TAILBOX]     = { "--tailbox",     "tailbox",   "file",    NULL,         LABEL_EXIT, LABEL_NONE   },
 	[DIALOG_TEXTBOX]     = { "--textbox",     "textbox",   "file",    NULL,         LABEL_EXIT, LABEL_NONE   },
 	[DIALOG_TERMBOX]     = { "--termbox",     "termbox",   "command", NULL,         LABEL_OK,   LABEL_NONE   },
+	[DIALOG_FORM]        = { "--form",        "form",      "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
 };
 
 static enum button_label find_button_label(const char *option)
@@ -124,6 +128,82 @@ static bool parse_number(const char *s, long *value)
 static bool positive_number(const char *s, long *value)
 {
 	return parse_number(s, value) && *value > 0;
+}
+
+struct form_field {
+	long label_y, label_x, input_y, input_x;
+	long width, limit, label_width;
+	bool readonly;
+};
+
+static bool form_text_size(const char *text, long *length, long *columns)
+{
+	mbstate_t state = { 0 };
+	size_t remaining = strlen(text);
+	*length = *columns = 0;
+	while (*text) {
+		wchar_t ch;
+		size_t n = mbrtowc(&ch, text, remaining, &state);
+		if (n == (size_t) -1 || n == (size_t) -2)
+			return false;
+		int width = wcwidth(ch);
+		if (width < 0 || *length == INT_MAX - 1 || *columns > INT_MAX - width)
+			return false;
+		(*length)++;
+		*columns += width;
+		text += n;
+		remaining -= n;
+	}
+	return true;
+}
+
+static bool parse_form_field(char **args, struct form_field *field)
+{
+	long flen, ilen, length, columns;
+	if (!parse_number(args[1], &field->label_y) ||
+	    !parse_number(args[2], &field->label_x) ||
+	    !parse_number(args[4], &field->input_y) ||
+	    !parse_number(args[5], &field->input_x) ||
+	    !parse_number(args[6], &flen) || !parse_number(args[7], &ilen) ||
+	    flen == INT_MIN || ilen < 0 || ilen == INT_MAX ||
+	    !form_text_size(args[0], &length, &field->label_width) ||
+	    !form_text_size(args[3], &length, &columns))
+		return false;
+	/* dialog accepts zero and negative ordinates as the first row/column. */
+	long *ordinates[] = { &field->label_y, &field->label_x, &field->input_y, &field->input_x };
+	for (size_t n = 0; n < sizeof(ordinates) / sizeof(ordinates[0]); n++) {
+		if (*ordinates[n] > 0)
+			(*ordinates[n])--;
+		else
+			*ordinates[n] = 0;
+	}
+	field->readonly = flen <= 0;
+	field->width = flen;
+	if (flen < 0)
+		field->width = -flen;
+	else if (!flen)
+		field->width = columns;
+	if (!field->width)
+		field->width = 1;
+	if (!field->label_width)
+		field->label_width = 1;
+	field->limit = ilen;
+	if (!ilen)
+		field->limit = field->width;
+	return field->width <= 4096 && field->label_width <= 4096 &&
+	       field->input_x <= 4096 - field->width && field->input_y < 4096 &&
+	       field->label_x <= 4096 - field->label_width && field->label_y < 4096 &&
+	       (field->readonly || length <= field->limit);
+}
+
+static bool add_form_field(struct ipc_pair *request, const char *key, const char *value,
+			   long x, long y, long width)
+{
+	return ipc_pair_add(request, "field", "start") &&
+	       ipc_pair_add(request, key, value) &&
+	       ipc_pair_sprintf(request, "x", "%ld", x) &&
+	       ipc_pair_sprintf(request, "y", "%ld", y) &&
+	       ipc_pair_sprintf(request, "width", "%ld", width);
 }
 
 static const char *get_result(const struct ipc_pair *pairs, const char *key)
@@ -332,6 +412,8 @@ int main(int argc, char **argv)
 			     "       --rangebox TEXT HEIGHT WIDTH MIN MAX VALUE\n"
 			     "       --gauge TEXT HEIGHT WIDTH [PERCENT]\n"
 			     "       --menu TEXT HEIGHT WIDTH MENU_HEIGHT TAG ITEM ...\n"
+			     "       --form TEXT HEIGHT WIDTH FORM_HEIGHT\n"
+			     "           LABEL Y X ITEM Y X FLEN ILEN ...\n"
 			     "       --checklist|--radiolist TEXT HEIGHT WIDTH LIST_HEIGHT\n"
 			     "           TAG ITEM STATUS ...");
 			return 0;
@@ -358,6 +440,20 @@ int main(int argc, char **argv)
 		goto invalid_arguments;
 
 	switch (type) {
+		case DIALOG_FORM:
+			if (!setlocale(LC_CTYPE, "")) {
+				warnx("unable to select character locale");
+				return 255;
+			}
+			if (remaining < 13 || (remaining - 5) % 8 ||
+			    !parse_number(argv[i + 4], &visible) || visible < 0 || visible > 4096)
+				goto invalid_arguments;
+			for (int n = i + 5; n < argc; n += 8) {
+				struct form_field field;
+				if (!parse_form_field(argv + n, &field))
+					goto invalid_arguments;
+			}
+			break;
 		case DIALOG_INPUTBOX:
 		case DIALOG_PASSWORDBOX:
 			if (remaining != 4 && remaining != 5)
@@ -467,6 +563,24 @@ int main(int argc, char **argv)
 		goto out;
 
 	switch (type) {
+		case DIALOG_FORM:
+			if (!ipc_pair_add(&request, "layout", "positioned") ||
+			    !ipc_pair_sprintf(&request, "visible", "%ld", visible))
+				goto out;
+			for (int n = i + 5; n < argc; n += 8) {
+				struct form_field field;
+				if (!parse_form_field(argv + n, &field) ||
+				    !add_form_field(&request, "label", argv[n], field.label_x,
+						    field.label_y, field.label_width) ||
+				    !ipc_pair_add(&request, "field", "end") ||
+				    !add_form_field(&request, "input", argv[n + 3], field.input_x,
+						    field.input_y, field.width) ||
+				    !ipc_pair_sprintf(&request, "max-length", "%ld", field.limit) ||
+				    !ipc_pair_add(&request, "readonly", field.readonly ? "true" : "false") ||
+				    !ipc_pair_add(&request, "field", "end"))
+					goto out;
+			}
+			break;
 		case DIALOG_GAUGE:
 			if (!ipc_pair_sprintf(&request, "value", "%ld", percent))
 				goto out;
@@ -546,6 +660,35 @@ int main(int argc, char **argv)
 		goto out;
 
 	switch (type) {
+		case DIALOG_FORM: {
+			const char *separator = output_separator;
+			if (!separator)
+				separator = "\n";
+			for (int n = i + 5, input_id = 1; n < argc; n += 8, input_id++) {
+				struct form_field field;
+				if (!parse_form_field(argv + n, &field)) {
+					status = 255;
+					break;
+				}
+				if (field.readonly)
+					continue;
+				char key[64];
+				snprintf(key, sizeof(key), "INPUT_%d", input_id);
+				const char *value = get_result(&result, key);
+				if (!value) {
+					warnx("invalid plugin result");
+					status = 255;
+					break;
+				}
+				if (fputs(value, output) == EOF || fputs(separator, output) == EOF) {
+					status = 255;
+					break;
+				}
+			}
+			if (fflush(output) == EOF)
+				status = 255;
+			break;
+		}
 		case DIALOG_INPUTBOX:
 		case DIALOG_PASSWORDBOX:
 		case DIALOG_MENU:

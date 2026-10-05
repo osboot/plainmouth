@@ -98,9 +98,14 @@ void scroll_vbox_layout(struct widget *w)
 
 void scroll_vbox_render(struct widget *w)
 {
-	struct widget *hbox = TAILQ_FIRST(&w->children);
-	if (hbox)
-		widget_render_tree(hbox);
+	struct widget_svbox *st = w->state;
+	if (w->flags & FLAG_INFOCUS) {
+		st->vscroll->flags |= FLAG_INFOCUS;
+		st->hscroll->flags |= FLAG_INFOCUS;
+	} else {
+		st->vscroll->flags &= ~FLAG_INFOCUS;
+		st->hscroll->flags &= ~FLAG_INFOCUS;
+	}
 	scroll_vbox_sync(w);
 }
 

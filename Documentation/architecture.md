@@ -226,6 +226,10 @@ keyboard editing. The form plugin disables completion on Enter for all its
 text and password fields; inputbox and passwordbox keep the default behavior.
 The positioned form layout exposes this limit through per-field `max-length`.
 
+Text and password inputs use typed input events so ncurses keycodes are not
+inserted as Unicode characters. Unsupported special keys are ignored; Unicode
+characters whose numeric values overlap with keycodes remain ordinary text.
+
 ## 7. Containers
 
 Containers are widgets that manage children.
@@ -240,6 +244,12 @@ children and overflowing extents. Its measured size is the bounding rectangle of
 its children. A positioned container inside a scroll container's pad provides
 two-axis scrolling without changing child coordinates. Visibility requests retain
 the original target while walking ancestors, including nested containers.
+
+Rendering a child of a pad also redraws its containing viewport. Pad contents
+are copied only after children finish drawing, with clipping to the source
+dimensions; unused viewport cells retain the viewport background. Pad windows
+are not refreshed directly onto the terminal. Scroll containers indicate focus
+through their scrollbars.
 - Window (single child with decoration)
 
 Responsibilities:

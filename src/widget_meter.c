@@ -61,7 +61,7 @@ void meter_render(struct widget *w)
 	wattroff(w->win, A_REVERSE);
 
 	show_percent(w->win, st);
-	wnoutrefresh(w->win);
+	widget_noutrefresh(w);
 }
 
 void meter_free(struct widget *w)

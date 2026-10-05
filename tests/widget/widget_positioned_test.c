@@ -3,10 +3,13 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <stdio.h>
+
+#include <curses.h>
 
 #include "widget.h"
 
-int main(void)
+static void test_layout(void)
 {
 	struct widget *canvas = make_positioned();
 	struct widget *first = make_input(L"one", NULL);
@@ -43,5 +46,98 @@ int main(void)
 	assert(widget_get(pad, PROP_SCROLL_Y, &y));
 	assert(x == 1 && y == 2);
 	widget_free(pad);
+}
+
+static void check_cell(WINDOW *win, int y, int x, wchar_t expected, short pair)
+{
+	cchar_t cell;
+	wchar_t text[CCHARW_MAX];
+	attr_t attrs;
+	short actual_pair;
+	assert(mvwin_wch(win, y, x, &cell) == OK);
+	assert(getcchar(&cell, text, &attrs, &actual_pair, NULL) == OK);
+	assert(text[0] == expected && text[1] == L'\0');
+	assert(actual_pair == pair);
+}
+
+static void test_render(bool oversized)
+{
+	struct widget *root = make_window();
+	struct widget *scroll = make_scroll_vbox();
+	struct widget *canvas = make_positioned();
+	struct widget *empty = make_input(L"", NULL);
+	assert(root && scroll && canvas && empty);
+	widget_add(root, scroll);
+	widget_add(scroll, canvas);
+	assert(positioned_add(canvas, empty, 2, 1, 6, 1));
+	if (oversized) {
+		struct widget *bottom = make_input(L"bottom", NULL);
+		assert(bottom && positioned_add(canvas, bottom, 35, 15, 10, 1));
+	}
+	int yellow = COLOR_YELLOW, cyan = COLOR_CYAN;
+	assert(widget_style_override(root, COLOR_PAIR_WINDOW, &yellow, &cyan, NULL, false));
+	widget_measure_tree(root);
+	widget_layout_tree(root, 5, 5, 20, 8);
+	werase(stdscr);
+	wnoutrefresh(stdscr);
+	widget_render_tree(root);
+	check_cell(newscr, 0, 0, L' ', 0);
+	struct widget *pad = find_widget_by_type_and_id(root, WIDGET_PAD_BOX, 0);
+	struct widget *vscroll = find_widget_by_type_and_id(root, WIDGET_VSCROLL, 0);
+	struct widget *hscroll = find_widget_by_type_and_id(root, WIDGET_HSCROLL, 0);
+	assert(pad && vscroll && hscroll);
+	attr_t attrs;
+	short pair;
+	assert(widget_style_resolve(canvas, COLOR_PAIR_WINDOW, &attrs, &pair));
+	check_cell(canvas->win, 0, 0, L' ', pair);
+	check_cell(pad->win, 0, 0, L' ', pair);
+	check_cell(pad->win, pad->h - 1, pad->w - 1, L' ', pair);
+	for (int x = 2; x < 8; x++)
+		check_cell(pad->win, 1, x, L' ', COLOR_PAIR_BUTTON);
+	assert(empty->ops->input_event(empty, L'a', false));
+	widget_render_tree(empty);
+	check_cell(pad->win, 1, 2, L'a', COLOR_PAIR_BUTTON);
+	check_cell(newscr, 0, 0, L' ', 0);
+	assert(widget_set(empty, PROP_INPUT_VALUE, L""));
+	widget_render_tree(empty);
+	for (int x = 2; x < 8; x++)
+		check_cell(pad->win, 1, x, L' ', COLOR_PAIR_BUTTON);
+	if (oversized) {
+		assert(scroll->attrs & ATTR_CAN_FOCUS);
+		scroll->flags |= FLAG_INFOCUS;
+		widget_render_tree(scroll);
+		check_cell(vscroll->win, 0, 0, L'^', COLOR_PAIR_FOCUS);
+		check_cell(hscroll->win, 0, 0, L'<', COLOR_PAIR_FOCUS);
+		assert(scroll->ops->input(scroll, KEY_DOWN));
+		assert(scroll->ops->input(scroll, KEY_RIGHT));
+		widget_render_tree(scroll);
+		int x, y;
+		assert(widget_get(pad, PROP_SCROLL_X, &x) && x == 1);
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 1);
+		check_cell(pad->win, 0, 1, L' ', COLOR_PAIR_BUTTON);
+		scroll->flags &= ~FLAG_INFOCUS;
+		widget_render_tree(scroll);
+		assert(!(vscroll->flags & FLAG_INFOCUS));
+		assert(!(hscroll->flags & FLAG_INFOCUS));
+	}
+	widget_free(root);
+}
+
+int main(void)
+{
+	test_layout();
+	FILE *input = tmpfile(), *output = tmpfile();
+	assert(input && output);
+	SCREEN *screen = newterm("xterm", output, input);
+	assert(screen && start_color() == OK);
+	assert(init_pair(COLOR_PAIR_WINDOW, COLOR_WHITE, COLOR_BLUE) == OK);
+	assert(init_pair(COLOR_PAIR_BUTTON, COLOR_BLACK, COLOR_WHITE) == OK);
+	assert(init_pair(COLOR_PAIR_FOCUS, COLOR_WHITE, COLOR_GREEN) == OK);
+	test_render(false);
+	test_render(true);
+	endwin();
+	delscreen(screen);
+	fclose(input);
+	fclose(output);
 	return 0;
 }

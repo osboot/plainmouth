@@ -36,8 +36,10 @@ static const struct widget_ops positioned_ops = {
 struct widget *make_positioned(void)
 {
 	struct widget *w = widget_create(WIDGET_POSITIONED);
-	if (w)
+	if (w) {
 		w->ops = &positioned_ops;
+		w->color_pair = COLOR_PAIR_WINDOW;
+	}
 	return w;
 }
 

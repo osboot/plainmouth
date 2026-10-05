@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <locale.h>
 #include <wchar.h>
 
 #include <curses.h>
@@ -95,9 +96,24 @@ static void test_limit(bool password)
 
 int main(void)
 {
+	assert(setlocale(LC_CTYPE, "C.UTF-8"));
 	test_enter(false);
 	test_enter(true);
 	test_limit(false);
 	test_limit(true);
+	struct widget *w = make_input(L"", NULL);
+	assert(w);
+	assert(!w->ops->input_event(w, KEY_UP, true));
+	assert(!w->ops->input_event(w, KEY_DOWN, true));
+	assert(!w->ops->input_event(w, KEY_NPAGE, true));
+	assert(!w->ops->input_event(w, KEY_F(1), true));
+	expect_text(w, L"");
+	/* The same numeric value is valid text when it is not a keycode. */
+	assert(w->ops->input_event(w, KEY_UP, false));
+	wchar_t value[] = { KEY_UP, L'\0' };
+	expect_text(w, value);
+	assert(w->ops->input_event(w, KEY_BACKSPACE, true));
+	expect_text(w, L"");
+	widget_free(w);
 	return 0;
 }

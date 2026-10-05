@@ -637,7 +637,7 @@ void widget_free(struct widget *w)
 
 void widget_noutrefresh(struct widget *w)
 {
-	if (!w->win)
+	if (!w->win || is_pad(w->win))
 		return;
 
 	wnoutrefresh(w->win);
@@ -779,7 +779,7 @@ static void widget_destroy_window(struct widget *w)
  * render() hook should draw into w->win but not call wrefresh().
  * This function uses wnoutrefresh() so caller can call doupdate().
  */
-void widget_render_tree(struct widget *w)
+static void widget_render_subtree(struct widget *w)
 {
 	if (!w)
 		return;
@@ -813,16 +813,28 @@ void widget_render_tree(struct widget *w)
 	if (w->ops && w->ops->render)
 		w->ops->render(w);
 
-	widget_refresh_upper_tree(w);
-
 	struct widget *c;
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		if (c->h > 0 && c->w > 0)
-			widget_render_tree(c);
+			widget_render_subtree(c);
 	}
 
 	if (w->ops && w->ops->finalize_render)
 		w->ops->finalize_render(w);
+
+	widget_refresh_upper_tree(w);
+}
+
+void widget_render_tree(struct widget *w)
+{
+	if (!w)
+		return;
+	/* A pad child update must also redraw the viewport containing it. */
+	struct widget *root = w;
+	for (struct widget *parent = w->parent; parent; parent = parent->parent)
+		if (parent->type == WIDGET_PAD_BOX)
+			root = parent;
+	widget_render_subtree(root);
 }
 
 void widget_hide_tree(struct widget *w)

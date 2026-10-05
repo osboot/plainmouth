@@ -326,4 +326,9 @@ scrolls the focused field into view. `set-value input=N value=...` also scrolls
 the field into view, without changing focus. Coordinate placement does not
 change result order.
 
+In positioned mode, optional `visible=N` sets the preferred height of the
+form area, including scrollbars, and limits its maximum height. Zero (the
+default) uses the available space; smaller windows can shrink the area.
+Values must lie between 0 and 4096.
+
 ---

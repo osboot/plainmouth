@@ -21,7 +21,7 @@ static void pad_box_clamp_scroll(struct widget *pad) __attribute__((nonnull(1)))
 static void pad_box_measure(struct widget *w) __attribute__((nonnull(1)));
 static void pad_box_layout(struct widget *w) __attribute__((nonnull(1)));
 static void pad_box_render(struct widget *w) __attribute__((nonnull(1)));
-static void copy_pad_to_window(WINDOW *pad, WINDOW *win, int scroll_y, int scroll_x, int view_h, int view_w) __attribute__((nonnull(1,2)));
+static void copy_pad_to_window(WINDOW *pad, WINDOW *win, int scroll_y, int scroll_x, int view_h, int view_w) __attribute__((nonnull(2)));
 static bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w, int *out_y, int *out_x) __attribute__((nonnull(1,2,3,4)));
 static void pad_box_ensure_visible(struct widget *container, struct widget *child) __attribute__((nonnull(1,2)));
 static bool pad_box_getter(struct widget *w, enum widget_property prop, void *val) __attribute__((nonnull(1,3)));
@@ -105,33 +105,21 @@ static WINDOW *pad_box_child_render_win(struct widget *w)
 
 void copy_pad_to_window(WINDOW *pad, WINDOW *win, int scroll_y, int scroll_x, int view_h, int view_w)
 {
-	cchar_t *row __free(ptr) = malloc(sizeof(cchar_t) * (size_t) (view_w + 1));
-	if (!row)
+	werase(win);
+	if (!pad)
 		return;
-
-	for (int y = 0; y < view_h; y++) {
-		int py = scroll_y + y;
-
-		if (mvwin_wchnstr(pad, py, scroll_x, row, view_w) == ERR) {
-			for (int i = 0; i < view_w; i++)
-				setcchar(&row[i], L" ", 0, 0, NULL);
-		}
-
-		wmove(win, y, 0);
-		mvwadd_wchnstr(win, y, 0, row, view_w);
-	}
+	int height = MIN(view_h, getmaxy(pad) - scroll_y);
+	int width = MIN(view_w, getmaxx(pad) - scroll_x);
+	if (height <= 0 || width <= 0)
+		return;
+	if (copywin(pad, win, scroll_y, scroll_x, 0, 0, height - 1, width - 1, false) == ERR)
+		warnx("unable to copy pad viewport");
 }
 
 void pad_box_render(struct widget *w)
 {
 	struct widget_pad_box *st = w->state;
 
-	/*
-	 * Impotant:
-	 *  - pad is fully redrawn on each render()
-	 *  - copy_pad_to_window overwrites entire viewport
-	 * Therefore no werase() needed for pad or window.
-	 */
 	copy_pad_to_window(st->pad, w->win, st->scroll_y, st->scroll_x, w->h, w->w);
 }
 
@@ -252,7 +240,7 @@ void pad_box_free(struct widget *w)
 static const struct widget_ops pad_box_ops = {
 	.measure          = pad_box_measure,
 	.layout           = pad_box_layout,
-	.render           = pad_box_render,
+	.render           = NULL,
 	.finalize_render  = pad_box_render,
 	.child_render_win = pad_box_child_render_win,
 	.free             = pad_box_free,

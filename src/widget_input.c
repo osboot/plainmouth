@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <wchar.h>
+#include <wctype.h>
 #include <err.h>
 
 #include <curses.h>
@@ -87,7 +88,6 @@ void input_render(struct widget *w)
 	}
 
 	wmove(w->win, st->cursor_y, st->cursor_x);
-	wnoutrefresh(w->win);
 }
 
 void input_free(struct widget *w)
@@ -206,6 +206,30 @@ int input_input(const struct widget *w, wchar_t key)
 	return 1;
 }
 
+static int input_event(const struct widget *w, wchar_t key, bool keycode)
+{
+	if (keycode) {
+		switch (key) {
+			case KEY_ENTER:
+			case KEY_LEFT:
+			case KEY_RIGHT:
+			case KEY_BACKSPACE:
+				return input_input(w, key);
+			default:
+				return 0;
+		}
+	}
+	if (key == L'\n' || key == L'\b' || key == 127)
+		return input_input(w, key);
+	if (!iswprint((wint_t) key))
+		return 0;
+	struct widget_input *st = w->state;
+	if (st->finished || !__input_append(st, key))
+		return 0;
+	inc_cursor(w);
+	return 1;
+}
+
 bool input_getter(struct widget *w, enum widget_property prop, void *value)
 {
 	struct widget_input *st = w->state;
@@ -285,6 +309,7 @@ static const struct widget_ops input_ops = {
 	.child_render_win = NULL,
 	.free             = input_free,
 	.input            = input_input,
+	.input_event      = input_event,
 	.add_child        = NULL,
 	.ensure_visible   = NULL,
 	.setter           = input_setter,
