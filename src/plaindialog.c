@@ -32,6 +32,8 @@ enum dialog_type {
 	DIALOG_TEXTBOX,
 	DIALOG_TERMBOX,
 	DIALOG_FORM,
+	DIALOG_PASSWORDFORM,
+	DIALOG_MIXEDFORM,
 	DIALOG_COUNT,
 };
 
@@ -80,6 +82,8 @@ static const struct dialog_spec dialogs[DIALOG_COUNT] = {
 	[DIALOG_TEXTBOX]     = { "--textbox",     "textbox",   "file",    NULL,         LABEL_EXIT, LABEL_NONE   },
 	[DIALOG_TERMBOX]     = { "--termbox",     "termbox",   "command", NULL,         LABEL_OK,   LABEL_NONE   },
 	[DIALOG_FORM]        = { "--form",        "form",      "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_PASSWORDFORM] = { "--passwordform", "form",    "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_MIXEDFORM]   = { "--mixedform",   "form",      "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
 };
 
 static enum button_label find_button_label(const char *option)
@@ -134,6 +138,8 @@ struct form_field {
 	long label_y, label_x, input_y, input_x;
 	long width, limit, label_width;
 	bool readonly;
+	bool masked;
+	bool output;
 };
 
 static bool form_text_size(const char *text, long *length, long *columns)
@@ -157,9 +163,18 @@ static bool form_text_size(const char *text, long *length, long *columns)
 	return true;
 }
 
-static bool parse_form_field(char **args, struct form_field *field)
+static bool parse_form_field(enum dialog_type type, char **args, struct form_field *field)
 {
 	long flen, ilen, length, columns;
+	long flags = 0;
+
+	if (type == DIALOG_PASSWORDFORM)
+		flags = 1;
+
+	else if (type == DIALOG_MIXEDFORM &&
+		 (!parse_number(args[8], &flags) || flags < 0 || flags > 3))
+		return false;
+
 	if (!parse_number(args[1], &field->label_y) ||
 	    !parse_number(args[2], &field->label_x) ||
 	    !parse_number(args[4], &field->input_y) ||
@@ -169,27 +184,38 @@ static bool parse_form_field(char **args, struct form_field *field)
 	    !form_text_size(args[0], &length, &field->label_width) ||
 	    !form_text_size(args[3], &length, &columns))
 		return false;
+
 	/* dialog accepts zero and negative ordinates as the first row/column. */
 	long *ordinates[] = { &field->label_y, &field->label_x, &field->input_y, &field->input_x };
+
 	for (size_t n = 0; n < sizeof(ordinates) / sizeof(ordinates[0]); n++) {
 		if (*ordinates[n] > 0)
 			(*ordinates[n])--;
 		else
 			*ordinates[n] = 0;
 	}
-	field->readonly = flen <= 0;
+
+	field->readonly = flen <= 0 || (flags & 2);
+	field->masked = (flags & 1) != 0;
+	field->output = flen > 0;
 	field->width = flen;
+
 	if (flen < 0)
 		field->width = -flen;
 	else if (!flen)
 		field->width = columns;
+
 	if (!field->width)
 		field->width = 1;
+
 	if (!field->label_width)
 		field->label_width = 1;
+
 	field->limit = ilen;
+
 	if (!ilen)
 		field->limit = field->width;
+
 	return field->width <= 4096 && field->label_width <= 4096 &&
 	       field->input_x <= 4096 - field->width && field->input_y < 4096 &&
 	       field->label_x <= 4096 - field->label_width && field->label_y < 4096 &&
@@ -412,8 +438,10 @@ int main(int argc, char **argv)
 			     "       --rangebox TEXT HEIGHT WIDTH MIN MAX VALUE\n"
 			     "       --gauge TEXT HEIGHT WIDTH [PERCENT]\n"
 			     "       --menu TEXT HEIGHT WIDTH MENU_HEIGHT TAG ITEM ...\n"
-			     "       --form TEXT HEIGHT WIDTH FORM_HEIGHT\n"
+			     "       --form|--passwordform TEXT HEIGHT WIDTH FORM_HEIGHT\n"
 			     "           LABEL Y X ITEM Y X FLEN ILEN ...\n"
+			     "       --mixedform TEXT HEIGHT WIDTH FORM_HEIGHT\n"
+			     "           LABEL Y X ITEM Y X FLEN ILEN ITYPE ...\n"
 			     "       --checklist|--radiolist TEXT HEIGHT WIDTH LIST_HEIGHT\n"
 			     "           TAG ITEM STATUS ...");
 			return 0;
@@ -432,6 +460,9 @@ int main(int argc, char **argv)
 	long range_min = 0, range_max = 0, range_value = 0;
 	long percent = 0;
 	int remaining = argc - i;
+	int form_stride = 8;
+	if (type == DIALOG_MIXEDFORM)
+		form_stride = 9;
 
 	if (type == DIALOG_COUNT || remaining < 4 ||
 	    (separate_output && type != DIALOG_CHECKLIST) ||
@@ -441,16 +472,18 @@ int main(int argc, char **argv)
 
 	switch (type) {
 		case DIALOG_FORM:
+		case DIALOG_PASSWORDFORM:
+		case DIALOG_MIXEDFORM:
 			if (!setlocale(LC_CTYPE, "")) {
 				warnx("unable to select character locale");
 				return 255;
 			}
-			if (remaining < 13 || (remaining - 5) % 8 ||
+			if (remaining < 5 + form_stride || (remaining - 5) % form_stride ||
 			    !parse_number(argv[i + 4], &visible) || visible < 0 || visible > 4096)
 				goto invalid_arguments;
-			for (int n = i + 5; n < argc; n += 8) {
+			for (int n = i + 5; n < argc; n += form_stride) {
 				struct form_field field;
-				if (!parse_form_field(argv + n, &field))
+				if (!parse_form_field(type, argv + n, &field))
 					goto invalid_arguments;
 			}
 			break;
@@ -564,20 +597,41 @@ int main(int argc, char **argv)
 
 	switch (type) {
 		case DIALOG_FORM:
+		case DIALOG_PASSWORDFORM:
+		case DIALOG_MIXEDFORM:
 			if (!ipc_pair_add(&request, "layout", "positioned") ||
 			    !ipc_pair_sprintf(&request, "visible", "%ld", visible))
 				goto out;
-			for (int n = i + 5; n < argc; n += 8) {
+
+			for (int n = i + 5; n < argc; n += form_stride) {
 				struct form_field field;
-				if (!parse_form_field(argv + n, &field) ||
-				    !add_form_field(&request, "label", argv[n], field.label_x,
-						    field.label_y, field.label_width) ||
-				    !ipc_pair_add(&request, "field", "end") ||
-				    !add_form_field(&request, "input", argv[n + 3], field.input_x,
-						    field.input_y, field.width) ||
-				    !ipc_pair_sprintf(&request, "max-length", "%ld", field.limit) ||
-				    !ipc_pair_add(&request, "readonly", field.readonly ? "true" : "false") ||
-				    !ipc_pair_add(&request, "field", "end"))
+
+				if (!parse_form_field(type, argv + n, &field))
+					goto out;
+
+				const char *input_key = "input";
+
+				if (field.masked)
+					input_key = "password";
+
+				if (!add_form_field(&request, "label", argv[n], field.label_x,
+						    field.label_y, field.label_width))
+					goto out;
+
+				if (!ipc_pair_add(&request, "field", "end"))
+					goto out;
+
+				if (!add_form_field(&request, input_key, argv[n + 3], field.input_x,
+						    field.input_y, field.width))
+					goto out;
+
+				if (!ipc_pair_sprintf(&request, "max-length", "%ld", field.limit))
+					goto out;
+
+				if (!ipc_pair_add(&request, "readonly", field.readonly ? "true" : "false"))
+					goto out;
+
+				if (!ipc_pair_add(&request, "field", "end"))
 					goto out;
 			}
 			break;
@@ -660,21 +714,25 @@ int main(int argc, char **argv)
 		goto out;
 
 	switch (type) {
-		case DIALOG_FORM: {
+		case DIALOG_FORM:
+		case DIALOG_PASSWORDFORM:
+		case DIALOG_MIXEDFORM: {
 			const char *separator = output_separator;
 			if (!separator)
 				separator = "\n";
-			for (int n = i + 5, input_id = 1; n < argc; n += 8, input_id++) {
+			for (int n = i + 5, input_id = 1; n < argc; n += form_stride, input_id++) {
 				struct form_field field;
-				if (!parse_form_field(argv + n, &field)) {
+				if (!parse_form_field(type, argv + n, &field)) {
 					status = 255;
 					break;
 				}
-				if (field.readonly)
+				if (!field.output)
 					continue;
 				char key[64];
 				snprintf(key, sizeof(key), "INPUT_%d", input_id);
-				const char *value = get_result(&result, key);
+				const char *value = argv[n + 3];
+				if (!field.readonly)
+					value = get_result(&result, key);
 				if (!value) {
 					warnx("invalid plugin result");
 					status = 255;

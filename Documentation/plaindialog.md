@@ -22,6 +22,10 @@ plaindialog --stdout --checklist "Choose:" 10 40 4 tag1 "First" on tag2 "Second"
 plaindialog --stdout --radiolist "Choose:" 10 40 4 tag1 "First" on tag2 "Second" off
 plaindialog --stdout --form "Details:" 10 48 4 \
   "Name:" 1 1 "Alice" 1 8 20 40 "Status:" 2 1 "fixed" 2 8 -10 0
+plaindialog --stdout --passwordform "Credentials:" 10 48 4 \
+  "Password:" 1 1 "" 1 12 20 40
+plaindialog --stdout --mixedform "Account:" 10 48 4 \
+  "Name:" 1 1 "Alice" 1 12 20 40 0 "Password:" 2 1 "" 2 12 20 40 1
 plaindialog --tailbox /var/log/messages 10 60
 plaindialog --textbox /etc/hosts 10 60
 plaindialog --termbox 'printf "hello\n"; sleep 2' 10 60
@@ -67,6 +71,16 @@ one. Read-only values are omitted. `--output-separator` and `--separator`
 replace that newline, including with an empty string. Cancel and interruption
 produce no values. Explicit `--separate-output` is rejected, as in dialog;
 forms already use separate output by default.
+
+`--passwordform` takes the same arguments as `--form` and masks every input,
+including read-only fields. Results contain the underlying unmasked values.
+`--mixedform` adds an `ITYPE` argument after each field's `ILEN`: 0 is ordinary
+input, 1 is masked, 2 is read-only, and 3 is both masked and read-only.
+Other flag values are rejected. As in dialog, fields with positive `FLEN`
+are emitted even if `ITYPE` makes them read-only; these emit their original
+values. Fields with zero or negative `FLEN` are omitted. Both variants share
+form geometry, limits, separators and cancellation behavior. Initial secrets
+passed as arguments are visible in the process argument list.
 
 `FORM_HEIGHT` specifies the preferred height of the scrollable form area,
 including any horizontal scrollbar; zero uses the available space. The area
