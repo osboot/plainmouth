@@ -117,6 +117,8 @@ enum widget_property {
 	PROP_SCROLL_Y,
 	PROP_SELECT_STATE,
 	PROP_TEXT_VALUE,
+	PROP_INPUT_MAX_LENGTH,
+	PROP_INPUT_FINISH_ON_ENTER,
 };
 
 enum widget_flags {

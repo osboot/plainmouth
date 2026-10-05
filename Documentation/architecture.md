@@ -211,6 +211,22 @@ getch()
 ```
 
 
+Input widgets expose `PROP_INPUT_MAX_LENGTH` as an `int`, measured in
+`wchar_t` elements rather than bytes or terminal columns. The default is
+`INT_MAX - 1`; zero allows only an empty value. Negative limits, limits
+larger than `INT_MAX - 1`, and limits shorter than the current value are
+rejected. Keyboard insertion and `PROP_INPUT_VALUE` both respect the limit;
+an oversized replacement leaves the existing value and cursor unchanged.
+These properties are also supported by password inputs.
+
+`PROP_INPUT_FINISH_ON_ENTER` is a `bool`, defaulting to true. When false,
+Enter is consumed without setting `PROP_INPUT_STATE`, so the field remains
+editable. Explicit completion through `PROP_INPUT_STATE` still disables
+keyboard editing. The form plugin disables completion on Enter for all its
+text and password fields; inputbox and passwordbox keep the default behavior.
+Input length configuration is currently a widget API; per-field form request
+parameters will be added with positioned form layout.
+
 ## 7. Containers
 
 Containers are widgets that manage children.

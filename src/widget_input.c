@@ -14,7 +14,6 @@
 #include "plugin.h"
 #include "widget.h"
 
-
 struct widget_input {
 	wchar_t force_chr;
 	wchar_t *placeholder;
@@ -22,23 +21,24 @@ struct widget_input {
 	wchar_t *text;
 	int cap;
 	int len;
+	int max_length;
 
 	int cursor_x;
 	int cursor_y;
 	int index;
 
 	bool finished;
+	bool finish_on_enter;
 };
 
 static void input_measure(struct widget *w) __attribute__((nonnull(1)));
 static void input_render(struct widget *w) __attribute__((nonnull(1)));
 static int input_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
-static bool input_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1,3)));
-static bool input_setter(struct widget *w, enum widget_property prop, const void *value) __attribute__((nonnull(1,3)));
+static bool input_getter(struct widget *w, enum widget_property prop, void *value) __attribute__((nonnull(1, 3)));
+static bool input_setter(struct widget *w, enum widget_property prop, const void *value) __attribute__((nonnull(1, 3)));
 static void input_free(struct widget *w);
 static bool __input_unchr(struct widget_input *state) __attribute__((nonnull(1)));
 static bool __input_append(struct widget_input *state, wchar_t c) __attribute__((nonnull(1)));
-
 
 void input_measure(struct widget *w)
 {
@@ -108,7 +108,7 @@ bool __input_unchr(struct widget_input *state)
 {
 	int index = state->index;
 
-	if (state->len > 0) {
+	if (index > 0) {
 		if (index < state->len)
 			wmemmove(&state->text[index - 1],
 				 &state->text[index],
@@ -122,6 +122,8 @@ bool __input_unchr(struct widget_input *state)
 
 bool __input_append(struct widget_input *state, wchar_t c)
 {
+	if (state->len >= state->max_length)
+		return false;
 	if (state->cap <= (state->len + 1)) {
 		size_t cap = (size_t) state->cap + 1;
 		wchar_t *text = realloc(state->text, cap * sizeof(wchar_t));
@@ -178,7 +180,8 @@ int input_input(const struct widget *w, wchar_t key)
 	switch (key) {
 		case KEY_ENTER:
 		case L'\n':
-			st->finished = true;
+			if (st->finish_on_enter)
+				st->finished = true;
 			break;
 		case KEY_LEFT:
 			dec_cursor(w);
@@ -194,7 +197,7 @@ int input_input(const struct widget *w, wchar_t key)
 			dec_cursor(w);
 			break;
 		default:
-			if(!__input_append(st, key))
+			if (!__input_append(st, key))
 				return 0;
 			inc_cursor(w);
 			break;
@@ -215,6 +218,14 @@ bool input_getter(struct widget *w, enum widget_property prop, void *value)
 		*(wchar_t **) value = st->text;
 		return true;
 
+	} else if (prop == PROP_INPUT_MAX_LENGTH) {
+		*(int *) value = st->max_length;
+		return true;
+
+	} else if (prop == PROP_INPUT_FINISH_ON_ENTER) {
+		*(bool *) value = st->finish_on_enter;
+		return true;
+
 	} else {
 		errx(EXIT_FAILURE, "unknown property: %d", prop);
 	}
@@ -231,6 +242,9 @@ bool input_setter(struct widget *w, enum widget_property prop, const void *value
 
 	} else if (prop == PROP_INPUT_VALUE) {
 		const wchar_t *in = value;
+		size_t length = wcslen(in ?: L"");
+		if (length > (size_t) st->max_length)
+			return false;
 		wchar_t *text = wcsdup(in ?: L"");
 		if (!text) {
 			warn("wcsdup");
@@ -239,11 +253,22 @@ bool input_setter(struct widget *w, enum widget_property prop, const void *value
 
 		free(st->text);
 		st->text = text;
-		st->len = (int) wcslen(st->text);
+		st->len = (int) length;
 		st->cap = st->len + 1;
 		st->index = st->len;
 		st->cursor_x = (w->w > 0) ? MIN(st->index, w->w) : st->index;
 		st->cursor_y = 0;
+		return true;
+
+	} else if (prop == PROP_INPUT_MAX_LENGTH) {
+		int limit = *(const int *) value;
+		if (limit < st->len || limit > INT_MAX - 1)
+			return false;
+		st->max_length = limit;
+		return true;
+
+	} else if (prop == PROP_INPUT_FINISH_ON_ENTER) {
+		st->finish_on_enter = *(const bool *) value;
 		return true;
 
 	} else {
@@ -281,18 +306,43 @@ struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder)
 	}
 
 	state->text = wcsdup(initdata ?: L"");
-	state->len = (int) wcslen(state->text);
+
+	if (!state->text) {
+		free(state);
+		widget_free(w);
+		return NULL;
+	}
+
+	size_t length = wcslen(state->text);
+
+	if (length > INT_MAX - 1) {
+		free(state->text);
+		free(state);
+		widget_free(w);
+		return NULL;
+	}
+
+	state->len = (int) length;
+	state->max_length = INT_MAX - 1;
+	state->finish_on_enter = true;
 	state->cap = state->len + 1;
 	state->index = state->len;
 	state->cursor_x = state->len;
 
-	if (placeholder)
+	if (placeholder) {
 		state->placeholder = wcsdup(placeholder);
+		if (!state->placeholder) {
+			free(state->text);
+			free(state);
+			widget_free(w);
+			return NULL;
+		}
+	}
 
-	w->state       = state;
-	w->ops         = &input_ops;
-	w->color_pair  = COLOR_PAIR_BUTTON;
-	w->attrs       = ATTR_CAN_FOCUS | ATTR_CAN_CURSOR;
+	w->state      = state;
+	w->ops        = &input_ops;
+	w->color_pair = COLOR_PAIR_BUTTON;
+	w->attrs      = ATTR_CAN_FOCUS | ATTR_CAN_CURSOR;
 
 	/* INPUT is normally stretched horizontally, but height stays fixed */
 	w->flex_w = 1;        /* expand width */

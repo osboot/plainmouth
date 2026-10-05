@@ -52,6 +52,7 @@ static struct widget *p_form_create(struct request *req)
 
 	struct widget *current = NULL;
 	int input_id = 1;
+	bool finish_on_enter = false;
 
 	for (size_t i = 0; i < p->num_kv; i++) {
 		if (streq(p->kv[i].key, "hbox")) {
@@ -95,6 +96,8 @@ static struct widget *p_form_create(struct request *req)
 				goto fail;
 			}
 			widget_add(current, input);
+			if (!widget_set(input, PROP_INPUT_FINISH_ON_ENTER, &finish_on_enter))
+				goto fail;
 
 			input->w_id = input_id++;
 			continue;
@@ -110,6 +113,8 @@ static struct widget *p_form_create(struct request *req)
 				goto fail;
 			}
 			widget_add(current, input);
+			if (!widget_set(input, PROP_INPUT_FINISH_ON_ENTER, &finish_on_enter))
+				goto fail;
 
 			input->w_id = input_id++;
 			continue;
