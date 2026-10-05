@@ -906,17 +906,27 @@ struct widget *find_widget_by_type_and_id(struct widget *w, enum widget_type typ
 
 bool widget_coordinates_yx(struct widget *w, int *wy, int *wx)
 {
-	int y, x, ry, rx;
-	struct widget *root = w;
-
-	while (root->parent)
-		root = root->parent;
-
-	if (!get_abs_cursor(root->win, w->win, &y, &x))
+	if (!w || !w->win || !wy || !wx)
 		return false;
-
-	getbegyx(root->win, ry, rx);
-
+	int y, x;
+	getyx(w->win, y, x);
+	while (w->parent) {
+		y += w->ly;
+		x += w->lx;
+		w = w->parent;
+		if (w->type == WIDGET_PAD_BOX) {
+			int scroll_y, scroll_x;
+			if (!widget_get(w, PROP_SCROLL_Y, &scroll_y) ||
+			    !widget_get(w, PROP_SCROLL_X, &scroll_x))
+				return false;
+			y -= scroll_y;
+			x -= scroll_x;
+		}
+		if (y < 0 || x < 0 || y >= w->h || x >= w->w)
+			return false;
+	}
+	int ry, rx;
+	getbegyx(w->win, ry, rx);
 	*wy = ry + y;
 	*wx = rx + x;
 

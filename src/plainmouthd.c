@@ -102,12 +102,16 @@ static void ui_update_cursor(void)
 		return;
 	}
 
-	if (!get_abs_cursor(focused_ins->root->win, focused->win, &y, &x)) {
+	if (!widget_coordinates_yx(focused, &y, &x)) {
 		curs_set(0);
 		return;
 	}
 
 	curs_set(1);
+	int root_y, root_x;
+	getbegyx(focused_ins->root->win, root_y, root_x);
+	y -= root_y;
+	x -= root_x;
 
 	wmove(focused_ins->root->win, y, x);
 	widget_noutrefresh(focused_ins->root);
@@ -495,8 +499,11 @@ static void handle_input(void)
 		}
 	}
 
-	if (code == L'\t') {
-		daemon_focus_next();
+	if ((ret == OK && code == L'\t') || (ret == KEY_CODE_YES && code == KEY_BTAB)) {
+		if (ret == KEY_CODE_YES)
+			daemon_focus_prev();
+		else
+			daemon_focus_next();
 		if (daemon_focus_get())
 			ui_update();
 		return;

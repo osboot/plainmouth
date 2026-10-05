@@ -79,6 +79,8 @@ void input_render(struct widget *w)
 
 		if (st->index > w->w)
 			offset = st->index - w->w;
+		width = MIN(width, st->len - offset);
+		st->cursor_x = MIN(st->index - offset, w->w - 1);
 
 		for (int i = 0; i < width; i++)
 			w_addch(w->win, (st->force_chr ?: st->text[i + offset]));

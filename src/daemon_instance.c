@@ -168,6 +168,18 @@ void daemon_focus_next(void)
 	}
 }
 
+void daemon_focus_prev(void)
+{
+	if (focused) {
+		ui_focused(false);
+		focused = TAILQ_PREV(focused, widgethead, focuses);
+	}
+	if (!focused)
+		focused = TAILQ_LAST(&focusable, widgethead);
+	if (focused)
+		ui_focused(true);
+}
+
 bool daemon_instance_create(struct request *req)
 {
 	const char *instance_id = req_get_val(req, "id");

@@ -90,7 +90,8 @@ passed as arguments are visible in the process argument list.
 `FORM_HEIGHT` specifies the preferred height of the scrollable form area,
 including any horizontal scrollbar; zero uses the available space. The area
 may shrink to fit the window. Field placement and horizontal scrolling use
-plainmouth's positioned layout; Tab moves focus and scrolls the field into
+plainmouth's positioned layout; Tab moves focus forward and Shift-Tab backward,
+scrolling the field into
 view. Enter keeps the input editable; select OK to submit the form. Navigation
 follows plainmouth, including its focus traversal order. Coordinates and
 extents are limited to 4096 per axis, with at most 1048576 canvas cells.

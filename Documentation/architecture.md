@@ -195,7 +195,9 @@ receives keyboard events. Plugins do not manage focus directly.
 Widgets can provide `input_event(widget, character, keycode)` when they need
 to distinguish Unicode characters from ncurses keycodes with the same numeric
 value. The server falls back to the existing `input` callback for other
-widgets. Tab continues to move focus before either callback is called.
+widgets. Tab moves focus forward and Shift-Tab backward before either callback
+is called. Cursor coordinates follow widget ancestry and subtract pad scroll
+offsets; a cursor outside a viewport is hidden.
 
 
 ### 6.2 Input Dispatch
