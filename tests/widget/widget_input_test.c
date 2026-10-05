@@ -94,6 +94,59 @@ static void test_limit(bool password)
 	widget_free(w);
 }
 
+static void test_edit(bool password)
+{
+	struct widget *w = password ? make_input_password(L"abc", NULL) : make_input(L"abc", NULL);
+	assert(w);
+	assert(w->ops->input_event(w, KEY_HOME, true));
+	assert(w->ops->input_event(w, KEY_DC, true));
+	expect_text(w, L"bc");
+	assert(w->ops->input_event(w, L'X', false));
+	assert(w->ops->input_event(w, KEY_END, true));
+	assert(!w->ops->input_event(w, KEY_DC, true));
+	assert(w->ops->input_event(w, L'Y', false));
+	expect_text(w, L"XbcY");
+	assert(w->ops->input_event(w, KEY_LEFT, true));
+	assert(w->ops->input_event(w, KEY_DC, true));
+	expect_text(w, L"Xbc");
+	assert(widget_set(w, PROP_INPUT_VALUE, L"\u754c\u03b1"));
+	assert(w->ops->input_event(w, KEY_HOME, true));
+	assert(w->ops->input_event(w, KEY_DC, true));
+	expect_text(w, L"\u03b1");
+	widget_free(w);
+}
+
+static void test_viewport(void)
+{
+	FILE *input = tmpfile(), *output = tmpfile();
+	assert(input && output);
+	SCREEN *screen = newterm("xterm", output, input);
+	assert(screen);
+	struct widget *root = make_window(), *w = make_input(L"abcdef", NULL);
+	assert(root && w);
+	widget_add(root, w);
+	widget_measure_tree(root);
+	widget_layout_tree(root, 0, 0, 4, 1);
+	widget_render_tree(root);
+	assert((mvwinch(w->win, 0, 0) & A_CHARTEXT) == 'c');
+	assert(w->ops->input_event(w, KEY_LEFT, true));
+	widget_render_tree(w);
+	assert((mvwinch(w->win, 0, 0) & A_CHARTEXT) == 'c');
+	assert(w->ops->input_event(w, KEY_HOME, true));
+	widget_render_tree(w);
+	assert((mvwinch(w->win, 0, 0) & A_CHARTEXT) == 'a');
+	assert(widget_set(w, PROP_INPUT_VALUE, L"\u754c\u03b1"));
+	widget_render_tree(w);
+	int y, x;
+	getyx(w->win, y, x);
+	assert(y == 0 && x == 3);
+	widget_free(root);
+	endwin();
+	delscreen(screen);
+	fclose(input);
+	fclose(output);
+}
+
 int main(void)
 {
 	assert(setlocale(LC_CTYPE, "C.UTF-8"));
@@ -101,6 +154,9 @@ int main(void)
 	test_enter(true);
 	test_limit(false);
 	test_limit(true);
+	test_edit(false);
+	test_edit(true);
+	test_viewport();
 	struct widget *w = make_input(L"", NULL);
 	assert(w);
 	assert(!w->ops->input_event(w, KEY_UP, true));

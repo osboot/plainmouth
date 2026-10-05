@@ -199,6 +199,18 @@ widgets. Tab moves focus forward and Shift-Tab backward before either callback
 is called. Cursor coordinates follow widget ancestry and subtract pad scroll
 offsets; a cursor outside a viewport is hidden.
 
+Single-line inputs support Left/Right, Home/End, Backspace and Delete.
+Their horizontal viewport stays in place while the cursor remains visible
+and counts display columns, including wide and combining characters.
+Password fields apply the same editing operations to their masked contents.
+When an input has focus, the daemon enables bracketed paste on terminals
+supporting it. Pasted tabs and line endings become spaces; other control
+characters and decoded function keys are ignored. Paste does not submit the
+input or change focus. Input length limits still apply, so excess characters
+are rejected. The paste mode is disabled when focus leaves the input, the
+terminal is released, or the daemon exits. Without terminal support for
+bracketed paste, input retains ordinary keyboard semantics.
+
 
 ### 6.2 Input Dispatch
 

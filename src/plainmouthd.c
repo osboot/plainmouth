@@ -14,6 +14,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <wchar.h>
+#include <wctype.h>
 #include <errno.h>
 #include <error.h>
 #include <err.h>
@@ -33,6 +34,32 @@
 #include "daemon_event.h"
 
 static SCREEN *scr = NULL;
+static FILE *terminal_output;
+static bool paste_keys;
+static bool paste_enabled;
+static bool pasting;
+
+#define KEY_PASTE_BEGIN (KEY_MAX + 1)
+#define KEY_PASTE_END (KEY_MAX + 2)
+
+static void set_paste_mode(bool enabled)
+{
+	enabled = enabled && paste_keys;
+
+	if (paste_enabled == enabled)
+		return;
+
+	if (fputs(enabled ? "\033[?2004h" : "\033[?2004l", terminal_output) == EOF ||
+	    fflush(terminal_output) == EOF) {
+		warn("set terminal paste mode");
+		return;
+	}
+
+	paste_enabled = enabled;
+
+	if (!enabled)
+		pasting = false;
+}
 
 static _Atomic int do_quit = 0;
 static _Thread_local bool quit_requested;
@@ -124,6 +151,7 @@ static void ui_update(void)
 
 	if (!use_terminal)
 		return;
+	set_paste_mode(focused && focused->type == WIDGET_INPUT);
 
 	bool needs_raw = focused && focused->type == WIDGET_TERMINAL;
 	if (needs_raw != terminal_input) {
@@ -279,6 +307,7 @@ static int ui_process_task_show_splash(struct ui_task *t _UNUSED)
 static int ui_process_task_hide_splash(struct ui_task *t _UNUSED)
 {
 	if (use_terminal) {
+		set_paste_mode(false);
 		endwin();
 		use_terminal = !use_terminal;
 	}
@@ -372,18 +401,18 @@ struct ui_command {
 };
 
 static const struct ui_command ui_commands[UI_TASK_COUNT] = {
-	[UI_TASK_NONE] = { NULL,           ui_process_task_unknown,      false },
-	[UI_TASK_DUMP] = { "dump",         ui_process_task_dump,         true  },
-	[UI_TASK_CREATE] = { "create",       ui_process_task_create,       true  },
-	[UI_TASK_UPDATE] = { "update",       ui_process_task_update,       true  },
-	[UI_TASK_SET_VALUE] = { "set-value",    ui_process_task_set_value,    true  },
-	[UI_TASK_DELETE] = { "delete",       ui_process_task_delete,       true  },
-	[UI_TASK_FOCUS] = { "focus",        ui_process_task_focus,        true  },
-	[UI_TASK_RESULT] = { "result",       ui_process_task_result,       true  },
-	[UI_TASK_SHOW_SPLASH] = { "show-splash",  ui_process_task_show_splash,  false },
-	[UI_TASK_HIDE_SPLASH] = { "hide-splash",  ui_process_task_hide_splash,  false },
-	[UI_TASK_SET_TITLE] = { "set-title",    ui_process_task_set_title,    false },
-	[UI_TASK_SET_STYLE] = { "set-style",    ui_process_task_set_style,    false },
+	[UI_TASK_NONE]         = { NULL,           ui_process_task_unknown,      false },
+	[UI_TASK_DUMP]         = { "dump",         ui_process_task_dump,         true  },
+	[UI_TASK_CREATE]       = { "create",       ui_process_task_create,       true  },
+	[UI_TASK_UPDATE]       = { "update",       ui_process_task_update,       true  },
+	[UI_TASK_SET_VALUE]    = { "set-value",    ui_process_task_set_value,    true  },
+	[UI_TASK_DELETE]       = { "delete",       ui_process_task_delete,       true  },
+	[UI_TASK_FOCUS]        = { "focus",        ui_process_task_focus,        true  },
+	[UI_TASK_RESULT]       = { "result",       ui_process_task_result,       true  },
+	[UI_TASK_SHOW_SPLASH]  = { "show-splash",  ui_process_task_show_splash,  false },
+	[UI_TASK_HIDE_SPLASH]  = { "hide-splash",  ui_process_task_hide_splash,  false },
+	[UI_TASK_SET_TITLE]    = { "set-title",    ui_process_task_set_title,    false },
+	[UI_TASK_SET_STYLE]    = { "set-style",    ui_process_task_set_style,    false },
 	[UI_TASK_LIST_PLUGINS] = { "list-plugins", ui_process_task_list_plugins, false },
 };
 
@@ -499,6 +528,31 @@ static void handle_input(void)
 		}
 	}
 
+	if (ret == KEY_CODE_YES && code == KEY_PASTE_BEGIN) {
+		pasting = paste_enabled;
+		return;
+	}
+
+	if (ret == KEY_CODE_YES && code == KEY_PASTE_END) {
+		pasting = false;
+		return;
+	}
+
+	if (pasting) {
+		if (ret != OK || !focused || focused->type != WIDGET_INPUT)
+			return;
+
+		if (code == L'\t' || code == L'\n' || code == L'\r')
+			code = L' ';
+
+		if (!iswprint(code))
+			return;
+
+		focused->ops->input_event(focused, (wchar_t) code, false);
+		ui_update();
+		return;
+	}
+
 	if ((ret == OK && code == L'\t') || (ret == KEY_CODE_YES && code == KEY_BTAB)) {
 		if (ret == KEY_CODE_YES)
 			daemon_focus_prev();
@@ -538,6 +592,14 @@ static void curses_init(FILE *inf, FILE *outf)
 
 	set_term(scr);
 
+	terminal_output = outf;
+
+	paste_keys = define_key("\033[200~", KEY_PASTE_BEGIN) == OK &&
+		     define_key("\033[201~", KEY_PASTE_END) == OK;
+
+	if (!paste_keys)
+		warnx("unable to define terminal paste keys");
+
 	cbreak();
 	noecho();
 	keypad(stdscr, TRUE);
@@ -558,6 +620,7 @@ static void curses_init(FILE *inf, FILE *outf)
 
 static void curses_finish(void)
 {
+	set_paste_mode(false);
 	reset_color_pairs();
 	endwin();
 	delscreen(scr);

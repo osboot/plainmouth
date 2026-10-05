@@ -27,6 +27,7 @@ struct widget_input {
 	int cursor_x;
 	int cursor_y;
 	int index;
+	int view_start;
 
 	bool finished;
 	bool finish_on_enter;
@@ -63,6 +64,12 @@ void input_measure(struct widget *w)
 	w->max_h = 1;
 }
 
+static int input_char_width(struct widget_input *st, int index)
+{
+	int width = wcwidth(st->force_chr ?: st->text[index]);
+	return MAX(0, width);
+}
+
 void input_render(struct widget *w)
 {
 	struct widget_input *st = w->state;
@@ -73,17 +80,32 @@ void input_render(struct widget *w)
 	wmove(w->win, 0, 0);
 	wclrtoeol(w->win);
 
+	st->view_start = MIN(st->view_start, st->index);
+
+	long columns = 0;
+
+	for (int i = st->view_start; i < st->index; i++)
+		columns += input_char_width(st, i);
+
+	while (columns > w->w && st->view_start < st->index)
+		columns -= input_char_width(st, st->view_start++);
+
+	/* Do not start a viewport with a detached combining character. */
+	while (st->view_start < st->index && !input_char_width(st, st->view_start))
+		st->view_start++;
+
+	st->cursor_x = (int) MIN(columns, MAX(0, w->w - 1));
+
 	if (st->len > 0) {
-		int width = MIN(st->len, w->w);
-		int offset = 0;
+		int drawn = 0;
 
-		if (st->index > w->w)
-			offset = st->index - w->w;
-		width = MIN(width, st->len - offset);
-		st->cursor_x = MIN(st->index - offset, w->w - 1);
-
-		for (int i = 0; i < width; i++)
-			w_addch(w->win, (st->force_chr ?: st->text[i + offset]));
+		for (int i = st->view_start; i < st->len; i++) {
+			int width = input_char_width(st, i);
+			if (drawn + width > w->w)
+				break;
+			w_addch(w->win, (st->force_chr ?: st->text[i]));
+			drawn += width;
+		}
 
 	} else if (st->placeholder) {
 		waddwstr(w->win, st->placeholder);
@@ -191,6 +213,21 @@ int input_input(const struct widget *w, wchar_t key)
 		case KEY_RIGHT:
 			inc_cursor(w);
 			break;
+		case KEY_HOME:
+			st->index = 0;
+			break;
+		case KEY_END:
+			st->index = st->len;
+			break;
+		case KEY_DC:
+			if (st->index == st->len)
+				return 0;
+
+			wmemmove(st->text + st->index, st->text + st->index + 1,
+				 (size_t) (st->len - st->index));
+
+			st->len--;
+			break;
 		case KEY_BACKSPACE:
 		case L'\b':
 		case 127:
@@ -216,6 +253,9 @@ static int input_event(const struct widget *w, wchar_t key, bool keycode)
 			case KEY_LEFT:
 			case KEY_RIGHT:
 			case KEY_BACKSPACE:
+			case KEY_HOME:
+			case KEY_END:
+			case KEY_DC:
 				return input_input(w, key);
 			default:
 				return 0;
@@ -282,6 +322,7 @@ bool input_setter(struct widget *w, enum widget_property prop, const void *value
 		st->len = (int) length;
 		st->cap = st->len + 1;
 		st->index = st->len;
+		st->view_start = 0;
 		st->cursor_x = (w->w > 0) ? MIN(st->index, w->w) : st->index;
 		st->cursor_y = 0;
 		return true;
