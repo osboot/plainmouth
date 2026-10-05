@@ -263,16 +263,25 @@ int main(int argc, char **argv)
 {
 	const char *socket_file = getenv("PLAINMOUTH_SOCKET");
 	FILE *output = stderr;
+	bool separate_output = false;
+	const char *output_separator = NULL;
 	int i = 1;
 	while (i < argc) {
 		if (!strcmp(argv[i], "--stdout"))
 			output = stdout;
 		else if (!strcmp(argv[i], "--stderr"))
 			output = stderr;
-		else if (!strcmp(argv[i], "--socket-file") && i + 1 < argc)
+		else if (!strcmp(argv[i], "--separate-output"))
+			separate_output = true;
+		else if (!strcmp(argv[i], "--output-separator") || !strcmp(argv[i], "--separator")) {
+			if (i + 1 >= argc)
+				goto invalid_arguments;
+			output_separator = argv[++i];
+		} else if (!strcmp(argv[i], "--socket-file") && i + 1 < argc)
 			socket_file = argv[++i];
 		else if (!strcmp(argv[i], "--help")) {
 			puts("Usage: plaindialog [--socket-file PATH] [--stdout|--stderr]\n"
+			     "       [--separate-output] [--output-separator STRING|--separator STRING]\n"
 			     "       --msgbox|--yesno TEXT HEIGHT WIDTH\n"
 			     "       --tailbox FILE HEIGHT WIDTH\n"
 			     "       --textbox FILE HEIGHT WIDTH\n"
@@ -303,6 +312,7 @@ int main(int argc, char **argv)
 	int remaining = argc - i;
 
 	if (type == DIALOG_COUNT || remaining < 4 ||
+	    (separate_output && type != DIALOG_CHECKLIST) ||
 	    !positive_number(argv[i + 2], &height) ||
 	    !positive_number(argv[i + 3], &width))
 		goto invalid_arguments;
@@ -532,6 +542,13 @@ int main(int argc, char **argv)
 		case DIALOG_CHECKLIST:
 		case DIALOG_RADIOLIST: {
 			bool first = true;
+			bool separate = type == DIALOG_CHECKLIST && separate_output;
+			const char *separator = output_separator;
+			if (!separator) {
+				separator = " ";
+				if (separate)
+					separator = "\n";
+			}
 			int options = (remaining - 5) / 3;
 
 			for (int n = 1; n <= options; n++) {
@@ -551,10 +568,17 @@ int main(int argc, char **argv)
 				const char *tag = argv[i + 5 + 3 * (n - 1)];
 				bool ok;
 
-				if (type == DIALOG_RADIOLIST)
-					ok = fputs(tag, output) != EOF;
-				else
-					ok = (first || fputc(' ', output) != EOF) && output_quoted(output, tag);
+				if (separate)
+					ok = fputs(tag, output) != EOF && fputs(separator, output) != EOF;
+				else {
+					ok = true;
+					if (!first || output_separator)
+						ok = fputs(separator, output) != EOF;
+					if (ok && type == DIALOG_RADIOLIST)
+						ok = fputs(tag, output) != EOF;
+					else if (ok)
+						ok = output_quoted(output, tag);
+				}
 
 				if (!ok) {
 					status = 255;

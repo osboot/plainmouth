@@ -36,6 +36,19 @@ the client and mapped using the option's creation index.
 selected tag in creation order, quoted and separated by spaces; backslashes
 and double quotes inside tags are escaped. An empty checklist writes nothing.
 
+`--separate-output` writes checklist tags without quoting, adding a newline
+after every selected tag, including the last. `--output-separator STRING`
+(also `--separator STRING`) replaces the delimiter. In separate-output mode
+it follows each tag; otherwise it precedes each selected tag, including the
+first, and checklist quoting is retained. An empty separator is accepted;
+when repeated, the last separator wins. No selection or Cancel writes nothing.
+
+`--separate-output` is accepted only with checklist; other supported widgets
+reject it, as in dialog. With radiolist, an explicit separator precedes its
+unquoted single-tag result. Menu and other single-value widgets are unaffected
+by `--output-separator`. These options must precede the widget option, like
+the output-stream options.
+
 `--passwordbox TEXT HEIGHT WIDTH [INIT]` behaves like inputbox but masks its
 contents. As with dialog, an initial password is visible in the process argument
 list and should normally be avoided.

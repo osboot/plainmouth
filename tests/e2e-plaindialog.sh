@@ -82,6 +82,34 @@ testcase()
 	run_case 0 '"first tag" "third\"tag"' option=3 --stdout --checklist 'Choose several:' 10 48 3 \
 		'first tag' 'First item' on second 'Second item' off 'third"tag' 'Third item' off
 	if [ "$MODE" = dump ]; then
+		run_case 0 $'first tag\nsecond"tag\n' option=2 --stdout --separate-output \
+			--checklist 'Separate lines:' 10 48 3 \
+			'first tag' First on 'second"tag' Second off
+		run_case 0 '|"first tag"|"second\\tag"' option=2 --stdout --output-separator '|' \
+			--checklist 'Custom separator:' 10 48 3 \
+			'first tag' First on 'second\tag' Second off
+		run_case 0 ':"first tag":"second tag"' option=2 --stdout \
+			--output-separator ignored --separator ':' \
+			--checklist 'Separator alias:' 10 48 3 \
+			'first tag' First on 'second tag' Second off
+		run_case 0 'first tag::second"tag::' option=2 --stdout \
+			--output-separator '::' --separate-output \
+			--checklist 'Separate tags:' 10 48 3 \
+			'first tag' First on 'second"tag' Second off
+		run_case 0 'firstsecond' option=2 --stdout --separate-output --separator '' \
+			--checklist 'Empty separator:' 10 48 3 first First on second Second off
+		run_case 0 '"first""second"' option=2 --stdout --separator '' \
+			--checklist 'Empty separator:' 10 48 3 first First on second Second off
+		run_case 0 $'\nsecond\n' option=2 --stdout --separate-output \
+			--checklist 'Empty tag:' 10 48 3 '' First on second Second off
+		run_case 0 '' button=1 --stdout --separate-output --separator '|' \
+			--checklist 'No selection:' 10 48 3 first First off
+		run_case 1 '' button=2 --stdout --separate-output --separator '|' \
+			--checklist 'Cancel:' 10 48 3 first First on
+		run_case 0 '|second tag' option=2 --stdout --separator '|' \
+			--radiolist 'Choose one:' 10 48 3 first First on 'second tag' Second off
+		run_case 0 second option=2 --stdout --separator '|' \
+			--menu 'Choose one:' 10 48 3 first First second Second
 		run_case 0 initial default-stderr --inputbox 'Name:' 7 32 initial
 		run_case 0 '' finished=true --stdout --inputbox 'Name:' 7 32
 		run_case 1 '' button=2 --stdout --inputbox 'Name:' 7 32 secret
@@ -94,6 +122,18 @@ testcase()
 		run_case 0 '' button=1 --stdout --checklist 'Choose:' 9 40 3 first Item off
 		run_case 255 '' signal --stdout --inputbox 'Interrupted:' 7 32
 		local status=0
+		"$topdir"/plaindialog --separate-output --radiolist Text 8 30 2 tag Item on >/dev/null 2>&1 || status=$?
+		test "$status" -eq 255
+		status=0
+		"$topdir"/plaindialog --separate-output --menu Text 8 30 2 tag Item >/dev/null 2>&1 || status=$?
+		test "$status" -eq 255
+		status=0
+		"$topdir"/plaindialog --output-separator >/dev/null 2>&1 || status=$?
+		test "$status" -eq 255
+		status=0
+		"$topdir"/plaindialog --separator >/dev/null 2>&1 || status=$?
+		test "$status" -eq 255
+		status=0
 		"$topdir"/plaindialog --rangebox Range 7 32 10 0 5 >/dev/null 2>&1 || status=$?
 		test "$status" -eq 255
 		status=0
