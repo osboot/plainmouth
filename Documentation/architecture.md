@@ -274,6 +274,15 @@ fully isolated from each other.
 In particular, this prevents scenarios where one plugin instance could navigate
 the widget tree and reach widgets belonging to another plugin instance.
 
+Common button operations are provided by `plugin_helpers` in
+`libplainmouth.so`. Plugins create and attach their own button containers;
+`plugin_add_buttons` fills a container from request fields and assigns IDs
+in field creation order. On failure, attached buttons remain owned by the
+container and are freed with the dialog root. The helpers also set button
+state, emit individual button results and check completion by a numbered
+button. Plugins retain validation of conflicting targets, their other
+completion conditions, and result traversal order.
+
 ### 8.3 Plugin Event Sources
 
 An instance may expose event sources through `p_pollfds(root, &fds)`.

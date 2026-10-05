@@ -13,15 +13,14 @@
 #include "request.h"
 #include "widget.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 
 static struct widget *p_msgbox_create(struct request *req)
 {
-	struct ipc_pair *p = req_data(req);
-
 	int begin_x = req_get_int(req, "x", -1);
 	int begin_y = req_get_int(req, "y", -1);
-	int height  = req_get_int(req, "height", -1);
-	int width   = req_get_int(req, "width",  -1);
+	int height = req_get_int(req, "height", -1);
+	int width = req_get_int(req, "width", -1);
 
 	if (height < 0 || width < 0) {
 		ipc_send_string(req_fd(req), "RESPDATA %s ERR='width' and 'height' parameters must be specified",
@@ -49,29 +48,12 @@ static struct widget *p_msgbox_create(struct request *req)
 	}
 
 	struct widget *hbox = make_hbox();
+	if (!hbox)
+		goto fail;
 	widget_add(parent, hbox);
-
 	hbox->flex_h = 0;
-
-	int w_id = 1;
-
-	for (size_t i = 0; i < p->num_kv; i++) {
-		if (streq(p->kv[i].key, "button")) {
-			wchar_t *label = req_get_kv_wchars(p->kv + i);
-
-			struct widget *btn = make_button(label);
-			free(label);
-
-			if (!btn) {
-				warnx("unable to create button");
-				widget_free(root);
-				return NULL;
-			}
-			btn->w_id = w_id++;
-
-			widget_add(hbox, btn);
-		}
-	}
+	if (!plugin_add_buttons(req, hbox))
+		goto fail;
 
 	widget_measure_tree(root);
 
@@ -81,89 +63,31 @@ static struct widget *p_msgbox_create(struct request *req)
 	widget_render_tree(root);
 
 	return root;
+fail:
+	widget_free(root);
+	return NULL;
 }
 
 static bool collect_results(struct widget *w, void *data)
 {
-	struct request *req = data;
-
-	if (w->w_id <= 0)
-		return true;
-
-	if (w->type == WIDGET_BUTTON) {
-		bool clicked = false;
-		widget_get(w, PROP_BUTTON_STATE, &clicked);
-
-		ipc_send_string(req_fd(req), "RESPDATA %s BUTTON_%d=%d",
-				req_id(req), w->w_id, clicked);
-	}
-
-	return true;
-}
-
-static enum p_retcode p_msgbox_set_value(struct request *req, struct widget *root)
-{
-	const char *button = req_get_val(req, "button");
-
-	if (button) {
-		int id;
-		bool clicked;
-		if (!req_read_int(req, "button", &id) ||
-		    !req_read_bool(req, "clicked", true, &clicked))
-			return P_RET_ERR;
-		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, id);
-		if (!w) {
-			req_error(req, "widget not found: button=%d", id);
-			return P_RET_ERR;
-		}
-		if (!widget_set(w, PROP_BUTTON_STATE, &clicked)) {
-			req_error(req, "unable to set value: clicked");
-			return P_RET_ERR;
-		}
-		return P_RET_OK;
-	}
-
-	req_error(req, "field is missing: button");
-	return P_RET_ERR;
+	return plugin_button_result(data, w);
 }
 
 static enum p_retcode p_msgbox_result(struct request *req, struct widget *root)
 {
-	walk_widget_tree(root, collect_results, req);
-	return P_RET_OK;
-}
-
-static bool check_results(struct widget *w, void *data)
-{
-	bool *is_finished = data;
-
-	if (w->w_id > 0 && w->type == WIDGET_BUTTON) {
-		bool clicked = false;
-		widget_get(w, PROP_BUTTON_STATE, &clicked);
-
-		if (clicked)
-			*is_finished = true;
-	}
-	return true;
-}
-
-static bool p_msgbox_finished(struct widget *root)
-{
-	bool is_finished = false;
-	walk_widget_tree(root, check_results, &is_finished);
-	return is_finished;
+	return walk_widget_tree(root, collect_results, req) ? P_RET_OK : P_RET_ERR;
 }
 
 PLUGIN_EXPORT
 struct plugin plugin = {
-	.name              = "msgbox",
-	.desc              = "The plugin displays a message with one or more buttons at the bottom.",
-	.p_plugin_init     = NULL,
-	.p_plugin_free     = NULL,
+	.name = "msgbox",
+	.desc = "The plugin displays a message with one or more buttons at the bottom.",
+	.p_plugin_init = NULL,
+	.p_plugin_free = NULL,
 	.p_create_instance = p_msgbox_create,
 	.p_delete_instance = NULL,
 	.p_update_instance = NULL,
-	.p_set_value_instance = p_msgbox_set_value,
-	.p_finished        = p_msgbox_finished,
-	.p_result          = p_msgbox_result,
+	.p_set_value_instance = plugin_set_button,
+	.p_finished = plugin_buttons_finished,
+	.p_result = p_msgbox_result,
 };

@@ -47,6 +47,7 @@ LDLIBS =
 
 COMMON_SO   = libplainmouth.so
 COMMON_SRC  = src/ipc.c src/request.c src/plugin.c src/dump.c \
+	      src/plugin_helpers.c \
 	      src/warray.c \
 	      src/widget.c \
 	      src/widget_border.c \
@@ -139,6 +140,7 @@ PLUGINS_NAMES = $(patsubst src/plugins/%-main.c,%,$(filter %-main.c,$(PLUGINS_SR
 GARBAGE += $(PLUGINS_OBJ)
 
 $(PLUGINS_OBJ) src/plainmouthd.o src/plugin.o: src/plugin.h
+src/plugin_helpers.o src/plugins/msgbox-main.o src/plugins/inputbox-main.o src/plugins/menu-main.o: src/plugin_helpers.h src/plugin.h src/request.h
 $(COMMON_OBJ) $(PLUGINS_OBJ) src/plainmouthd.o: src/widget.h
 src/plainmouthd.o src/daemon_style.o: src/daemon_style.h
 src/daemon_style.o: src/widget.h src/request.h

@@ -10,6 +10,7 @@
 #include "request.h"
 #include "widget.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 
 #define INPUT_ID 1
 
@@ -112,28 +113,14 @@ static struct widget *p_inputbox_create(struct request *req)
 		widget_add(hbox, tooltip);
 	}
 
-	struct ipc_pair *p = req_data(req);
-	struct widget *buttons = NULL;
-	int button_id = 1;
-
-	for (size_t i = 0; i < p->num_kv; i++) {
-		if (!streq(p->kv[i].key, "button"))
-			continue;
-		if (!buttons) {
-			buttons = make_hbox();
-			if (!buttons)
-				goto fail;
-			buttons->flex_h = 0;
-			widget_add(parent, buttons);
-		}
-		wchar_t *label __free(ptr) = req_get_kv_wchars(p->kv + i);
-		if (!label)
+	if (req_get_val(req, "button")) {
+		struct widget *buttons = make_hbox();
+		if (!buttons)
 			goto fail;
-		struct widget *button = make_button(label);
-		if (!button)
+		buttons->flex_h = 0;
+		widget_add(parent, buttons);
+		if (!plugin_add_buttons(req, buttons))
 			goto fail;
-		button->w_id = button_id++;
-		widget_add(buttons, button);
 	}
 
 	widget_measure_tree(root);
@@ -162,20 +149,12 @@ static bool collect_results(struct widget *w, void *data)
 				req_id(req), w->w_id, text);
 	}
 
-	if (w->w_id > 0 && w->type == WIDGET_BUTTON) {
-		bool clicked = false;
-		widget_get(w, PROP_BUTTON_STATE, &clicked);
-		ipc_send_string(req_fd(req), "RESPDATA %s BUTTON_%d=%d",
-				req_id(req), w->w_id, clicked);
-	}
-
-	return true;
+	return plugin_button_result(req, w);
 }
 
 static enum p_retcode p_inputbox_result(struct request *req, struct widget *root)
 {
-	walk_widget_tree(root, collect_results, req);
-	return P_RET_OK;
+	return walk_widget_tree(root, collect_results, req) ? P_RET_OK : P_RET_ERR;
 }
 
 static enum p_retcode p_inputbox_set_value(struct request *req, struct widget *root)
@@ -188,26 +167,7 @@ static enum p_retcode p_inputbox_set_value(struct request *req, struct widget *r
 			return P_RET_ERR;
 		}
 
-		int id;
-		bool clicked;
-
-		if (!req_read_int(req, "button", &id) ||
-		    !req_read_bool(req, "clicked", true, &clicked))
-			return P_RET_ERR;
-
-		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, id);
-
-		if (!w) {
-			req_error(req, "widget not found: button=%d", id);
-			return P_RET_ERR;
-		}
-
-		if (!widget_set(w, PROP_BUTTON_STATE, &clicked)) {
-			req_error(req, "unable to set value: clicked");
-			return P_RET_ERR;
-		}
-
-		return P_RET_OK;
+		return plugin_set_button(req, root);
 	}
 
 	bool has_value = req_get_val(req, "value") != NULL;
@@ -256,9 +216,6 @@ static bool check_finished(struct widget *w, void *data)
 	if (w->type == WIDGET_INPUT)
 		widget_get(w, PROP_INPUT_STATE, &finished);
 
-	else if (w->type == WIDGET_BUTTON)
-		widget_get(w, PROP_BUTTON_STATE, &finished);
-
 	if (finished)
 		*(bool *) data = true;
 
@@ -267,6 +224,8 @@ static bool check_finished(struct widget *w, void *data)
 
 static bool p_inputbox_finished(struct widget *root)
 {
+	if (plugin_buttons_finished(root))
+		return true;
 	bool finished = false;
 	walk_widget_tree(root, check_finished, &finished);
 	return finished;

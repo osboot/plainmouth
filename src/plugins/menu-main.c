@@ -14,6 +14,7 @@
 #include "warray.h"
 #include "widget.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 
 #define SELECT_ID 1
 
@@ -94,22 +95,8 @@ static struct widget *p_menu_create(struct request *req)
 	hbox->flex_h = 0;
 	widget_add(parent, hbox);
 
-	int button_id = 1;
-	for (size_t i = 0; i < p->num_kv; i++) {
-		if (streq(p->kv[i].key, "button")) {
-			wchar_t *label = req_get_kv_wchars(p->kv + i);
-
-			struct widget *btn = label ? make_button(label) : NULL;
-			free(label);
-
-			if (!btn) {
-				warnx("unable to create button");
-				goto fail;
-			}
-			widget_add(hbox, btn);
-			btn->w_id = button_id++;
-		}
-	}
+	if (!plugin_add_buttons(req, hbox))
+		goto fail;
 
 	widget_measure_tree(root);
 
@@ -127,26 +114,15 @@ fail:
 static bool collect_results(struct widget *w, void *data)
 {
 	struct request *req = data;
-
 	if (w->w_id <= 0)
 		return true;
-
 	if (w->type == WIDGET_SELECT) {
 		int index = 0;
 		widget_get(w, PROP_SELECT_CURSOR, &index);
 		ipc_send_string(req_fd(req), "RESPDATA %s SELECTED=%d",
 				req_id(req), index + 1);
 	}
-
-	if (w->type == WIDGET_BUTTON) {
-		bool clicked = false;
-		widget_get(w, PROP_BUTTON_STATE, &clicked);
-
-		ipc_send_string(req_fd(req), "RESPDATA %s BUTTON_%d=%d",
-				req_id(req), w->w_id, clicked);
-	}
-
-	return true;
+	return plugin_button_result(req, w);
 }
 
 static enum p_retcode p_menu_set_value(struct request *req, struct widget *root)
@@ -159,23 +135,8 @@ static enum p_retcode p_menu_set_value(struct request *req, struct widget *root)
 		return P_RET_ERR;
 	}
 
-	if (button) {
-		int id;
-		bool clicked;
-		if (!req_read_int(req, "button", &id) ||
-		    !req_read_bool(req, "clicked", true, &clicked))
-			return P_RET_ERR;
-		struct widget *w = find_widget_by_type_and_id(root, WIDGET_BUTTON, id);
-		if (!w) {
-			req_error(req, "widget not found: button=%d", id);
-			return P_RET_ERR;
-		}
-		if (!widget_set(w, PROP_BUTTON_STATE, &clicked)) {
-			req_error(req, "unable to set value: clicked");
-			return P_RET_ERR;
-		}
-		return P_RET_OK;
-	}
+	if (button)
+		return plugin_set_button(req, root);
 
 	if (option) {
 		int id;
@@ -213,21 +174,13 @@ static enum p_retcode p_menu_set_value(struct request *req, struct widget *root)
 
 static enum p_retcode p_menu_result(struct request *req, struct widget *root)
 {
-	walk_widget_tree(root, collect_results, req);
-	return P_RET_OK;
+	return walk_widget_tree(root, collect_results, req) ? P_RET_OK : P_RET_ERR;
 }
 
 static bool check_results(struct widget *w, void *data)
 {
 	bool *is_finished = data;
 
-	if (w->w_id > 0 && w->type == WIDGET_BUTTON) {
-		bool clicked = false;
-		widget_get(w, PROP_BUTTON_STATE, &clicked);
-
-		if (clicked)
-			*is_finished = true;
-	}
 	if (w->type == WIDGET_SELECT) {
 		bool finished = false;
 		widget_get(w, PROP_SELECT_STATE, &finished);
@@ -239,6 +192,8 @@ static bool check_results(struct widget *w, void *data)
 
 static bool p_menu_finished(struct widget *root)
 {
+	if (plugin_buttons_finished(root))
+		return true;
 	bool is_finished = false;
 	walk_widget_tree(root, check_results, &is_finished);
 	return is_finished;

@@ -20,9 +20,9 @@ expect_error()
 draw_testcase()
 {
 	"$topdir"/plainmouth plugin=menu action=create id=w1 \
-		width=24 height=6 border=true visible=3 \
+		width=24 height=6 border=true visible=3 button=OK \
 		option=apple option=banana option=orange option=mango \
-		option=pineapple option=grapes option=raspberry button=OK button=Cancel
+		option=pineapple option=grapes option=raspberry button=Cancel
 }
 
 testcase_view()
@@ -46,6 +46,10 @@ testcase_dump()
 	expect_error "option not found: option=99" option=99
 	expect_error "invalid value: finished" option=2 finished=maybe
 	expect_error "ambiguous target: button and option" button=1 option=2
+	expect_error "invalid value: button" button=bad
+	expect_error "invalid value: clicked" button=1 clicked=maybe
+	expect_error "widget not found: button=99" button=99
+	"$topdir"/plainmouth action=set-value id=w1 button=2 clicked=false
 	"$topdir"/plainmouth action=dump id=w1 filename="$current_dump"
 	"$topdir"/plainmouth action=set-value id=w1 button=1
 	"$topdir"/plainmouth action=wait-result id=w1 >> "$current_result"
