@@ -14,6 +14,7 @@
 #include "warray.h"
 #include "widget.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 
 #define SELECT_ID 1
 
@@ -33,18 +34,10 @@ static struct widget *p_checklist_create(struct request *req)
 	}
 
 	wchar_t *text __free(ptr) = NULL;
-	struct widget *root = make_window();
+	struct widget *parent;
+	struct widget *root = plugin_create_window(req, PLUGIN_WINDOW_VERTICAL, &parent);
 	if (!root)
 		return NULL;
-	root->style_owner = req->r_style_owner;
-
-	struct widget *parent = root;
-
-	if (req_get_bool(req, "border", false)) {
-		parent = make_border_vbox(parent);
-		if (!parent)
-			goto fail;
-	}
 
 	text = req_get_wchars(req, "text");
 	if (text) {

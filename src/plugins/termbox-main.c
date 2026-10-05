@@ -21,6 +21,7 @@
 
 #include "macros.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 #include "widget.h"
 #include "termbox-output.h"
 #include "termbox-input.h"
@@ -364,7 +365,8 @@ static struct widget *termbox_create(struct request *req)
 		return NULL;
 	}
 
-	struct widget *root = make_window();
+	struct widget *parent;
+	struct widget *root = plugin_create_window(req, PLUGIN_WINDOW_VERTICAL, &parent);
 	struct termbox *st = calloc(1, sizeof(*st));
 
 	if (!root || !st) {
@@ -373,7 +375,6 @@ static struct widget *termbox_create(struct request *req)
 		return NULL;
 	}
 
-	root->style_owner = req->r_style_owner;
 	root->data = st;
 	st->master.fd = -1;
 	st->child = calloc(1, sizeof(*st->child));
@@ -382,13 +383,6 @@ static struct widget *termbox_create(struct request *req)
 		goto fail;
 
 	atomic_init(&st->child->done, false);
-	struct widget *parent = root;
-
-	if (req_get_bool(req, "border", false)) {
-		parent = make_border_vbox(root);
-		if (!parent)
-			goto fail;
-	}
 
 	st->view = make_termbox_output();
 	if (!st->view)

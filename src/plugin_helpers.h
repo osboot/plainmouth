@@ -4,6 +4,18 @@
 
 #include "plugin.h"
 
+enum plugin_window_layout {
+	PLUGIN_WINDOW_VERTICAL,
+	PLUGIN_WINDOW_HORIZONTAL,
+};
+
+/* Creates a themed window with an optional border. Layout selects the border's
+ * inner container; without a border, content is the window itself.
+ * The caller owns the returned root; content is borrowed from it.
+ * On failure, the partial tree is freed and content is NULL. */
+struct widget *plugin_create_window(struct request *req, enum plugin_window_layout layout,
+				    struct widget **content);
+
 /* The caller owns the container, including partially added buttons on failure.
  * IDs start at 1 and follow the order of button fields in the request. */
 bool plugin_add_buttons(struct request *req, struct widget *container);

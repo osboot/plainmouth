@@ -3,6 +3,7 @@
 
 #include "macros.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 #include "widget.h"
 
 static void gauge_layout(struct widget *root, int x, int y, int width, int height)
@@ -34,16 +35,10 @@ static struct widget *gauge_create(struct request *req)
 	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
 	if (!text)
 		return NULL;
-	struct widget *root = make_window();
+	struct widget *parent;
+	struct widget *root = plugin_create_window(req, PLUGIN_WINDOW_VERTICAL, &parent);
 	if (!root)
 		return NULL;
-	root->style_owner = req->r_style_owner;
-	struct widget *parent = root;
-	if (req_get_bool(req, "border", false)) {
-		parent = make_border_vbox(root);
-		if (!parent)
-			goto fail;
-	}
 	struct widget *label = make_label(text);
 	if (!label)
 		goto fail;

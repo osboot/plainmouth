@@ -14,6 +14,7 @@
 
 #include "macros.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 #include "widget.h"
 
 #define TAIL_BUFFER_SIZE 65536
@@ -117,14 +118,14 @@ static struct widget *tailbox_create(struct request *req)
 		req_error(req, "invalid tailbox dimensions");
 		return NULL;
 	}
-	struct widget *root = make_window();
+	struct widget *parent;
+	struct widget *root = plugin_create_window(req, PLUGIN_WINDOW_VERTICAL, &parent);
 	struct tailbox *st = calloc(1, sizeof(*st));
 	if (!root || !st) {
 		widget_free(root);
 		free(st);
 		return NULL;
 	}
-	root->style_owner = req->r_style_owner;
 	root->data = st;
 	st->file_fd = st->timer.fd = -1;
 	st->file_fd = open(path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
@@ -138,12 +139,6 @@ static struct widget *tailbox_create(struct request *req)
 		goto fail;
 	}
 	st->offset = sb.st_size > TAIL_BUFFER_SIZE ? sb.st_size - TAIL_BUFFER_SIZE : 0;
-	struct widget *parent = root;
-	if (req_get_bool(req, "border", false)) {
-		parent = make_border_vbox(root);
-		if (!parent)
-			goto fail;
-	}
 	st->view = make_tailview();
 	if (!st->view)
 		goto fail;

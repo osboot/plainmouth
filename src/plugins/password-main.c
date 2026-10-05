@@ -11,6 +11,7 @@
 #include "request.h"
 #include "widget.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 
 #define INPUT_ID 1
 
@@ -27,18 +28,10 @@ static struct widget *p_pass_create(struct request *req)
 		return NULL;
 	}
 
-	struct widget *root = make_window();
+	struct widget *parent;
+	struct widget *root = plugin_create_window(req, PLUGIN_WINDOW_VERTICAL, &parent);
 	if (!root)
 		return NULL;
-	root->style_owner = req->r_style_owner;
-
-	struct widget *parent = root;
-
-	if (req_get_bool(req, "border", false)) {
-		parent = make_border_vbox(parent);
-		if (!parent)
-			goto fail;
-	}
 
 	wchar_t *top_text __free(ptr) = req_get_wchars(req, "text");
 

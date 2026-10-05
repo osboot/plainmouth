@@ -8,6 +8,36 @@
 #include "plugin_helpers.h"
 #include "widget.h"
 
+struct widget *plugin_create_window(struct request *req, enum plugin_window_layout layout,
+				    struct widget **content)
+{
+	*content = NULL;
+	struct widget *root = make_window();
+	if (!root)
+		return NULL;
+	root->style_owner = req->r_style_owner;
+	struct widget *parent = root;
+	if (req_get_bool(req, "border", false)) {
+		switch (layout) {
+			case PLUGIN_WINDOW_VERTICAL:
+				parent = make_border_vbox(root);
+				break;
+			case PLUGIN_WINDOW_HORIZONTAL:
+				parent = make_border_hbox(root);
+				break;
+			default:
+				parent = NULL;
+				break;
+		}
+		if (!parent) {
+			widget_free(root);
+			return NULL;
+		}
+	}
+	*content = parent;
+	return root;
+}
+
 bool plugin_add_buttons(struct request *req, struct widget *container)
 {
 	struct ipc_pair *pairs = req_data(req);

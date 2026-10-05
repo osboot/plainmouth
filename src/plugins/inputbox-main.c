@@ -33,18 +33,10 @@ static struct widget *p_inputbox_create(struct request *req)
 	wchar_t *value __free(ptr) = NULL;
 	wchar_t *tooltip_text __free(ptr) = NULL;
 
-	struct widget *root = make_window();
+	struct widget *parent;
+	struct widget *root = plugin_create_window(req, PLUGIN_WINDOW_VERTICAL, &parent);
 	if (!root)
 		return NULL;
-	root->style_owner = req->r_style_owner;
-
-	struct widget *parent = root;
-
-	if (req_get_bool(req, "border", false)) {
-		parent = make_border_vbox(parent);
-		if (!parent)
-			goto fail;
-	}
 
 	top_text = req_get_wchars(req, "text");
 

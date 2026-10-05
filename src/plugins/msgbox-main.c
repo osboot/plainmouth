@@ -28,17 +28,10 @@ static struct widget *p_msgbox_create(struct request *req)
 		return NULL;
 	}
 
-	struct widget *root = make_window();
+	struct widget *parent;
+	struct widget *root = plugin_create_window(req, PLUGIN_WINDOW_VERTICAL, &parent);
 	if (!root)
 		return NULL;
-	root->style_owner = req->r_style_owner;
-
-	struct widget *parent = root;
-
-	if (req_get_bool(req, "border", false)) {
-		struct widget *border = make_border_vbox(parent);
-		parent = border;
-	}
 
 	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
 	if (text) {

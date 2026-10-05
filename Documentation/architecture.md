@@ -274,8 +274,13 @@ fully isolated from each other.
 In particular, this prevents scenarios where one plugin instance could navigate
 the widget tree and reach widgets belonging to another plugin instance.
 
-Common button operations are provided by `plugin_helpers` in
-`libplainmouth.so`. Plugins create and attach their own button containers;
+Common window and button operations are provided by `plugin_helpers` in
+`libplainmouth.so`. `plugin_create_window` creates a window, assigns its
+borrowed theme source, and adds an optional border with a vertical or
+horizontal content container. It returns the owned root and a borrowed
+content pointer; failure frees the partial tree and clears the content
+pointer. Dimension validation, widget composition, layout and rendering
+remain in the plugins. Plugins create and attach their own button containers;
 `plugin_add_buttons` fills a container from request fields and assigns IDs
 in field creation order. On failure, attached buttons remain owned by the
 container and are freed with the dialog root. The helpers also set button

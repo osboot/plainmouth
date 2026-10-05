@@ -11,6 +11,7 @@
 
 #include "macros.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 #include "widget.h"
 
 #define TEXTBOX_BYTES 65536
@@ -122,7 +123,8 @@ static struct widget *textbox_create(struct request *req)
 	if (!text)
 		return NULL;
 
-	struct widget *root = make_window();
+	struct widget *parent;
+	struct widget *root = plugin_create_window(req, PLUGIN_WINDOW_VERTICAL, &parent);
 	struct widget *view = make_textview(text);
 	free(text);
 
@@ -132,16 +134,6 @@ static struct widget *textbox_create(struct request *req)
 		return NULL;
 	}
 
-	root->style_owner = req->r_style_owner;
-	struct widget *parent = root;
-
-	if (req_get_bool(req, "border", false)) {
-		parent = make_border_vbox(root);
-		if (!parent) {
-			widget_free(view);
-			goto fail;
-		}
-	}
 	widget_add(parent, view);
 
 	struct widget *button = make_button(L"OK");
