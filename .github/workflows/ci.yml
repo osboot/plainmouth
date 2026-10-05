@@ -16,7 +16,7 @@ jobs:
     name: "Check commits"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: "Developer's Certificate of Origin"
@@ -44,11 +44,11 @@ jobs:
     needs: [ check_commits_job ]
     steps:
     - name: "Check out repository"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
     - run: sudo apt-get update  -y -qq
-    - run: sudo apt-get install -y -qq autoconf bash valgrind libncurses-dev
+    - run: sudo apt-get install -y -qq autoconf bash valgrind libncurses-dev libvterm-dev
     - run: sudo apt-get install -y -qq gcc clang
     - name: "Configure"
       run: |
@@ -65,12 +65,12 @@ jobs:
         TERM: xterm-256color
     - name: "Upload artifacts"
       if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: artifact-${{ matrix.compiler }}-${{ matrix.libc }}
         path: |
           config.log
-          tests/*.dump
-          tests/*.log
+          tests/**/*.dump
+          tests/**/*.log
         if-no-files-found: ignore
         retention-days: 1
