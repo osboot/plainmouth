@@ -16,6 +16,7 @@
 struct widget_label {
 	struct warray lines;
 	int ncols;
+	int prefix_length;
 };
 
 static bool label_init_lines(struct widget_label *st, const wchar_t *text) __attribute__((nonnull(1)));
@@ -80,6 +81,18 @@ void label_render(struct widget *w)
 		if (line)
 			mvwaddnwstr(w->win, y, 0, line, maxx);
 	}
+	const wchar_t *line = warray_get(&st->lines, 0);
+	int columns = 0;
+
+	for (int i = 0; line && line[i] && i < st->prefix_length; i++)
+		columns += MAX(0, wcwidth(line[i]));
+
+	if (columns > 0 && maxy > 0) {
+		attr_t attrs;
+		short pair;
+		wattr_get(w->win, &attrs, &pair, NULL);
+		mvwchgat(w->win, 0, 0, MIN(columns, maxx), attrs | A_UNDERLINE, pair, NULL);
+	}
 }
 
 void label_free(struct widget *w)
@@ -97,6 +110,13 @@ void label_free(struct widget *w)
 
 static bool label_setter(struct widget *w, enum widget_property prop, const void *value)
 {
+	if (prop == PROP_TEXT_PREFIX_LENGTH) {
+		int length = *(const int *) value;
+		if (length < 0)
+			return false;
+		((struct widget_label *) w->state)->prefix_length = length;
+		return true;
+	}
 	if (prop != PROP_TEXT_VALUE)
 		return false;
 	struct widget *replacement = make_label(value);

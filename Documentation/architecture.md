@@ -199,6 +199,17 @@ widgets. Tab moves focus forward and Shift-Tab backward before either callback
 is called. Cursor coordinates follow widget ancestry and subtract pad scroll
 offsets; a cursor outside a viewport is hidden.
 
+Menu, checklist and radiolist share cursor navigation: Up/Down move one item,
+Home/End move to the endpoints, and Page Up/Down move by a visible page.
+Navigation keeps the active row visible and does not change checkbox state.
+Printable text searches item labels by a case-insensitive prefix. A one-second
+pause resets the prefix; repeating a single letter cycles through matches.
+The matching prefix is underlined in the active row. The underline disappears
+after the timeout, navigation or loss of focus, retaining the row's theme.
+If an extended prefix has no match, search retries using the latest character.
+Space toggles the active checklist/radiolist item subject to its selection
+limit; Enter accepts a menu. Item IDs retain their creation order.
+
 Single-line inputs support Left/Right, Home/End, Backspace and Delete.
 Their horizontal viewport stays in place while the cursor remains visible
 and counts display columns, including wide and combining characters.

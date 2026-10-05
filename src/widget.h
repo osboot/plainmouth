@@ -120,6 +120,7 @@ enum widget_property {
 	PROP_TEXT_VALUE,
 	PROP_INPUT_MAX_LENGTH,
 	PROP_INPUT_FINISH_ON_ENTER,
+	PROP_TEXT_PREFIX_LENGTH,
 };
 
 enum widget_flags {
@@ -322,6 +323,7 @@ struct widget *make_list_vbox(int view_rows);
 
 struct widget *make_select(int max_selected, int view_rows);
 struct widget *make_menu(int view_rows);
+int widget_select_search_timeout(struct widget *w);
 struct widget *make_menu_option(const wchar_t *text);
 struct widget *make_select_option(const wchar_t *text, bool checked, bool is_radio);
 

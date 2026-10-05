@@ -744,14 +744,22 @@ int main(int argc, char **argv)
 			retcode = EXIT_FAILURE;
 			break;
 		}
-		errno = 0;
 		struct pollfd *pfd = events.fds;
-		r = poll(pfd, (nfds_t) events.count, -1);
+		int timeout = widget_select_search_timeout(daemon_focus_get());
+
+		if (timeout == 0) {
+			ui_update();
+			timeout = -1;
+		}
+
+		errno = 0;
+		r = poll(pfd, (nfds_t) events.count, timeout);
 
 		if (r < 0) {
 			int saved_errno = errno;
 			daemon_events_free(&events);
 			errno = saved_errno;
+
 			if (errno == EINTR)
 				continue;
 
@@ -763,6 +771,7 @@ int main(int argc, char **argv)
 
 		if (r == 0) {
 			daemon_events_free(&events);
+			ui_update();
 			continue;
 		}
 
