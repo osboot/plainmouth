@@ -12,6 +12,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <err.h>
+#include <limits.h>
 
 #include "macros.h"
 #include "ipc.h"
@@ -196,7 +197,8 @@ ssize_t ipc_recv_data(int fd, char *buf, size_t sz)
 	};
 	ssize_t size = -1;
 
-	buf[0] = '\0';
+	if (sz)
+		buf[0] = '\0';
 
 	if (fd >= 0) {
 		size = recvmsg_retry(fd, &msg, 0);
@@ -204,8 +206,14 @@ ssize_t ipc_recv_data(int fd, char *buf, size_t sz)
 			warn("recvmsg");
 	}
 
-	if (IS_DEBUG())
-		warnx("pid=%-10d RECV: %s", getpid(), buf);
+	if (IS_DEBUG()) {
+		int length = 0;
+		if (size > INT_MAX)
+			length = INT_MAX;
+		else if (size > 0)
+			length = (int) size;
+		warnx("pid=%-10d RECV: %.*s", getpid(), length, buf);
+	}
 
 	return size;
 }

@@ -1,11 +1,26 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <assert.h>
+#include <sys/socket.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "ipc.h"
+
+static void test_raw_receive(size_t length)
+{
+	int fd[2];
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, fd) == 0);
+	const char message[] = "HELLO";
+	assert(write(fd[0], message, length) == (ssize_t) length);
+	char received[5];
+	assert(ipc_recv_data(fd[1], received, sizeof(received)) == (ssize_t) length);
+	assert(memcmp(received, message, length) == 0);
+	close(fd[0]);
+	close(fd[1]);
+}
 
 static void test_ipc_send_and_receive(void)
 {
@@ -38,5 +53,7 @@ static void test_ipc_send_and_receive(void)
 int main(void)
 {
 	test_ipc_send_and_receive();
+	test_raw_receive(3);
+	test_raw_receive(5);
 	return 0;
 }
