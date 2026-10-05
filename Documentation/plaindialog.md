@@ -49,6 +49,15 @@ unquoted single-tag result. Menu and other single-value widgets are unaffected
 by `--output-separator`. These options must precede the widget option, like
 the output-stream options.
 
+Button labels can be customized before the widget option:
+`--ok-label TEXT`, `--cancel-label TEXT`, `--yes-label TEXT`,
+`--no-label TEXT` and `--exit-label TEXT`. Yes/No labels apply only to
+yesno; OK/Cancel labels apply to widgets providing those buttons. Textbox
+and tailbox use EXIT by default and accept `--exit-label`; termbox uses OK.
+An option for a button absent from the widget is ignored. Repeated options
+use their last value, and empty labels are accepted. Labels change only the
+displayed text; button IDs, result text and exit status are unaffected.
+
 `--passwordbox TEXT HEIGHT WIDTH [INIT]` behaves like inputbox but masks its
 contents. As with dialog, an initial password is visible in the process argument
 list and should normally be avoided.
@@ -82,7 +91,7 @@ instances are deleted after completion and on SIGINT, SIGTERM or SIGHUP.
 SIGKILL cannot be cleaned up.
 
 `--tailbox FILE HEIGHT WIDTH` reads the file in the server and shows its
-latest lines until OK is selected. It produces no result text. The file
+latest lines until EXIT is selected. It produces no result text. The file
 must be a regular file accessible to the daemon; relative paths are
 resolved against the daemon's current directory. Tailbox checks for new
 data every 100 ms, retains at most 64 KiB, and reads at most 64 KiB per
@@ -95,7 +104,7 @@ not switch to the replacement file. Truncation followed by regrowth
 between checks may go unnoticed. Left/right arrows or `h`/`l` scroll
 horizontally; `0` resets that offset. Vertical position follows the tail.
 `--textbox FILE HEIGHT WIDTH` displays a snapshot read by the server. Arrow
-keys and Page Up/Down scroll the text; Tab selects the OK button. Closing
+keys and Page Up/Down scroll the text; Tab selects the EXIT button. Closing
 returns 0 without emitting text. Only regular files up to 65536 bytes are
 accepted, with a maximum rectangular content area of 1048576 cells. Oversized
 files are rejected rather than silently truncated. Tabs use eight-column stops;

@@ -16,6 +16,10 @@ enum plugin_window_layout {
 struct widget *plugin_create_window(struct request *req, enum plugin_window_layout layout,
 				    struct widget **content);
 
+/* The caller owns this unattached button with ID 1. The first button field
+ * supplies its label; if absent, the label is OK. */
+struct widget *plugin_create_close_button(struct request *req);
+
 /* The caller owns the container, including partially added buttons on failure.
  * IDs start at 1 and follow the order of button fields in the request. */
 bool plugin_add_buttons(struct request *req, struct widget *container);

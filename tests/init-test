@@ -54,7 +54,8 @@ run_server()
 			_run "$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET"
 			;;
 	esac
-	wait
+	# An explicit testcase PID preserves its failure status.
+	wait "$@"
 }
 
 verify_dump()

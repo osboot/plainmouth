@@ -396,11 +396,9 @@ static struct widget *termbox_create(struct request *req)
 
 	widget_add(parent, st->view);
 
-	st->button = make_button(L"OK");
+	st->button = plugin_create_close_button(req);
 	if (!st->button)
 		goto fail;
-
-	st->button->w_id = 1;
 
 	widget_add(parent, st->button);
 

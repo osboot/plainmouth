@@ -143,10 +143,9 @@ static struct widget *tailbox_create(struct request *req)
 	if (!st->view)
 		goto fail;
 	widget_add(parent, st->view);
-	st->button = make_button(L"OK");
+	st->button = plugin_create_close_button(req);
 	if (!st->button)
 		goto fail;
-	st->button->w_id = 1;
 	widget_add(parent, st->button);
 	if (tailbox_read(st) == P_EVENT_ERROR)
 		goto fail;

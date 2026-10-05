@@ -38,6 +38,22 @@ struct widget *plugin_create_window(struct request *req, enum plugin_window_layo
 	return root;
 }
 
+struct widget *plugin_create_close_button(struct request *req)
+{
+	wchar_t *label __free(ptr) = NULL;
+	const wchar_t *text = L"OK";
+	if (req_get_val(req, "button")) {
+		label = req_get_wchars(req, "button");
+		if (!label)
+			return NULL;
+		text = label;
+	}
+	struct widget *button = make_button(text);
+	if (button)
+		button->w_id = 1;
+	return button;
+}
+
 bool plugin_add_buttons(struct request *req, struct widget *container)
 {
 	struct ipc_pair *pairs = req_data(req);

@@ -32,30 +32,60 @@ enum dialog_type {
 	DIALOG_COUNT,
 };
 
+enum button_label {
+	LABEL_NONE,
+	LABEL_OK,
+	LABEL_CANCEL,
+	LABEL_YES,
+	LABEL_NO,
+	LABEL_EXIT,
+	LABEL_COUNT,
+};
+
+static const struct {
+	const char *option;
+	const char *text;
+} button_labels[LABEL_COUNT] = {
+	[LABEL_OK]     = { "--ok-label",     "OK"     },
+	[LABEL_CANCEL] = { "--cancel-label", "Cancel" },
+	[LABEL_YES]    = { "--yes-label",    "Yes"    },
+	[LABEL_NO]     = { "--no-label",     "No"     },
+	[LABEL_EXIT]   = { "--exit-label",   "EXIT"   },
+};
+
 struct dialog_spec {
 	const char *option;
 	const char *plugin;
 	const char *content_field;
 	const char *result_key;
-	const char *accept_button;
-	const char *cancel_button;
+	enum button_label accept_label;
+	enum button_label cancel_label;
 };
 
 static const struct dialog_spec dialogs[DIALOG_COUNT] = {
-	[DIALOG_MSGBOX] = { "--msgbox", "msgbox", "text", NULL, "OK", NULL },
-	[DIALOG_YESNO] = { "--yesno", "msgbox", "text", NULL, "Yes", "No" },
-	[DIALOG_INPUTBOX] = { "--inputbox", "inputbox", "text", "INPUT_1", "OK", "Cancel" },
-	[DIALOG_PASSWORDBOX] = { "--passwordbox", "password", "text", "PASSWORD_1", "OK", "Cancel" },
-	[DIALOG_TIMEBOX] = { "--timebox", "timebox", "text", NULL, "OK", "Cancel" },
-	[DIALOG_RANGEBOX] = { "--rangebox", "rangebox", "text", "VALUE", "OK", "Cancel" },
-	[DIALOG_GAUGE] = { "--gauge", "gauge", "text", NULL, NULL, NULL },
-	[DIALOG_MENU] = { "--menu", "menu", "text", "SELECTED", "OK", "Cancel" },
-	[DIALOG_CHECKLIST] = { "--checklist", "checklist", "text", NULL, "OK", "Cancel" },
-	[DIALOG_RADIOLIST] = { "--radiolist", "checklist", "text", NULL, "OK", "Cancel" },
-	[DIALOG_TAILBOX] = { "--tailbox", "tailbox", "file", NULL, "OK", NULL },
-	[DIALOG_TEXTBOX] = { "--textbox", "textbox", "file", NULL, "OK", NULL },
-	[DIALOG_TERMBOX] = { "--termbox", "termbox", "command", NULL, "OK", NULL },
+	[DIALOG_MSGBOX]      = { "--msgbox",      "msgbox",    "text",    NULL,         LABEL_OK,   LABEL_NONE   },
+	[DIALOG_YESNO]       = { "--yesno",       "msgbox",    "text",    NULL,         LABEL_YES,  LABEL_NO     },
+	[DIALOG_INPUTBOX]    = { "--inputbox",    "inputbox",  "text",    "INPUT_1",    LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_PASSWORDBOX] = { "--passwordbox", "password",  "text",    "PASSWORD_1", LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_TIMEBOX]     = { "--timebox",     "timebox",   "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_RANGEBOX]    = { "--rangebox",    "rangebox",  "text",    "VALUE",      LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_GAUGE]       = { "--gauge",       "gauge",     "text",    NULL,         LABEL_NONE, LABEL_NONE   },
+	[DIALOG_MENU]        = { "--menu",        "menu",      "text",    "SELECTED",   LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_CHECKLIST]   = { "--checklist",   "checklist", "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_RADIOLIST]   = { "--radiolist",   "checklist", "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_TAILBOX]     = { "--tailbox",     "tailbox",   "file",    NULL,         LABEL_EXIT, LABEL_NONE   },
+	[DIALOG_TEXTBOX]     = { "--textbox",     "textbox",   "file",    NULL,         LABEL_EXIT, LABEL_NONE   },
+	[DIALOG_TERMBOX]     = { "--termbox",     "termbox",   "command", NULL,         LABEL_OK,   LABEL_NONE   },
 };
+
+static enum button_label find_button_label(const char *option)
+{
+	for (enum button_label label = LABEL_OK; label < LABEL_COUNT; label++)
+		if (!strcmp(button_labels[label].option, option))
+			return label;
+
+	return LABEL_NONE;
+}
 
 static enum dialog_type find_dialog(const char *option)
 {
@@ -265,9 +295,17 @@ int main(int argc, char **argv)
 	FILE *output = stderr;
 	bool separate_output = false;
 	const char *output_separator = NULL;
+	const char *labels[LABEL_COUNT];
+	for (enum button_label label = LABEL_NONE; label < LABEL_COUNT; label++)
+		labels[label] = button_labels[label].text;
 	int i = 1;
 	while (i < argc) {
-		if (!strcmp(argv[i], "--stdout"))
+		enum button_label label = find_button_label(argv[i]);
+		if (label != LABEL_NONE) {
+			if (i + 1 >= argc)
+				goto invalid_arguments;
+			labels[label] = argv[++i];
+		} else if (!strcmp(argv[i], "--stdout"))
 			output = stdout;
 		else if (!strcmp(argv[i], "--stderr"))
 			output = stderr;
@@ -282,6 +320,8 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--help")) {
 			puts("Usage: plaindialog [--socket-file PATH] [--stdout|--stderr]\n"
 			     "       [--separate-output] [--output-separator STRING|--separator STRING]\n"
+			     "       [--ok-label TEXT] [--cancel-label TEXT]\n"
+			     "       [--yes-label TEXT] [--no-label TEXT] [--exit-label TEXT]\n"
 			     "       --msgbox|--yesno TEXT HEIGHT WIDTH\n"
 			     "       --tailbox FILE HEIGHT WIDTH\n"
 			     "       --textbox FILE HEIGHT WIDTH\n"
@@ -356,6 +396,8 @@ int main(int argc, char **argv)
 	}
 
 	const struct dialog_spec *spec = &dialogs[type];
+	const char *accept_button = labels[spec->accept_label];
+	const char *cancel_button = labels[spec->cancel_label];
 
 	if (type == DIALOG_TIMEBOX && (hour < 0 || minute < 0 || second < 0)) {
 		time_t now = time(NULL);
@@ -420,8 +462,8 @@ int main(int argc, char **argv)
 	    !ipc_pair_sprintf(&request, "width", "%ld", width) ||
 	    !ipc_pair_add(&request, "border", "true") ||
 	    !ipc_pair_add(&request, spec->content_field, argv[i + 1]) ||
-	    (spec->accept_button && !ipc_pair_add(&request, "button", spec->accept_button)) ||
-	    (spec->cancel_button && !ipc_pair_add(&request, "button", spec->cancel_button)))
+	    (accept_button && !ipc_pair_add(&request, "button", accept_button)) ||
+	    (cancel_button && !ipc_pair_add(&request, "button", cancel_button)))
 		goto out;
 
 	switch (type) {

@@ -209,12 +209,16 @@ action=set-value id=<instance-id> button=<button-id> clicked=<true|false>
 Other plugins expose the following `set-value` fields:
 
 The `textbox` plugin accepts `file=PATH`, `width=`, `height=`, optional `border=`,
-`x=`, `y=` and `style=` at creation. It reads a regular file once (at most
-65536 bytes and 1048576 rectangular screen cells), starting at the top.
+`x=`, `y=`, `style=` and `button=LABEL` at creation. It reads a regular file
+once (at most 65536 bytes and 1048576 rectangular screen cells), starting at
+the top.
 `set-value id=ID scroll-x=N scroll-y=N` moves its viewport using nonnegative,
 zero-based column/line offsets, clamped to the content. Either offset may be
-omitted. `set-value id=ID button=1 [clicked=true|false]` sets the OK button;
+omitted. `set-value id=ID button=1 [clicked=true|false]` sets the closing button;
 the result is `BUTTON_1`. Use scrolling and button fields in separate requests.
+Textbox, tailbox and termbox accept a label in the first `button` field at
+creation for their single closing button, defaulting to `OK` if absent.
+The button retains ID 1, including when its label is empty.
 
 ```text
 plugin=form:     input=<input-id> value=<text>

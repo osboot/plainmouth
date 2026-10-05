@@ -136,11 +136,10 @@ static struct widget *textbox_create(struct request *req)
 
 	widget_add(parent, view);
 
-	struct widget *button = make_button(L"OK");
+	struct widget *button = plugin_create_close_button(req);
 	if (!button)
 		goto fail;
 
-	button->w_id = 1;
 	widget_add(parent, button);
 	widget_measure_tree(root);
 
