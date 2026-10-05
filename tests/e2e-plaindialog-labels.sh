@@ -25,6 +25,9 @@ run_case()
 		rm -f -- "$current_dump"
 		"$topdir"/plainmouth action=dump id="$id" filename="$current_dump"
 		grep -Fq -- "$buttons" "$current_dump"
+		if [[ "$buttons" != *'[Back]'* && "$buttons" != *'[Stop]'* ]]; then
+			! grep -Eq '\[Cancel\]|\[Back\]' "$current_dump"
+		fi
 		"$topdir"/plainmouth action=set-value id="$id" button="$button"
 	fi
 	wait "$pid" || status=$?
@@ -59,6 +62,14 @@ testcase()
 		--msgbox Message 6 40
 	run_case '[Pick][Back]' 1 0 tag --ok-label Pick --cancel-label Back \
 		--menu Choose 9 40 2 tag Item
+	run_case '[Save]' 1 0 initial --cancel-label Back --no-cancel --ok-label Save \
+		--inputbox Name 7 40 initial
+	run_case '[Pick]' 1 0 tag --nocancel --ok-label Pick --cancel-label Back \
+		--menu Choose 9 40 2 tag Item
+	run_case '[Proceed][Stop]' 2 1 '' --no-cancel --yes-label Proceed --no-label Stop \
+		--yesno Continue 6 40
+	run_case '[Save]' 1 0 $'initial\n' --no-cancel --ok-label Save \
+		--form Form 10 48 4 Name 1 1 initial 1 8 12 12
 	if [ "$MODE" = dump ]; then
 		local option status
 		for option in --ok-label --cancel-label --yes-label --no-label --exit-label; do

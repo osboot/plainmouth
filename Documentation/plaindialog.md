@@ -103,6 +103,12 @@ An option for a button absent from the widget is ignored. Repeated options
 use their last value, and empty labels are accepted. Labels change only the
 displayed text; button IDs, result text and exit status are unaffected.
 
+`--no-cancel` (also `--nocancel`) suppresses Cancel in input, password, time,
+range, menu, checklist, radiolist and form dialogs. It must precede the widget
+option and takes precedence over `--cancel-label`. As in dialog, yesno retains
+both Yes and No. Widgets without Cancel are unaffected. Signal interruption
+still returns 255 and removes the instance.
+
 `--passwordbox TEXT HEIGHT WIDTH [INIT]` behaves like inputbox but masks its
 contents. As with dialog, an initial password is visible in the process argument
 list and should normally be avoided.

@@ -400,6 +400,7 @@ int main(int argc, char **argv)
 	const char *socket_file = getenv("PLAINMOUTH_SOCKET");
 	FILE *output = stderr;
 	bool separate_output = false;
+	bool no_cancel = false;
 	const char *output_separator = NULL;
 	const char *labels[LABEL_COUNT];
 	for (enum button_label label = LABEL_NONE; label < LABEL_COUNT; label++)
@@ -417,6 +418,8 @@ int main(int argc, char **argv)
 			output = stderr;
 		else if (!strcmp(argv[i], "--separate-output"))
 			separate_output = true;
+		else if (!strcmp(argv[i], "--no-cancel") || !strcmp(argv[i], "--nocancel"))
+			no_cancel = true;
 		else if (!strcmp(argv[i], "--output-separator") || !strcmp(argv[i], "--separator")) {
 			if (i + 1 >= argc)
 				goto invalid_arguments;
@@ -428,6 +431,7 @@ int main(int argc, char **argv)
 			     "       [--separate-output] [--output-separator STRING|--separator STRING]\n"
 			     "       [--ok-label TEXT] [--cancel-label TEXT]\n"
 			     "       [--yes-label TEXT] [--no-label TEXT] [--exit-label TEXT]\n"
+			     "       [--no-cancel|--nocancel]\n"
 			     "       --msgbox|--yesno TEXT HEIGHT WIDTH\n"
 			     "       --tailbox FILE HEIGHT WIDTH\n"
 			     "       --textbox FILE HEIGHT WIDTH\n"
@@ -527,6 +531,8 @@ int main(int argc, char **argv)
 	const struct dialog_spec *spec = &dialogs[type];
 	const char *accept_button = labels[spec->accept_label];
 	const char *cancel_button = labels[spec->cancel_label];
+	if (no_cancel && spec->cancel_label == LABEL_CANCEL)
+		cancel_button = NULL;
 
 	if (type == DIALOG_TIMEBOX && (hour < 0 || minute < 0 || second < 0)) {
 		time_t now = time(NULL);
