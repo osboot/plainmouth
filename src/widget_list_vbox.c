@@ -175,6 +175,10 @@ void shift_window_anchor_last(struct widget *w, struct widget *focused)
 
 void list_vbox_ensure_visible(struct widget *w, struct widget *focused)
 {
+	while (focused && focused->parent != w)
+		focused = focused->parent;
+	if (!focused)
+		return;
 	struct widget *c, *first, *last;
 
 	first = last = NULL;

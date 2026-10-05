@@ -296,4 +296,34 @@ and `BUTTON_N=0|1` for each button.
 Adding `finished=true` confirms the choice. Button updates use
 `button=N` with optional `clicked` (default true), in a separate request.
 
+### form
+
+The existing `hbox=start/end` layout remains the default. `layout=positioned`
+places single-line items at zero-based coordinates in scrollable content:
+
+```sh
+plainmouth plugin=form action=create id=form1 width=40 height=10 border=true \
+  layout=positioned \
+  field=start label=Name: x=0 y=0 width=6 field=end \
+  field=start input=Alice x=7 y=0 width=20 max-length=40 field=end \
+  field=start password=secret x=7 y=12 width=20 readonly=true field=end \
+  button=OK button=Cancel
+```
+
+Each group requires exactly one `label`, `input` or `password`, plus `x`, `y`
+and a positive visible `width`. Optional input parameters are `max-length`
+(default: visible width, measured in wide characters) and `readonly` (default:
+false). An editable input's initial value exceeding the limit is rejected. Coordinates and
+extents are limited to 4096 per axis and the canvas to 1048576 cells.
+Repeated or unknown parameters within a group are rejected.
+
+Input IDs are assigned in creation order, including read-only inputs; labels
+do not consume IDs. Read-only inputs cannot receive focus or `set-value` and
+are omitted from results. Passwords remain masked even when read-only.
+Editable inputs return `INPUT_N`; buttons return `BUTTON_N`. Enter does not
+complete an input; a clicked button completes the form. Tab moves focus and
+scrolls the focused field into view. `set-value input=N value=...` also scrolls
+the field into view, without changing focus. Coordinate placement does not
+change result order.
+
 ---

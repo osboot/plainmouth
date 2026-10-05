@@ -552,6 +552,7 @@ const char *widget_type(struct widget *w)
 		[WIDGET_PAD_BOX]     = "pad_box",
 		[WIDGET_TAILVIEW]    = "tailview",
 		[WIDGET_TERMINAL]    = "terminal",
+		[WIDGET_POSITIONED]  = "positioned",
 	};
 	if (!w)
 		return "NULL";

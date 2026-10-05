@@ -103,14 +103,12 @@ void daemon_instances_free(void)
 
 static void widget_ensure_visible(struct widget *w)
 {
-	struct widget *child = w;
 	struct widget *cur = w->parent;
 
 	while (cur) {
 		if (cur->ops && cur->ops->ensure_visible)
-			cur->ops->ensure_visible(cur, child);
+			cur->ops->ensure_visible(cur, w);
 
-		child = cur;
 		cur = cur->parent;
 	}
 }

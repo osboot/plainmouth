@@ -89,6 +89,7 @@ enum widget_type {
 	WIDGET_PAD_BOX,
 	WIDGET_TAILVIEW,
 	WIDGET_TERMINAL,
+	WIDGET_POSITIONED,
 	WIDGET_COUNTS,
 };
 
@@ -304,6 +305,8 @@ struct widget *make_hbox(void);
 struct widget *make_vscroll(void);
 struct widget *make_hscroll(void);
 struct widget *make_scroll_vbox(void);
+struct widget *make_positioned(void);
+bool positioned_add(struct widget *parent, struct widget *child, int x, int y, int width, int height);
 struct widget *make_pad_box(void);
 struct widget *make_label(const wchar_t *text);
 struct widget *make_textview(const wchar_t *text);

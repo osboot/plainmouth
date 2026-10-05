@@ -224,8 +224,7 @@ Enter is consumed without setting `PROP_INPUT_STATE`, so the field remains
 editable. Explicit completion through `PROP_INPUT_STATE` still disables
 keyboard editing. The form plugin disables completion on Enter for all its
 text and password fields; inputbox and passwordbox keep the default behavior.
-Input length configuration is currently a widget API; per-field form request
-parameters will be added with positioned form layout.
+The positioned form layout exposes this limit through per-field `max-length`.
 
 ## 7. Containers
 
@@ -233,6 +232,14 @@ Containers are widgets that manage children.
 
 - VBox (vertical layout)
 - HBox (horizontal layout)
+- Positioned (explicit child rectangles, independent of viewport dimensions)
+
+`positioned_add()` transfers ownership of a child on success, preserving insertion
+order. It rejects negative coordinates, nonpositive dimensions, already attached
+children and overflowing extents. Its measured size is the bounding rectangle of
+its children. A positioned container inside a scroll container's pad provides
+two-axis scrolling without changing child coordinates. Visibility requests retain
+the original target while walking ancestors, including nested containers.
 - Window (single child with decoration)
 
 Responsibilities:
