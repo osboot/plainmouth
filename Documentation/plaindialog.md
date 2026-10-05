@@ -37,6 +37,11 @@ default, without a trailing newline.
 original tag, not the displayed item or numeric option ID. Tags are held by
 the client and mapped using the option's creation index.
 
+`--output-fd FD` directs results to an inherited file descriptor, separating
+them from diagnostics on stderr. These output options must precede the widget;
+the last one wins. FD must be a nonnegative integer referring to an open
+descriptor. Failed writes return 255 and remove the dialog instance.
+
 `--checklist` and `--radiolist` use `TAG ITEM STATUS` triples, where status is
 `on` or `off`. Radiolist writes the selected tag. Checklist writes every
 selected tag in creation order, quoted and separated by spaces; backslashes

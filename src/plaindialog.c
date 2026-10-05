@@ -399,6 +399,7 @@ int main(int argc, char **argv)
 {
 	const char *socket_file = getenv("PLAINMOUTH_SOCKET");
 	FILE *output = stderr;
+	long output_fd = STDERR_FILENO;
 	bool separate_output = false;
 	bool no_cancel = false;
 	const char *output_separator = NULL;
@@ -413,10 +414,13 @@ int main(int argc, char **argv)
 				goto invalid_arguments;
 			labels[label] = argv[++i];
 		} else if (!strcmp(argv[i], "--stdout"))
-			output = stdout;
+			output_fd = STDOUT_FILENO;
 		else if (!strcmp(argv[i], "--stderr"))
-			output = stderr;
-		else if (!strcmp(argv[i], "--separate-output"))
+			output_fd = STDERR_FILENO;
+		else if (!strcmp(argv[i], "--output-fd")) {
+			if (i + 1 >= argc || !parse_number(argv[++i], &output_fd) || output_fd < 0)
+				goto invalid_arguments;
+		} else if (!strcmp(argv[i], "--separate-output"))
 			separate_output = true;
 		else if (!strcmp(argv[i], "--no-cancel") || !strcmp(argv[i], "--nocancel"))
 			no_cancel = true;
@@ -427,7 +431,7 @@ int main(int argc, char **argv)
 		} else if (!strcmp(argv[i], "--socket-file") && i + 1 < argc)
 			socket_file = argv[++i];
 		else if (!strcmp(argv[i], "--help")) {
-			puts("Usage: plaindialog [--socket-file PATH] [--stdout|--stderr]\n"
+			puts("Usage: plaindialog [--socket-file PATH] [--stdout|--stderr|--output-fd FD]\n"
 			     "       [--separate-output] [--output-separator STRING|--separator STRING]\n"
 			     "       [--ok-label TEXT] [--cancel-label TEXT]\n"
 			     "       [--yes-label TEXT] [--no-label TEXT] [--exit-label TEXT]\n"
@@ -567,6 +571,18 @@ int main(int argc, char **argv)
 
 	if (sigaction(SIGPIPE, &sa, NULL)) {
 		warn("sigaction");
+		return 255;
+	}
+
+	int result_fd = dup((int) output_fd);
+	if (result_fd < 0) {
+		warn("duplicate output descriptor");
+		return 255;
+	}
+	output = fdopen(result_fd, "w");
+	if (!output) {
+		warn("open output stream");
+		close(result_fd);
 		return 255;
 	}
 
@@ -864,6 +880,8 @@ out:
 	}
 	ipc_pair_free(&request);
 	ipc_pair_free(&result);
+	if (fclose(output) == EOF)
+		status = 255;
 	return interrupted ? 255 : status;
 
 invalid_arguments:
