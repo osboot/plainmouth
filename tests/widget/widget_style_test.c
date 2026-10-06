@@ -34,6 +34,46 @@ static short check_colors(struct widget *w, attr_t expected, short expected_fg, 
 	return pair;
 }
 
+static void test_theme(const char *term, enum widget_theme theme, short window_bg, short input_bg)
+{
+	FILE *input = tmpfile(), *output = tmpfile();
+	assert(input && output);
+	SCREEN *screen = newterm(term, output, input);
+	assert(screen && widget_style_init(theme));
+	struct widget *root = make_window();
+	struct widget *field = make_input(L"value", NULL);
+	assert(root && field);
+	widget_add(root, field);
+	widget_measure_tree(root);
+	widget_layout_tree(root, 2, 2, 20, 4);
+	widget_render_tree(root);
+	assert(field->color_pair == COLOR_PAIR_INPUT);
+	attr_t attrs;
+	short pair, fg, bg;
+	assert(widget_style_resolve(root, COLOR_PAIR_WINDOW, &attrs, &pair));
+	if (has_colors()) {
+		assert(pair_content(pair, &fg, &bg) == OK && bg == window_bg);
+		assert(widget_style_resolve(field, COLOR_PAIR_INPUT, &attrs, &pair));
+		assert(pair_content(pair, &fg, &bg) == OK && bg == input_bg);
+		assert(widget_style_resolve(root, COLOR_PAIR_MAIN, &attrs, &pair));
+		assert(pair_content(pair, &fg, &bg) == OK);
+		assert(bg != window_bg || theme == WIDGET_THEME_TERMINAL);
+		attr_t underline = A_UNDERLINE;
+		assert(widget_style_override(root, COLOR_PAIR_INPUT, NULL, NULL, &underline, false));
+		assert(widget_style_resolve(field, COLOR_PAIR_INPUT, &attrs, &pair) && attrs == A_UNDERLINE);
+		assert(widget_style_resolve(root, COLOR_PAIR_BUTTON, &attrs, &pair) && attrs != A_UNDERLINE);
+	} else {
+		assert(pair == 0 && (attrs & A_REVERSE));
+		assert(widget_style_resolve(field, COLOR_PAIR_INPUT, &attrs, &pair));
+		assert(pair == 0 && !(attrs & A_REVERSE));
+	}
+	widget_free(root);
+	endwin();
+	delscreen(screen);
+	fclose(input);
+	fclose(output);
+}
+
 int main(void)
 {
 	FILE *input = tmpfile(), *output = tmpfile();
@@ -47,6 +87,7 @@ int main(void)
 	assert(init_pair(COLOR_PAIR_READONLY, COLOR_WHITE, COLOR_BLUE) == OK);
 	assert(init_pair(COLOR_PAIR_DISABLED, COLOR_WHITE, COLOR_BLACK) == OK);
 	assert(init_pair(COLOR_PAIR_INVALID, COLOR_WHITE, COLOR_RED) == OK);
+	assert(init_pair(COLOR_PAIR_INPUT, COLOR_WHITE, COLOR_BLACK) == OK);
 
 	struct widget *button = make_button(L"OK");
 	assert(button);
@@ -229,5 +270,10 @@ int main(void)
 	delscreen(screen);
 	fclose(input);
 	fclose(output);
+	test_theme("linux", WIDGET_THEME_AUTO, COLOR_WHITE, COLOR_BLACK);
+	test_theme("xterm-256color", WIDGET_THEME_AUTO, 236, 239);
+	test_theme("xterm-256color", WIDGET_THEME_BASIC, COLOR_WHITE, COLOR_BLACK);
+	test_theme("xterm", WIDGET_THEME_TERMINAL, -1, -1);
+	test_theme("vt100", WIDGET_THEME_AUTO, 0, 0);
 	return 0;
 }

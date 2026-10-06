@@ -171,6 +171,8 @@ bool daemon_style_apply(struct request *req, struct widget *(*lookup_instance)(v
 		pair = COLOR_PAIR_WINDOW;
 	else if (streq(name, "button"))
 		pair = COLOR_PAIR_BUTTON;
+	else if (streq(name, "input"))
+		pair = COLOR_PAIR_INPUT;
 	else if (streq(name, "focus"))
 		pair = COLOR_PAIR_FOCUS;
 	else if (streq(name, "readonly"))

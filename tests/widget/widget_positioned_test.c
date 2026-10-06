@@ -155,15 +155,15 @@ static void test_render(bool oversized)
 	check_cell(pad->win, 0, 0, L' ', pair);
 	check_cell(pad->win, pad->h - 1, pad->w - 1, L' ', pair);
 	for (int x = 2; x < 8; x++)
-		check_cell(pad->win, 1, x, L' ', COLOR_PAIR_BUTTON);
+		check_cell(pad->win, 1, x, L' ', COLOR_PAIR_INPUT);
 	assert(empty->ops->input_event(empty, L'a', false));
 	widget_render_tree(empty);
-	check_cell(pad->win, 1, 2, L'a', COLOR_PAIR_BUTTON);
+	check_cell(pad->win, 1, 2, L'a', COLOR_PAIR_INPUT);
 	check_cell(newscr, 0, 0, L' ', 0);
 	assert(widget_set(empty, PROP_INPUT_VALUE, L""));
 	widget_render_tree(empty);
 	for (int x = 2; x < 8; x++)
-		check_cell(pad->win, 1, x, L' ', COLOR_PAIR_BUTTON);
+		check_cell(pad->win, 1, x, L' ', COLOR_PAIR_INPUT);
 	if (oversized) {
 		assert(scroll->attrs & ATTR_CAN_FOCUS);
 		scroll->flags |= FLAG_INFOCUS;
@@ -183,7 +183,7 @@ static void test_render(bool oversized)
 		assert(!widget_coordinates_yx(empty, &cursor_y, &cursor_x));
 		hidden_y = 1;
 		assert(widget_set(pad, PROP_SCROLL_Y, &hidden_y));
-		check_cell(pad->win, 0, 1, L' ', COLOR_PAIR_BUTTON);
+		check_cell(pad->win, 0, 1, L' ', COLOR_PAIR_INPUT);
 		scroll->flags &= ~FLAG_INFOCUS;
 		widget_render_tree(scroll);
 		assert(!(vscroll->flags & FLAG_INFOCUS));
@@ -224,7 +224,7 @@ int main(void)
 	SCREEN *screen = newterm("xterm", output, input);
 	assert(screen && start_color() == OK);
 	assert(init_pair(COLOR_PAIR_WINDOW, COLOR_WHITE, COLOR_BLUE) == OK);
-	assert(init_pair(COLOR_PAIR_BUTTON, COLOR_BLACK, COLOR_WHITE) == OK);
+	assert(init_pair(COLOR_PAIR_INPUT, COLOR_BLACK, COLOR_WHITE) == OK);
 	assert(init_pair(COLOR_PAIR_FOCUS, COLOR_WHITE, COLOR_GREEN) == OK);
 	test_render(false);
 	test_render(true);

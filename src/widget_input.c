@@ -415,7 +415,7 @@ struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder)
 
 	w->state      = state;
 	w->ops        = &input_ops;
-	w->color_pair = COLOR_PAIR_BUTTON;
+	w->color_pair = COLOR_PAIR_INPUT;
 	w->attrs      = ATTR_CAN_FOCUS | ATTR_CAN_CURSOR;
 
 	/* INPUT is normally stretched horizontally, but height stays fixed */

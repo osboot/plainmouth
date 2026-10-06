@@ -29,6 +29,21 @@ view_case()
 testcase_view()
 {
 	trap '"$topdir"/plainmouth --quit >/dev/null 2>&1 || :' EXIT
+	"$topdir"/plainmouth action=create plugin=form id=palette \
+		width=48 height=10 border=false layout=positioned \
+		field=start label=Name: x=1 y=1 width=8 field=end \
+		field=start input=Alice x=10 y=1 width=24 field=end \
+		field=start label=Account: x=1 y=3 width=8 field=end \
+		field=start input=alice readonly=true x=10 y=3 width=24 field=end \
+		field=start label=Token: x=1 y=5 width=8 field=end \
+		field=start input=unavailable disabled=true x=10 y=5 width=24 field=end \
+		button=Next button=Close
+	local result
+	result=$("$topdir"/plainmouth action=wait-result id=palette)
+	"$topdir"/plainmouth action=delete id=palette
+	if printf '%s\n' "$result" | grep -qx BUTTON_2=1; then
+		return 0
+	fi
 	view_case 'Window: bold and underline' window bold,underline yellow blue || return 0
 	view_case 'Focused button: bold' focus bold black cyan || return 0
 	view_case 'Unfocused button: italic' button italic white red || return 0
@@ -46,6 +61,7 @@ testcase_dump()
 	"$topdir"/plainmouth action=set-style name=focus attrs=bold,underline
 	"$topdir"/plainmouth action=set-style name=button fg=white bg=red attrs=italic
 	"$topdir"/plainmouth action=set-style name=button fg=black bg=white
+	"$topdir"/plainmouth action=set-style name=input fg=white bg=black attrs=normal
 	"$topdir"/plainmouth action=set-style name=main attrs=dim
 	"$topdir"/plainmouth action=set-style name=readonly attrs=underline
 	"$topdir"/plainmouth action=set-style name=disabled attrs=dim

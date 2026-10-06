@@ -66,6 +66,7 @@ static _Thread_local bool quit_requested;
 
 static bool use_terminal = true;
 static char *debug_file = NULL;
+static enum widget_theme theme = WIDGET_THEME_AUTO;
 
 static pthread_t ui_thread;
 
@@ -73,6 +74,7 @@ static const char cmdopts_s[] = "S:Vh";
 static const struct option cmdopts[] = {
 	{ "debug-file",  required_argument, NULL, 1   },
 	{ "tty",         required_argument, NULL, 2   },
+	{ "theme",       required_argument, NULL, 3   },
 	{ "socket-file", required_argument, NULL, 'S' },
 	{ "version",     no_argument,       NULL, 'V' },
 	{ "help",        no_argument,       NULL, 'h' },
@@ -91,6 +93,7 @@ print_help(const char *progname, int retcode)
 	       "   --tty=DEVICE         TTY to use instead of default.\n"
 	       "   --debug-file=FILE    File to write debugging information to.\n"
 	       "   --socket-file=FILE   Server socket file.\n"
+	       "   --theme=NAME         auto (default), basic, or terminal.\n"
 	       "   -V, --version        Show version of program and exit.\n"
 	       "   -h, --help           Show this text and exit.\n"
 	       "\n",
@@ -602,22 +605,9 @@ static void curses_init(FILE *inf, FILE *outf)
 	keypad(stdscr, TRUE);
 	set_escdelay(100);
 	curs_set(0);
-	widget_style_set_attrs(COLOR_PAIR_READONLY, A_UNDERLINE);
-	widget_style_set_attrs(COLOR_PAIR_DISABLED, A_DIM);
-	widget_style_set_attrs(COLOR_PAIR_INVALID, A_BOLD);
-
-	if (has_colors()) {
-		start_color();
-		init_pair(COLOR_PAIR_MAIN,   COLOR_WHITE, COLOR_BLACK);
-		init_pair(COLOR_PAIR_WINDOW, COLOR_WHITE, COLOR_BLUE);
-		init_pair(COLOR_PAIR_BUTTON, COLOR_BLACK, COLOR_WHITE);
-		init_pair(COLOR_PAIR_FOCUS,  COLOR_WHITE, COLOR_GREEN);
-		if (init_pair(COLOR_PAIR_READONLY, COLOR_WHITE, COLOR_BLUE) == ERR ||
-		    init_pair(COLOR_PAIR_DISABLED, COLOR_WHITE, COLOR_BLACK) == ERR ||
-		    init_pair(COLOR_PAIR_INVALID, COLOR_WHITE, COLOR_RED) == ERR)
-			errx(EXIT_FAILURE, "unable to initialize widget state colors");
-		bkgd(COLOR_PAIR(COLOR_PAIR_MAIN));
-	}
+	if (!widget_style_init(theme))
+		errx(EXIT_FAILURE, "unable to initialize terminal theme");
+	widget_style_apply(stdscr, COLOR_PAIR_MAIN);
 
 	refresh();
 }
@@ -647,6 +637,16 @@ int main(int argc, char **argv)
 				break;
 			case 'S':	// --socket-file=Filename
 				socket_file = optarg;
+				break;
+			case 3:
+				if (streq(optarg, "auto"))
+					theme = WIDGET_THEME_AUTO;
+				else if (streq(optarg, "basic"))
+					theme = WIDGET_THEME_BASIC;
+				else if (streq(optarg, "terminal"))
+					theme = WIDGET_THEME_TERMINAL;
+				else
+					errx(EXIT_FAILURE, "unknown theme: %s", optarg);
 				break;
 			case 'V':
 				print_version(basename(argv[0]));

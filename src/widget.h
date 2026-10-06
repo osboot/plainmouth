@@ -63,7 +63,16 @@ enum color_pair {
 	COLOR_PAIR_READONLY,
 	COLOR_PAIR_DISABLED,
 	COLOR_PAIR_INVALID,
+	COLOR_PAIR_INPUT,
 };
+
+enum widget_theme {
+	WIDGET_THEME_AUTO,
+	WIDGET_THEME_BASIC,
+	WIDGET_THEME_TERMINAL,
+};
+
+bool widget_style_init(enum widget_theme theme);
 
 int simple_round(float number);
 void position_center(int width, int height, int *begin_y, int *begin_x);

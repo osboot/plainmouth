@@ -17,7 +17,83 @@
 #include "macros.h"
 #include "widget.h"
 
-static attr_t style_attrs[COLOR_PAIR_INVALID + 1];
+static attr_t style_attrs[COLOR_PAIR_INPUT + 1];
+static bool monochrome;
+
+bool widget_style_init(enum widget_theme theme)
+{
+	if (theme < WIDGET_THEME_AUTO || theme > WIDGET_THEME_TERMINAL)
+		return false;
+	memset(style_attrs, 0, sizeof(style_attrs));
+	monochrome = !has_colors();
+	if (!monochrome && start_color() == ERR)
+		return false;
+	if (!monochrome && (COLORS < 8 || COLOR_PAIRS <= COLOR_PAIR_INPUT))
+		monochrome = true;
+	if (monochrome) {
+		style_attrs[COLOR_PAIR_WINDOW] = A_REVERSE;
+		style_attrs[COLOR_PAIR_BUTTON] = A_REVERSE;
+		style_attrs[COLOR_PAIR_FOCUS] = A_REVERSE | A_BOLD;
+		style_attrs[COLOR_PAIR_READONLY] = A_REVERSE | A_UNDERLINE;
+		style_attrs[COLOR_PAIR_DISABLED] = A_REVERSE | A_DIM;
+		style_attrs[COLOR_PAIR_INVALID] = A_REVERSE | A_BOLD | A_UNDERLINE;
+		return true;
+	}
+
+	struct {
+		short fg, bg;
+		attr_t attrs;
+	} palette[COLOR_PAIR_INPUT + 1] = {
+		[COLOR_PAIR_MAIN] = { COLOR_WHITE, COLOR_BLACK, A_NORMAL    },
+		[COLOR_PAIR_WINDOW] = { COLOR_BLACK, COLOR_WHITE, A_NORMAL    },
+		[COLOR_PAIR_BUTTON] = { COLOR_BLACK, COLOR_WHITE, A_BOLD      },
+		[COLOR_PAIR_FOCUS] = { COLOR_BLACK, COLOR_CYAN,  A_BOLD      },
+		[COLOR_PAIR_READONLY] = { COLOR_BLACK, COLOR_WHITE, A_UNDERLINE },
+		[COLOR_PAIR_DISABLED] = { COLOR_BLUE,  COLOR_WHITE, A_DIM       },
+		[COLOR_PAIR_INVALID] = { COLOR_WHITE, COLOR_RED,   A_BOLD      },
+		[COLOR_PAIR_INPUT] = { COLOR_WHITE, COLOR_BLACK, A_NORMAL    },
+	};
+	/* Enable fg/bg=default overrides even with the fixed palette. */
+	bool defaults = use_default_colors() == OK;
+	if (theme == WIDGET_THEME_TERMINAL) {
+		if (!defaults)
+			return false;
+		for (int role = COLOR_PAIR_MAIN; role <= COLOR_PAIR_INPUT; role++) {
+			palette[role].fg = palette[role].bg = -1;
+		}
+		palette[COLOR_PAIR_WINDOW].attrs = A_REVERSE;
+		palette[COLOR_PAIR_BUTTON].attrs = A_REVERSE | A_BOLD;
+		palette[COLOR_PAIR_FOCUS].fg = COLOR_BLACK;
+		palette[COLOR_PAIR_FOCUS].bg = COLOR_CYAN;
+		palette[COLOR_PAIR_READONLY].attrs |= A_REVERSE;
+		palette[COLOR_PAIR_DISABLED].attrs |= A_REVERSE;
+		palette[COLOR_PAIR_INVALID].fg = COLOR_WHITE;
+		palette[COLOR_PAIR_INVALID].bg = COLOR_RED;
+	} else if (theme == WIDGET_THEME_AUTO && COLORS >= 256) {
+		palette[COLOR_PAIR_MAIN].fg = 252;
+		palette[COLOR_PAIR_MAIN].bg = 232;
+		palette[COLOR_PAIR_WINDOW].fg = 252;
+		palette[COLOR_PAIR_WINDOW].bg = 236;
+		palette[COLOR_PAIR_BUTTON].fg = 252;
+		palette[COLOR_PAIR_BUTTON].bg = 240;
+		palette[COLOR_PAIR_FOCUS].fg = 232;
+		palette[COLOR_PAIR_FOCUS].bg = 117;
+		palette[COLOR_PAIR_READONLY].fg = 252;
+		palette[COLOR_PAIR_READONLY].bg = 236;
+		palette[COLOR_PAIR_DISABLED].fg = 245;
+		palette[COLOR_PAIR_DISABLED].bg = 236;
+		palette[COLOR_PAIR_INVALID].fg = 255;
+		palette[COLOR_PAIR_INVALID].bg = 88;
+		palette[COLOR_PAIR_INPUT].fg = 255;
+		palette[COLOR_PAIR_INPUT].bg = 239;
+	}
+	for (int role = COLOR_PAIR_MAIN; role <= COLOR_PAIR_INPUT; role++) {
+		if (init_pair((short) role, palette[role].fg, palette[role].bg) == ERR)
+			return false;
+		style_attrs[role] = palette[role].attrs;
+	}
+	return true;
+}
 
 int widget_dispatch_input(struct widget *w, wchar_t key, bool keycode)
 {
@@ -70,7 +146,7 @@ struct color_slot {
 };
 TAILQ_HEAD(color_slots, color_slot);
 static struct color_slots color_slots = TAILQ_HEAD_INITIALIZER(color_slots);
-static int next_color_pair = COLOR_PAIR_INVALID + 1;
+static int next_color_pair = COLOR_PAIR_INPUT + 1;
 
 struct style_override {
 	int fg, bg, current_fg, current_bg;
@@ -80,7 +156,7 @@ struct style_override {
 };
 
 struct widget_styles {
-	struct style_override roles[COLOR_PAIR_INVALID + 1];
+	struct style_override roles[COLOR_PAIR_INPUT + 1];
 };
 
 short widget_color_pair_alloc(void)
@@ -142,7 +218,7 @@ static bool style_update_pair(struct style_override *style, short base_pair)
 bool widget_style_override(struct widget *w, enum color_pair color,
 			   const int *fg, const int *bg, const attr_t *attrs, bool reset)
 {
-	if (!w || color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_INVALID)
+	if (!w || color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_INPUT)
 		return false;
 	if (reset) {
 		if (w->styles) {
@@ -204,8 +280,8 @@ bool widget_style_resolve(const struct widget *w, enum color_pair color,
 			  attr_t *attrs, short *pair)
 {
 	*attrs = widget_style_attrs(color);
-	*pair = (short) color;
-	if (color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_INVALID)
+	*pair = monochrome ? 0 : (short) color;
+	if (color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_INPUT)
 		return true;
 	if (w) {
 		const struct widget *base = w->parent ? w->parent : w->style_owner;
@@ -227,23 +303,26 @@ bool widget_style_resolve(const struct widget *w, enum color_pair color,
 
 attr_t widget_style_attrs(enum color_pair color)
 {
-	if (color < COLOR_PAIR_MAIN || color > COLOR_PAIR_INVALID)
+	if (color < COLOR_PAIR_MAIN || color > COLOR_PAIR_INPUT)
 		return A_NORMAL;
 	return style_attrs[color];
 }
 
 void widget_style_set_attrs(enum color_pair color, attr_t attrs)
 {
-	if (color >= COLOR_PAIR_MAIN && color <= COLOR_PAIR_INVALID)
+	if (color >= COLOR_PAIR_MAIN && color <= COLOR_PAIR_INPUT)
 		style_attrs[color] = attrs;
 }
 
 void widget_style_apply(WINDOW *win, enum color_pair color)
 {
-	attr_t attrs = widget_style_attrs(color);
+	attr_t attrs;
+	short pair;
+	if (!widget_style_resolve(NULL, color, &attrs, &pair))
+		return;
 
-	wbkgd(win, COLOR_PAIR(color) | attrs);
-	wattr_set(win, attrs, (short) color, NULL);
+	wbkgd(win, COLOR_PAIR(pair) | attrs);
+	wattr_set(win, attrs, pair, NULL);
 }
 
 void widget_style_apply_widget(struct widget *w, enum color_pair color)
@@ -686,7 +765,7 @@ void widget_free(struct widget *w)
 	}
 
 	if (w->styles) {
-		for (int role = COLOR_PAIR_WINDOW; role <= COLOR_PAIR_INVALID; role++)
+		for (int role = COLOR_PAIR_WINDOW; role <= COLOR_PAIR_INPUT; role++)
 			widget_color_pair_free(w->styles->roles[role].pair);
 		free(w->styles);
 	}

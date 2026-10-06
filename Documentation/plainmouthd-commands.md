@@ -8,6 +8,15 @@ For wire format, framing rules, and full request/response transcripts, see
 
 ## Global Commands
 
+The daemon starts with `--theme=auto`: a neutral dark palette when ncurses
+reports at least 256 colors, otherwise a black-on-white window with dark
+inputs and cyan focus using eight colors. Windows remain distinct from the
+black screen without borders. `--theme=basic` forces the eight-color palette.
+`--theme=terminal` uses the terminal's own foreground and background, with
+reverse-video windows to distinguish them from the screen. Terminals without
+enough colors or pairs use a monochrome palette with reverse and bold focus.
+Palette selection uses ncurses capabilities rather than the TERM name.
+
 ### set-title
 
 Defines the title for the global screen that `plainmouthd` uses to render
@@ -17,7 +26,7 @@ widgets.
 
 Defines the color scheme for different categories and states of widgets.
 
-`name` selects a global style: `main`, `window`, `button`, `focus`,
+`name` selects a global style: `main`, `window`, `button`, `input`, `focus`,
 `readonly`, `disabled` or `invalid`.
 Set both `fg` and `bg` to change its colors. The optional `attrs` field
 replaces its text attributes with a comma-separated list of `bold`, `dim`,
@@ -42,7 +51,7 @@ unavailable widgets and rejected keyboard input. By default these use
 underline, dim and bold respectively. Rejected input is highlighted until
 the next input event or loss of focus; the value stays unchanged.
 
-Add `id=ID` to override the `window`, `button`, `focus`, `readonly`,
+Add `id=ID` to override the `window`, `button`, `input`, `focus`, `readonly`,
 `disabled` or `invalid` role inside one
 existing dialog. The `main` role remains global. Local `fg`, `bg`, and `attrs`
 are independent: unspecified properties retain earlier local overrides or
@@ -62,7 +71,7 @@ plainmouth action=set-style id=dialog1 name=window reset=true
 ```
 
 Use `style=NAME` instead of `id` to define or update a named theme. `name`
-still selects the role (`window`, `button`, or `focus`). A theme inherits
+still selects the role, including `input`. A theme inherits
 unspecified properties from the global role. The first successful definition
 creates the theme; an invalid request does not publish a new theme. Theme
 names must be nonempty. `id` and `style` cannot be combined in `set-style`.
