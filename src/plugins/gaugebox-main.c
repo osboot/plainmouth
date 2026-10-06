@@ -91,7 +91,7 @@ static bool gauge_finished(struct widget *root)
 
 PLUGIN_EXPORT
 struct plugin plugin = {
-	.name = "gauge",
+	.name = "gaugebox",
 	.desc = "Display externally updated progress until deleted.",
 	.p_create_instance = gauge_create,
 	.p_update_instance = gauge_update,

@@ -193,7 +193,7 @@ static bool p_menu_finished(struct widget *root)
 
 PLUGIN_EXPORT
 struct plugin plugin = {
-	.name = "menu",
+	.name = "menubox",
 	.desc = "A menu for choosing one entry.",
 	.p_plugin_init = NULL,
 	.p_plugin_free = NULL,

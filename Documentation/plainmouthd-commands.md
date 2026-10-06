@@ -219,9 +219,9 @@ user input completion.
 
 ## Plugin Result Contracts
 
-### checklist
+### checklistbox
 
-The `checklist` plugin accepts repeated `option` fields. Each option is assigned
+The `checklistbox` plugin accepts repeated `option` fields. Each option is assigned
 a stable 1-based numeric option id in the order it appears in the create
 request. This id is not a visual row number; scrolling, focus movement, or
 future rendering changes must not change it.
@@ -230,7 +230,7 @@ An optional `status` immediately following an `option` sets its initial
 checked state. Without `status`, the option starts unchecked:
 
 ```text
-plugin=checklist action=create id=choices width=40 height=7 select=2 visible=3 option=apple status=true option=banana status=false option=orange status=true button=OK
+plugin=checklistbox action=create id=choices width=40 height=7 select=2 visible=3 option=apple status=true option=banana status=false option=orange status=true button=OK
 ```
 
 `status` accepts `1/0`, `true/false`, and `yes/no` (case-insensitive).
@@ -271,16 +271,16 @@ creation for their single closing button, defaulting to `OK` if absent.
 The button retains ID 1, including when its label is empty.
 
 ```text
-plugin=form:     input=<input-id> value=<text>
-plugin=form:     button=<button-id> clicked=<true|false>
+plugin=formbox:     input=<input-id> value=<text>
+plugin=formbox:     button=<button-id> clicked=<true|false>
 plugin=inputbox: value=<text> [finished=<true|false>]
 plugin=inputbox: button=<button-id> clicked=<true|false>
-plugin=meter:    value=<number>
-plugin=menu:     option=<option-id> [finished=<true|false>]
-plugin=menu:     button=<button-id> clicked=<true|false>
+plugin=meterbox:    value=<number>
+plugin=menubox:     option=<option-id> [finished=<true|false>]
+plugin=menubox:     button=<button-id> clicked=<true|false>
 plugin=msgbox:   button=<button-id> clicked=<true|false>
-plugin=password: value=<text> [finished=<true|false>]
-plugin=password: button=<button-id> clicked=<true|false>
+plugin=passwordbox: value=<text> [finished=<true|false>]
+plugin=passwordbox: button=<button-id> clicked=<true|false>
 plugin=termbox:  input=<text>
 plugin=termbox:  button=1 clicked=<true|false>
 plugin=timebox:  spinbox=<spinbox-id> value=<number>
@@ -308,12 +308,12 @@ Enter in the input or a clicked button completes the instance.
 `set-value` accepts `value` and/or `finished` for the input, or
 `button=<id>` with optional `clicked` (default true). Input and button
 updates must be separate requests. An empty `value` clears the input.
-As with password, input values and completion flags are validated before
+As with passwordbox, input values and completion flags are validated before
 changing state.
 
-### gauge
+### gaugebox
 
-Create with `plugin=gauge text=TEXT width=N height=N value=PERCENT` and
+Create with `plugin=gaugebox text=TEXT width=N height=N value=PERCENT` and
 optional `border=true`. Percentages must be between 0 and 100. Use
 `action=update id=ID value=PERCENT [text=TEXT]` to update the indicator and
 optionally replace its prompt. `action=set-value` accepts the same fields.
@@ -329,9 +329,9 @@ Results contain `VALUE` and `BUTTON_N` states. A clicked button completes
 the instance. `set-value value=N` clamps to the configured range; button
 and value updates must be separate requests.
 
-### menu
+### menubox
 
-The `menu` plugin displays one current choice without checkbox markers.
+The `menubox` plugin displays one current choice without checkbox markers.
 Creation requires `width`, `height`, and at least one repeated `option`
 field. It accepts `x`, `y`, `border`, `text`, `visible` (preferred
 number of visible rows), and optional repeated `button` fields.
@@ -346,13 +346,13 @@ and `BUTTON_N=0|1` for each button.
 Adding `finished=true` confirms the choice. Button updates use
 `button=N` with optional `clicked` (default true), in a separate request.
 
-### form
+### formbox
 
 The existing `hbox=start/end` layout remains the default. `layout=positioned`
 places single-line items at zero-based coordinates in scrollable content:
 
 ```sh
-plainmouth plugin=form action=create id=form1 width=40 height=10 border=true \
+plainmouth plugin=formbox action=create id=form1 width=40 height=10 border=true \
   layout=positioned \
   field=start label=Name: x=0 y=0 width=6 field=end \
   field=start input=Alice x=7 y=0 width=20 max-length=40 field=end \

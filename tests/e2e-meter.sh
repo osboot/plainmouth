@@ -9,7 +9,7 @@ testsdir="${progfile%/*}"
 draw_testcase()
 {
 	"$topdir"/plainmouth \
-		plugin=meter action=create id=w1 total=100 width=70 height=3 border=true
+		plugin=meterbox action=create id=w1 total=100 width=70 height=3 border=true
 
 	for i in 10 20 30 40 50 60 70 80; do
 		"$topdir"/plainmouth action=update id=w1 value=$i

@@ -9,17 +9,17 @@ testsdir="${progfile%/*}"
 draw_testcase()
 {
 	"$topdir"/plainmouth \
-		plugin=password action=create id=w1 x=1 y=1 width=40 height=5 border=true \
+		plugin=passwordbox action=create id=w1 x=1 y=1 width=40 height=5 border=true \
 		text="(1) Enter password:
 123456789 123456789 123456789" \
 		label="qwerty asdfghjk: "
 
 	"$topdir"/plainmouth \
-		plugin=password action=create id=w2 x=20 y=4 width=30 height=4 border=true \
+		plugin=passwordbox action=create id=w2 x=20 y=4 width=30 height=4 border=true \
 		text="(2) Enter password:"
 
 	"$topdir"/plainmouth \
-		plugin=password action=create id=w3 width=20 height=3 x=36 y=6 border=true
+		plugin=passwordbox action=create id=w3 width=20 height=3 x=36 y=6 border=true
 }
 
 testcase_view()

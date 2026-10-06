@@ -7,7 +7,7 @@ testsdir="${progfile%/*}"
 testcase()
 {
 	trap '"$topdir"/plainmouth --quit' EXIT
-	"$topdir"/plainmouth plugin=form action=create id=w1 width=30 height=8 border=true layout=positioned \
+	"$topdir"/plainmouth plugin=formbox action=create id=w1 width=30 height=8 border=true layout=positioned \
 		field=start input=bottom x=35 y=15 width=10 max-length=12 field=end \
 		field=start label=Name: x=0 y=0 width=6 field=end \
 		field=start input=top x=7 y=0 width=10 max-length=12 field=end \
@@ -47,11 +47,11 @@ testcase()
 	"$topdir"/plainmouth action=wait-result id=w1 > "$current_dump.result"
 	grep -qx BUTTON_1=1 "$current_dump.result"
 	"$topdir"/plainmouth action=delete id=w1
-	if "$topdir"/plainmouth plugin=form action=create id=bad width=30 height=8 layout=positioned \
+	if "$topdir"/plainmouth plugin=formbox action=create id=bad width=30 height=8 layout=positioned \
 		field=start input=x x=-1 y=0 width=10 field=end button=OK; then
 		return 1
 	fi
-	if "$topdir"/plainmouth plugin=form action=create id=bad width=30 height=8 layout=positioned \
+	if "$topdir"/plainmouth plugin=formbox action=create id=bad width=30 height=8 layout=positioned \
 		field=start input=x x=0 y=0 width=10 width=11 field=end button=OK; then
 		return 1
 	fi

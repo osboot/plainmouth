@@ -310,6 +310,12 @@ Widgets are not used directly by the core `plainmouthd` logic. Instead, they are
 instantiated and composed by **plugins**, each plugin being responsible for
 constructing its own user interface.
 
+Ready-made dialog plugins use the `box` suffix: `checklistbox`, `formbox`,
+`gaugebox`, `inputbox`, `menubox`, `meterbox`, `msgbox`, `passwordbox`,
+`rangebox`, `tailbox`, `termbox`, `textbox`, and `timebox`. Constructors use
+descriptive names without this suffix. This convention applies to plugin
+names, not widget types or the compatible `plaindialog` command-line options.
+
 A plugin typically:
 
 - Creates a set of widgets.

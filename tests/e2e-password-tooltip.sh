@@ -9,7 +9,7 @@ testsdir="${progfile%/*}"
 draw_testcase()
 {
 	"$topdir"/plainmouth \
-		plugin=password action=create id=w1 x=20 y=4 width=30 height=3 border=true \
+		plugin=passwordbox action=create id=w1 x=20 y=4 width=30 height=3 border=true \
 		label="Enter password:" \
 		tooltip="Passwords must be at least 10 characters in length
 a minimum of 1 lower case letter [a-z]

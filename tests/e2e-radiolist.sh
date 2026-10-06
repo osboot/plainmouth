@@ -9,7 +9,7 @@ testsdir="${progfile%/*}"
 draw_testcase()
 {
 	"$topdir"/plainmouth \
-		plugin=checklist action=create id=w1 width=40 height=7 border=true \
+		plugin=checklistbox action=create id=w1 width=40 height=7 border=true \
 		select=1 visible=5 \
 		option="apple" \
 		option="banana" \

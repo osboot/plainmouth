@@ -168,7 +168,7 @@ int main(void)
 	vterm_screen_reset(screen, 1);
 	const char *fields[][2] = {
 		{ "action",   "create"    },
-		{ "plugin",   "form"      },
+		{ "plugin",   "formbox"   },
 		{ "id",       "form"      },
 		{ "width",    "30"        },
 		{ "height",   "5"         },

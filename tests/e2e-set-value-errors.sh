@@ -33,13 +33,17 @@ testcase_dump()
 	test "$("$topdir"/plainmouth action=ping)" = PONG=1
 	"$topdir"/plainmouth action=list-plugins >/dev/null
 
+	for plugin in checklist form gauge menu meter password; do
+		expect_command_error "plugin not found" action=create id=old "plugin=$plugin"
+	done
+
 	"$topdir"/plainmouth plugin=msgbox action=create id=msg width=30 height=5 button=OK
-	"$topdir"/plainmouth plugin=form action=create id=form width=40 height=7 \
+	"$topdir"/plainmouth plugin=formbox action=create id=form width=40 height=7 \
 		hbox=start label=Name input=initial hbox=end button=OK
 	"$topdir"/plainmouth plugin=timebox action=create id=time width=16 height=4 button=OK
-	"$topdir"/plainmouth plugin=checklist action=create id=list width=30 height=5 select=2 visible=2 option=one option=two button=OK
-	"$topdir"/plainmouth plugin=password action=create id=pass width=30 height=5
-	"$topdir"/plainmouth plugin=meter action=create id=meter total=100 width=70 height=3 border=true
+	"$topdir"/plainmouth plugin=checklistbox action=create id=list width=30 height=5 select=2 visible=2 option=one option=two button=OK
+	"$topdir"/plainmouth plugin=passwordbox action=create id=pass width=30 height=5
+	"$topdir"/plainmouth plugin=meterbox action=create id=meter total=100 width=70 height=3 border=true
 
 	expect_error "field is missing: button" id=msg
 	expect_error "field is missing: input or button" id=form

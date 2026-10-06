@@ -223,7 +223,7 @@ static bool p_pass_finished(struct widget *root)
 
 PLUGIN_EXPORT
 struct plugin plugin = {
-	.name              = "password",
+	.name              = "passwordbox",
 	.desc              = "The plugin displays a password entry dialog.",
 	.p_plugin_init     = NULL,
 	.p_plugin_free     = NULL,

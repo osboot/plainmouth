@@ -9,7 +9,7 @@ testsdir="${progfile%/*}"
 draw_testcase()
 {
 	"$topdir"/plainmouth \
-		plugin=form action=create id=w1 width=30 height=5 border=true \
+		plugin=formbox action=create id=w1 width=30 height=5 border=true \
 		hbox=start label="Username:" input="legion" hbox=end \
 		hbox=start label="Password:" password="" hbox=end \
 		\

@@ -68,22 +68,22 @@ struct dialog_spec {
 };
 
 static const struct dialog_spec dialogs[DIALOG_COUNT] = {
-	[DIALOG_MSGBOX]      = { "--msgbox",      "msgbox",    "text",    NULL,         LABEL_OK,   LABEL_NONE   },
-	[DIALOG_YESNO]       = { "--yesno",       "msgbox",    "text",    NULL,         LABEL_YES,  LABEL_NO     },
-	[DIALOG_INPUTBOX]    = { "--inputbox",    "inputbox",  "text",    "INPUT_1",    LABEL_OK,   LABEL_CANCEL },
-	[DIALOG_PASSWORDBOX] = { "--passwordbox", "password",  "text",    "PASSWORD_1", LABEL_OK,   LABEL_CANCEL },
-	[DIALOG_TIMEBOX]     = { "--timebox",     "timebox",   "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
-	[DIALOG_RANGEBOX]    = { "--rangebox",    "rangebox",  "text",    "VALUE",      LABEL_OK,   LABEL_CANCEL },
-	[DIALOG_GAUGE]       = { "--gauge",       "gauge",     "text",    NULL,         LABEL_NONE, LABEL_NONE   },
-	[DIALOG_MENU]        = { "--menu",        "menu",      "text",    "SELECTED",   LABEL_OK,   LABEL_CANCEL },
-	[DIALOG_CHECKLIST]   = { "--checklist",   "checklist", "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
-	[DIALOG_RADIOLIST]   = { "--radiolist",   "checklist", "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
-	[DIALOG_TAILBOX]     = { "--tailbox",     "tailbox",   "file",    NULL,         LABEL_EXIT, LABEL_NONE   },
-	[DIALOG_TEXTBOX]     = { "--textbox",     "textbox",   "file",    NULL,         LABEL_EXIT, LABEL_NONE   },
-	[DIALOG_TERMBOX]     = { "--termbox",     "termbox",   "command", NULL,         LABEL_OK,   LABEL_NONE   },
-	[DIALOG_FORM]        = { "--form",        "form",      "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
-	[DIALOG_PASSWORDFORM] = { "--passwordform", "form",    "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
-	[DIALOG_MIXEDFORM]   = { "--mixedform",   "form",      "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_MSGBOX] = { "--msgbox",       "msgbox",       "text",    NULL,         LABEL_OK,   LABEL_NONE   },
+	[DIALOG_YESNO] = { "--yesno",        "msgbox",       "text",    NULL,         LABEL_YES,  LABEL_NO     },
+	[DIALOG_INPUTBOX] = { "--inputbox",     "inputbox",     "text",    "INPUT_1",    LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_PASSWORDBOX] = { "--passwordbox",  "passwordbox",  "text",    "PASSWORD_1", LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_TIMEBOX] = { "--timebox",      "timebox",      "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_RANGEBOX] = { "--rangebox",     "rangebox",     "text",    "VALUE",      LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_GAUGE] = { "--gauge",        "gaugebox",     "text",    NULL,         LABEL_NONE, LABEL_NONE   },
+	[DIALOG_MENU] = { "--menu",         "menubox",      "text",    "SELECTED",   LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_CHECKLIST] = { "--checklist",    "checklistbox", "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_RADIOLIST] = { "--radiolist",    "checklistbox", "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_TAILBOX] = { "--tailbox",      "tailbox",      "file",    NULL,         LABEL_EXIT, LABEL_NONE   },
+	[DIALOG_TEXTBOX] = { "--textbox",      "textbox",      "file",    NULL,         LABEL_EXIT, LABEL_NONE   },
+	[DIALOG_TERMBOX] = { "--termbox",      "termbox",      "command", NULL,         LABEL_OK,   LABEL_NONE   },
+	[DIALOG_FORM] = { "--form",         "formbox",      "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_PASSWORDFORM] = { "--passwordform", "formbox",      "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
+	[DIALOG_MIXEDFORM] = { "--mixedform",    "formbox",      "text",    NULL,         LABEL_OK,   LABEL_CANCEL },
 };
 
 static enum button_label find_button_label(const char *option)

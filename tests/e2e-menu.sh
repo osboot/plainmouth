@@ -19,7 +19,7 @@ expect_error()
 
 draw_testcase()
 {
-	"$topdir"/plainmouth plugin=menu action=create id=w1 \
+	"$topdir"/plainmouth plugin=menubox action=create id=w1 \
 		width=24 height=6 border=true visible=3 button=OK \
 		option=apple option=banana option=orange option=mango \
 		option=pineapple option=grapes option=raspberry button=Cancel
@@ -61,7 +61,7 @@ testcase_dump()
 
 draw_second_testcase()
 {
-	"$topdir"/plainmouth plugin=menu action=create id=w2 \
+	"$topdir"/plainmouth plugin=menubox action=create id=w2 \
 		width=24 height=4 border=true visible=2 option=first option=second
 }
 

@@ -35,7 +35,7 @@ testcase()
 		} | "$topdir"/plaindialog --gauge Starting 7 40 10
 		return
 	fi
-	"$topdir"/plainmouth action=create plugin=gauge id=direct width=40 height=7 \
+	"$topdir"/plainmouth action=create plugin=gaugebox id=direct width=40 height=7 \
 		border=true text=Direct value=10
 	if "$topdir"/plainmouth action=update id=direct value=-1 text=Invalid; then return 1; fi
 	if "$topdir"/plainmouth action=set-value id=direct value=bad; then return 1; fi

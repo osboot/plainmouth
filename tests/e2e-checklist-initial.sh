@@ -10,14 +10,14 @@ current_result="$testsdir/$progname.result"
 
 draw_checklist()
 {
-	"$topdir"/plainmouth plugin=checklist action=create id=w1 \
+	"$topdir"/plainmouth plugin=checklistbox action=create id=w1 \
 		width=24 height=6 border=true select=2 visible=3 \
 		option=apple status=true option=banana status=yes option=orange status=false button=OK
 }
 
 draw_radiolist()
 {
-	"$topdir"/plainmouth plugin=checklist action=create id=w2 \
+	"$topdir"/plainmouth plugin=checklistbox action=create id=w2 \
 		width=24 height=6 border=true select=1 visible=3 \
 		option=first status=false option=second status=true option=third button=OK
 }
@@ -26,7 +26,7 @@ expect_create_error()
 {
 	local expected="$1" actual status=0
 	shift
-	actual=$("$topdir"/plainmouth plugin=checklist action=create id=bad width=24 height=6 "$@") || status=$?
+	actual=$("$topdir"/plainmouth plugin=checklistbox action=create id=bad width=24 height=6 "$@") || status=$?
 	test "$status" -eq 1
 	case "$actual" in
 		*"ERR=$expected"*) ;;

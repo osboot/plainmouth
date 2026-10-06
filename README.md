@@ -39,7 +39,7 @@ plainmouth --quit
 Create a password prompt:
 
 ```sh
-plainmouth plugin=password action=create id=pass1 width=30 height=3 border=true \
+plainmouth plugin=passwordbox action=create id=pass1 width=30 height=3 border=true \
   label="Enter password:"
 plainmouth action=wait-result id=pass1
 plainmouth --quit

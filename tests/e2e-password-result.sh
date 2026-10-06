@@ -11,7 +11,7 @@ current_result="$testsdir/$progname.result"
 draw_testcase()
 {
 	"$topdir"/plainmouth \
-		plugin=password action=create id=w1 width=30 height=3 border=true \
+		plugin=passwordbox action=create id=w1 width=30 height=3 border=true \
 		label="Password:"
 }
 

@@ -466,7 +466,7 @@ static bool p_form_finished(struct widget *root)
 
 PLUGIN_EXPORT
 struct plugin plugin = {
-	.name                 = "form",
+	.name                 = "formbox",
 	.desc                 = "The form dialog displays a form consisting of labels and fields.",
 	.p_plugin_init        = NULL,
 	.p_plugin_free        = NULL,

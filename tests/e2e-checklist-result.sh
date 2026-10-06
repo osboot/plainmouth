@@ -11,7 +11,7 @@ current_result="$testsdir/$progname.result"
 draw_testcase()
 {
 	"$topdir"/plainmouth \
-		plugin=checklist action=create id=w1 width=40 height=7 border=true \
+		plugin=checklistbox action=create id=w1 width=40 height=7 border=true \
 		select=2 visible=5 \
 		option="apple" \
 		option="banana" \

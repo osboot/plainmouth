@@ -29,7 +29,7 @@ view_case()
 testcase_view()
 {
 	trap '"$topdir"/plainmouth --quit >/dev/null 2>&1 || :' EXIT
-	"$topdir"/plainmouth action=create plugin=form id=palette \
+	"$topdir"/plainmouth action=create plugin=formbox id=palette \
 		width=48 height=10 border=false layout=positioned \
 		field=start label=Name: x=1 y=1 width=8 field=end \
 		field=start input=Alice x=10 y=1 width=24 field=end \

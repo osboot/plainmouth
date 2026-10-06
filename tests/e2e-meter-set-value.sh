@@ -10,7 +10,7 @@ current_result="$testsdir/$progname.result"
 
 testcase_dump()
 {
-	"$topdir"/plainmouth plugin=meter action=create id=w1 \
+	"$topdir"/plainmouth plugin=meterbox action=create id=w1 \
 		total=100 width=70 height=3 border=true
 	"$topdir"/plainmouth action=set-value id=w1 value=80
 	"$topdir"/plainmouth action=dump id=w1 filename="$current_dump"
