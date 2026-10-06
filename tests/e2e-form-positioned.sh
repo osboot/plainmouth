@@ -33,6 +33,10 @@ testcase()
 	grep -q BOTTOM "$current_dump.bottom"
 	! grep -q TOP "$current_dump.bottom"
 	! cmp -s "$current_dump" "$current_dump.bottom"
+	"$topdir"/plainmouth action=set-value id=w1 input=2 value=TOP
+	"$topdir"/plainmouth action=dump id=w1 filename="$current_dump"
+	grep -q 'Name:' "$current_dump"
+	grep -q TOP "$current_dump"
 	"$topdir"/plainmouth action=result id=w1 > "$current_dump.result"
 	grep -qx INPUT_1=BOTTOM "$current_dump.result"
 	grep -qx INPUT_2=TOP "$current_dump.result"

@@ -283,6 +283,9 @@ Page Up/Down from a field scroll its nearest enclosing scroll container without
 moving focus or changing the field value. Lists consume their own navigation
 keys, and input fields retain Home/End for editing. Visibility calculations
 subtract intervening pad offsets when scrolling nested regions.
+For positioned input fields, visibility requests also include the nearest
+label to the left on the same row when label and field fit together in the
+viewport. Smaller viewports prioritize the input field.
 
 `ATTR_READONLY` and `ATTR_DISABLED` prevent keyboard interaction and focus
 traversal, including when set on an ancestor. Style roles `readonly`,

@@ -156,6 +156,27 @@ void pad_box_ensure_visible(struct widget *container, struct widget *child)
 	if (!widget_offset_in_ancestor(container, child, &cy, &cx))
 		return;
 
+	int width = child->w;
+	if (child->type == WIDGET_INPUT && child->parent &&
+	    child->parent->type == WIDGET_POSITIONED) {
+		struct widget *label = NULL, *sibling;
+		TAILQ_FOREACH(sibling, &child->parent->children, siblings)
+		{
+			if (sibling->type == WIDGET_LABEL && sibling->ly == child->ly &&
+			    sibling->lx + sibling->w <= child->lx &&
+			    (!label || sibling->lx > label->lx))
+				label = sibling;
+		}
+		/* Keep the field's adjacent label visible when the pair fits. */
+		if (label) {
+			int gap = child->lx - label->lx;
+			if (gap + width <= container->w) {
+				cx -= gap;
+				width += gap;
+			}
+		}
+	}
+
 	bool changed = false;
 
 	if (cy < st->scroll_y) {
@@ -169,8 +190,8 @@ void pad_box_ensure_visible(struct widget *container, struct widget *child)
 	if (cx < st->scroll_x) {
 		st->scroll_x = cx;
 		changed = true;
-	} else if (cx + child->w > st->scroll_x + container->w) {
-		st->scroll_x = cx + child->w - container->w;
+	} else if (cx + width > st->scroll_x + container->w) {
+		st->scroll_x = cx + width - container->w;
 		changed = true;
 	}
 

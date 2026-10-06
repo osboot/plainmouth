@@ -60,6 +60,35 @@ static void check_cell(WINDOW *win, int y, int x, wchar_t expected, short pair)
 	assert(actual_pair == pair);
 }
 
+static void test_field_context(void)
+{
+	struct widget *pad = make_pad_box();
+	struct widget *canvas = make_positioned();
+	struct widget *label = make_label(L"Name:");
+	struct widget *field = make_input(L"top", NULL);
+	struct widget *bottom = make_input(L"bottom", NULL);
+	assert(pad && canvas && label && field && bottom);
+	widget_add(pad, canvas);
+	assert(positioned_add(canvas, label, 0, 0, 6, 1));
+	assert(positioned_add(canvas, field, 7, 0, 10, 1));
+	assert(positioned_add(canvas, bottom, 35, 15, 10, 1));
+	widget_measure_tree(pad);
+	widget_layout_tree(pad, 0, 0, 27, 5);
+	pad->ops->ensure_visible(pad, bottom);
+	int x;
+	assert(widget_get(pad, PROP_SCROLL_X, &x) && x == 18);
+	pad->ops->ensure_visible(pad, field);
+	assert(widget_get(pad, PROP_SCROLL_X, &x) && x == 0);
+	pad->ops->ensure_visible(pad, field);
+	assert(widget_get(pad, PROP_SCROLL_X, &x) && x == 0);
+
+	/* A narrow viewport must prioritize the editable field. */
+	widget_layout_tree(pad, 0, 0, 10, 5);
+	pad->ops->ensure_visible(pad, field);
+	assert(widget_get(pad, PROP_SCROLL_X, &x) && x == 7);
+	widget_free(pad);
+}
+
 static void test_nested_visibility(void)
 {
 	struct widget *outer = make_pad_box();
@@ -188,6 +217,7 @@ static void test_render(bool oversized)
 int main(void)
 {
 	test_layout();
+	test_field_context();
 	test_nested_visibility();
 	FILE *input = tmpfile(), *output = tmpfile();
 	assert(input && output);
