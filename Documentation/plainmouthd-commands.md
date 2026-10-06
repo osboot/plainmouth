@@ -219,6 +219,81 @@ user input completion.
 
 ## Plugin Result Contracts
 
+### compose
+
+`compose` constructs a fixed widget tree in one `create` request. Window
+parameters (`width`, `height`, optional `x`, `y`, `border`, `style`) precede
+all nodes. `node=TYPE` opens a node and `node=end` closes it. Nodes are nested:
+the currently open container is the parent, so no numeric parent references
+are needed. Properties must precede a node's first child; leaves cannot have
+children. Exactly one root, a `vbox` or `hbox`, is required. IDs start at 1
+and count every opened node, including containers and labels. Tab order
+matches declaration order.
+
+```sh
+plainmouth action=create plugin=compose id=connection width=40 height=7 border=true \
+  node=vbox \
+    node=hbox \
+      node=label text="Host: " node=end \
+      node=input value=localhost flex-w=1 node=end \
+    node=end \
+    node=hbox \
+      node=checkbox checked=false node=end \
+      node=label text=" Use TLS" node=end \
+    node=end \
+    node=hbox \
+      node=button text=OK node=end \
+      node=button text=Cancel node=end \
+    node=end \
+  node=end
+```
+
+Supported node types and their properties:
+
+- `vbox`, `hbox`: containers; only these types accept declared children.
+- `label`, `button`: required `text`.
+- `input`, `password`: required `value` (may be empty), optional `max-length`
+  (0..65536 characters, default 65536). Passwords are masked on screen but
+  returned as ordinary input values.
+- `checkbox`: optional `checked` boolean (default false). Add an adjacent
+  label in an `hbox` to describe it.
+- `select`: repeated `option` labels, optional `visible` (1..256, default 3)
+  and `value` (the initial 1-based option number, default 1).
+
+All nodes accept `flex-w` and `flex-h` (0..256); defaults are zero except
+`flex-h=1` for the root container. Sizing uses the normal measure/layout
+flow. At least one button is required. Only clicking a button completes the
+dialog; Enter in an input or select does not complete it. All buttons are
+ordinary closing buttons; their meaning is assigned by the client.
+
+`set-value` addresses the declaration-order ID with `node=N`:
+
+```sh
+plainmouth action=set-value id=connection node=4 value=example.org
+plainmouth action=set-value id=connection node=6 checked=true
+plainmouth action=set-value id=connection node=9 clicked=true
+```
+
+Inputs/passwords accept `value`, checkboxes require `checked`, selects require
+`value` (a 1-based option number), and buttons accept `clicked` (default true).
+Selecting an off-screen option scrolls it into view. Results use `INPUT_N`,
+`CHECKBOX_N`, `SELECT_N`, and `BUTTON_N`, where N is the node ID, not an index
+among nodes of the same type. Select results contain option numbers, not
+arbitrary client tags. Containers and labels produce no result pairs.
+
+Creation allows at most 256 nodes, 32 tree levels, 256 options per select,
+4096 characters per initial text/option, and 1048576 window cells. Window
+dimensions are limited to 4096 per axis. Content must fit the window's
+minimum geometry. Unbalanced nodes, multiple roots, children of leaves,
+unknown or duplicate properties, and invalid values reject the entire tree
+before rendering. The old `node=start type=TYPE parent=N` syntax is not
+supported. Inserting nodes requires no changes to parent references; clients
+still calculate result IDs from declaration order. The
+first version does not provide scrolling containers, dynamic structural
+updates, or non-closing button events.
+
+Try `MODE=view tests/e2e-compose.sh` for an interactive connection dialog.
+
 ### checklistbox
 
 The `checklistbox` plugin accepts repeated `option` fields. Each option is assigned

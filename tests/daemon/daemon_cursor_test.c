@@ -123,6 +123,90 @@ static void open_help(int fd, VTerm *terminal)
 	require(false);
 }
 
+static void check_compose(struct ipc_ctx *ctx, int master, VTerm *terminal)
+{
+	const char *fields[][2] = {
+		{ "action",  "create"   },
+		{ "plugin",  "compose"  },
+		{ "id",      "compose"  },
+		{ "width",   "30"       },
+		{ "height",  "8"        },
+		{ "border",  "true"     },
+		{ "node",    "vbox"     },
+		{ "node",    "hbox"     },
+		{ "node",    "label"    },
+		{ "text",    "Host: "   },
+		{ "node",    "end"      },
+		{ "node",    "input"    },
+		{ "value",   ""         },
+		{ "flex-w",  "1"        },
+		{ "node",    "end"      },
+		{ "node",    "end"      },
+		{ "node",    "password" },
+		{ "value",   ""         },
+		{ "node",    "end"      },
+		{ "node",    "checkbox" },
+		{ "node",    "end"      },
+		{ "node",    "select"   },
+		{ "visible", "2"        },
+		{ "option",  "First"    },
+		{ "option",  "Second"   },
+		{ "node",    "end"      },
+		{ "node",    "button"   },
+		{ "text",    "OK"       },
+		{ "node",    "end"      },
+		{ "node",    "end"      },
+	};
+	struct ipc_pair request = { 0 };
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		require(ipc_pair_add(&request, fields[i][0], fields[i][1]));
+
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+
+	require(ipc_pair_add(&request, "action", "focus"));
+	require(ipc_pair_add(&request, "id", "compose"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	drain(master, terminal);
+	press(master, terminal, "x\nx\ty\t \t\033OB\n");
+
+	struct ipc_pair response = { 0 };
+	require(ipc_pair_add(&request, "action", "result"));
+	require(ipc_pair_add(&request, "id", "compose"));
+	require(ipc_send_message2(ctx, &request, &response));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	const char *expected[][2] = {
+		{ "INPUT_4",    "xx" },
+		{ "INPUT_5",    "y"  },
+		{ "CHECKBOX_6", "1"  },
+		{ "SELECT_7",   "2"  },
+		{ "BUTTON_8",   "0"  },
+	};
+	require(response.num_kv == sizeof(expected) / sizeof(*expected));
+
+	for (size_t i = 0; i < response.num_kv; i++) {
+		require(strcmp(response.kv[i].key, expected[i][0]) == 0);
+		require(strcmp(response.kv[i].val, expected[i][1]) == 0);
+	}
+
+	ipc_pair_free(&response);
+	response = (struct ipc_pair) { 0 };
+	press(master, terminal, "\t\n");
+	require(ipc_pair_add(&request, "action", "wait-result"));
+	require(ipc_pair_add(&request, "id", "compose"));
+	require(ipc_send_message2(ctx, &request, &response));
+	ipc_pair_free(&request);
+	require(response.num_kv == 5);
+	require(strcmp(response.kv[4].key, "BUTTON_8") == 0);
+	require(strcmp(response.kv[4].val, "1") == 0);
+	ipc_pair_free(&response);
+}
+
 int main(void)
 {
 	require(mkdtemp(directory) != NULL);
@@ -212,6 +296,7 @@ int main(void)
 	}
 	press(master, terminal, "\033OP");
 	expect_cursor(terminal, 11, 73);
+	check_compose(&ctx, master, terminal);
 	require(ipc_pair_add(&request, "action", "quit"));
 	require(ipc_send_message2(&ctx, &request, NULL));
 	ipc_pair_free(&request);
