@@ -44,6 +44,9 @@ int main(void)
 	assert(init_pair(COLOR_PAIR_WINDOW, COLOR_WHITE, COLOR_BLUE) == OK);
 	assert(init_pair(COLOR_PAIR_BUTTON, COLOR_BLACK, COLOR_WHITE) == OK);
 	assert(init_pair(COLOR_PAIR_FOCUS, COLOR_WHITE, COLOR_GREEN) == OK);
+	assert(init_pair(COLOR_PAIR_READONLY, COLOR_WHITE, COLOR_BLUE) == OK);
+	assert(init_pair(COLOR_PAIR_DISABLED, COLOR_WHITE, COLOR_BLACK) == OK);
+	assert(init_pair(COLOR_PAIR_INVALID, COLOR_WHITE, COLOR_RED) == OK);
 
 	struct widget *button = make_button(L"OK");
 	assert(button);
@@ -167,6 +170,58 @@ int main(void)
 	widget_free(left);
 	widget_free(right);
 	widget_free(theme);
+
+	struct widget *field = make_input(L"x", NULL);
+	assert(field);
+	widget_measure_tree(field);
+	widget_layout_tree(field, 0, 0, 8, 1);
+	widget_style_set_attrs(COLOR_PAIR_READONLY, A_UNDERLINE);
+	widget_style_set_attrs(COLOR_PAIR_DISABLED, A_DIM);
+	widget_style_set_attrs(COLOR_PAIR_INVALID, A_BOLD);
+	field->attrs |= ATTR_READONLY;
+	assert(!widget_is_interactive(field));
+	assert(!widget_dispatch_input(field, L'y', false));
+	widget_render_tree(field);
+	check_style(field, A_UNDERLINE, COLOR_PAIR_READONLY);
+	field->attrs &= ~ATTR_READONLY;
+	field->attrs |= ATTR_DISABLED;
+	assert(!widget_dispatch_input(field, L'\n', false));
+	bool finished;
+	assert(widget_get(field, PROP_INPUT_STATE, &finished) && !finished);
+	widget_render_tree(field);
+	check_style(field, A_DIM, COLOR_PAIR_DISABLED);
+	field->attrs &= ~ATTR_DISABLED;
+	field->flags |= FLAG_INFOCUS;
+	int limit = 1;
+	assert(widget_set(field, PROP_INPUT_MAX_LENGTH, &limit));
+	assert(widget_dispatch_input(field, L'y', false));
+	assert(field->flags & FLAG_REJECTED);
+	const wchar_t *value;
+	assert(widget_get(field, PROP_INPUT_VALUE, &value) && wcscmp(value, L"x") == 0);
+	widget_render_tree(field);
+	check_style(field, A_BOLD, COLOR_PAIR_INVALID);
+	assert(widget_dispatch_input(field, KEY_HOME, true));
+	assert(!(field->flags & FLAG_REJECTED));
+	widget_render_tree(field);
+	check_style(field, A_UNDERLINE | A_DIM, COLOR_PAIR_FOCUS);
+	attr_t reverse = A_REVERSE;
+	assert(widget_style_override(field, COLOR_PAIR_READONLY, NULL, NULL, &reverse, false));
+	field->attrs |= ATTR_READONLY;
+	widget_render_tree(field);
+	check_style(field, A_REVERSE, COLOR_PAIR_READONLY);
+	widget_free(field);
+
+	struct widget *list = make_select(1, 2);
+	assert(list);
+	widget_add(list, make_select_option(L"One", true, true));
+	widget_add(list, make_select_option(L"Two", false, true));
+	int cursor = 1;
+	assert(widget_set(list, PROP_SELECT_CURSOR, &cursor));
+	assert(widget_dispatch_input(list, L' ', false));
+	assert(list->flags & FLAG_REJECTED);
+	bool selected;
+	assert(widget_get_index(list, PROP_SELECT_OPTION_VALUE, 1, &selected) && !selected);
+	widget_free(list);
 
 	widget_free(border);
 	widget_free(button);

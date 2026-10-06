@@ -55,7 +55,7 @@ static bool form_positioned_fields(struct request *req, struct widget *scroll)
 
 			if (!streq(key, "x") && !streq(key, "y") && !streq(key, "width") &&
 			    !streq(key, "label") && !streq(key, "input") && !streq(key, "password") &&
-			    !streq(key, "max-length") && !streq(key, "readonly"))
+			    !streq(key, "max-length") && !streq(key, "readonly") && !streq(key, "disabled"))
 				return req_error(req, "unknown field parameter: %s", key);
 
 			for (size_t k = begin; k < j; k++)
@@ -70,11 +70,12 @@ static bool form_positioned_fields(struct request *req, struct widget *scroll)
 		struct request field = *req;
 		field.r_msg = &message;
 		int x, y, width;
-		bool readonly;
+		bool readonly, disabled;
 
 		if (!req_read_int(&field, "x", &x) || !req_read_int(&field, "y", &y) ||
 		    !req_read_int(&field, "width", &width) ||
-		    !req_read_bool(&field, "readonly", false, &readonly))
+		    !req_read_bool(&field, "readonly", false, &readonly) ||
+		    !req_read_bool(&field, "disabled", false, &disabled))
 			return false;
 
 		if (x < 0 || y < 0 || width < 1 || width > 4096 || x > 4096 - width || y >= 4096)
@@ -120,8 +121,11 @@ static bool form_positioned_fields(struct request *req, struct widget *scroll)
 		}
 
 		if (!streq(key, "label")) {
+			if (disabled)
+				child->attrs |= ATTR_DISABLED;
 			int id = input_id++;
 			if (readonly) {
+				child->attrs |= ATTR_READONLY;
 				bool finished = true;
 
 				widget_set(child, PROP_INPUT_STATE, &finished);

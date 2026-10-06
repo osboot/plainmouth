@@ -13,6 +13,7 @@ testcase()
 		field=start input=top x=7 y=0 width=10 max-length=12 field=end \
 		field=start input=locked readonly=true x=0 y=2 width=8 field=end \
 		field=start password=secret x=7 y=3 width=10 field=end \
+		field=start input=unavailable disabled=true x=0 y=4 width=12 field=end \
 		button=OK button=Cancel
 	if [ "$MODE" = view ]; then
 		"$topdir"/plainmouth action=wait-result id=w1
@@ -37,6 +38,7 @@ testcase()
 	grep -qx INPUT_2=TOP "$current_dump.result"
 	! grep -q INPUT_3= "$current_dump.result"
 	grep -qx INPUT_4=secret "$current_dump.result"
+	grep -qx INPUT_5=unavailable "$current_dump.result"
 	"$topdir"/plainmouth action=set-value id=w1 button=1
 	"$topdir"/plainmouth action=wait-result id=w1 > "$current_dump.result"
 	grep -qx BUTTON_1=1 "$current_dump.result"

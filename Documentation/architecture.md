@@ -283,6 +283,14 @@ Page Up/Down from a field scroll its nearest enclosing scroll container without
 moving focus or changing the field value. Lists consume their own navigation
 keys, and input fields retain Home/End for editing. Visibility calculations
 subtract intervening pad offsets when scrolling nested regions.
+
+`ATTR_READONLY` and `ATTR_DISABLED` prevent keyboard interaction and focus
+traversal, including when set on an ancestor. Style roles `readonly`,
+`disabled` and `invalid` follow the same global, instance and named-theme
+inheritance as other roles. Input callbacks return a negative value for a
+rejected action, zero for an unhandled key and positive for a handled key.
+The dispatcher marks rejected actions with `FLAG_REJECTED`; the active
+widget retains that visual feedback until its next input or loss of focus.
 - Window (single child with decoration)
 
 Responsibilities:

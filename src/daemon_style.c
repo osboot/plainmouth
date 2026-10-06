@@ -173,6 +173,12 @@ bool daemon_style_apply(struct request *req, struct widget *(*lookup_instance)(v
 		pair = COLOR_PAIR_BUTTON;
 	else if (streq(name, "focus"))
 		pair = COLOR_PAIR_FOCUS;
+	else if (streq(name, "readonly"))
+		pair = COLOR_PAIR_READONLY;
+	else if (streq(name, "disabled"))
+		pair = COLOR_PAIR_DISABLED;
+	else if (streq(name, "invalid"))
+		pair = COLOR_PAIR_INVALID;
 	else {
 		ipc_send_string(req_fd(req), "RESPDATA %s ERR=unknown style: %s",
 				req_id(req), name);

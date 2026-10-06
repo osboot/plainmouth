@@ -17,7 +17,8 @@ widgets.
 
 Defines the color scheme for different categories and states of widgets.
 
-`name` selects a global style: `main`, `window`, `button`, or `focus`.
+`name` selects a global style: `main`, `window`, `button`, `focus`,
+`readonly`, `disabled` or `invalid`.
 Set both `fg` and `bg` to change its colors. The optional `attrs` field
 replaces its text attributes with a comma-separated list of `bold`, `dim`,
 `underline`, `reverse`, `blink`, or `italic`. Use `attrs=normal` to clear
@@ -36,7 +37,13 @@ plainmouth action=set-style name=button attrs=bold
 plainmouth action=set-style name=focus attrs=normal
 ```
 
-Add `id=ID` to override the `window`, `button`, or `focus` role inside one
+The `readonly`, `disabled` and `invalid` roles style read-only fields,
+unavailable widgets and rejected keyboard input. By default these use
+underline, dim and bold respectively. Rejected input is highlighted until
+the next input event or loss of focus; the value stays unchanged.
+
+Add `id=ID` to override the `window`, `button`, `focus`, `readonly`,
+`disabled` or `invalid` role inside one
 existing dialog. The `main` role remains global. Local `fg`, `bg`, and `attrs`
 are independent: unspecified properties retain earlier local overrides or
 inherit the global role if never overridden. Subsequent global changes affect
@@ -313,7 +320,9 @@ plainmouth plugin=form action=create id=form1 width=40 height=10 border=true \
 Each group requires exactly one `label`, `input` or `password`, plus `x`, `y`
 and a positive visible `width`. Optional input parameters are `max-length`
 (default: visible width, measured in wide characters) and `readonly` (default:
-false). An editable input's initial value exceeding the limit is rejected. Coordinates and
+false), plus `disabled` (default: false). Disabled inputs skip keyboard focus
+and input, retain their creation-order result IDs and allow programmatic
+`set-value` updates. An editable input's initial value exceeding the limit is rejected. Coordinates and
 extents are limited to 4096 per axis and the canvas to 1048576 cells.
 Repeated or unknown parameters within a group are rejected.
 

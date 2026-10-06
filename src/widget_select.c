@@ -258,7 +258,7 @@ int select_input(const struct widget *w, wchar_t key)
 				else if (st->selected < st->max_selected)
 					st->selected++;
 				else
-					return 1;
+					return -1;
 
 				clicked = !clicked;
 				widget_set(st->focus, PROP_CHECKBOX_STATE, &clicked);

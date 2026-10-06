@@ -150,34 +150,46 @@ static void ui_focused(bool state)
 		if (IS_DEBUG())
 			warnx("%s (%p) lost focus", widget_type(focused), focused->win);
 
-		focused->flags &= ~FLAG_INFOCUS;
+		focused->flags &= ~(FLAG_INFOCUS | FLAG_REJECTED);
 		widget_render_tree(focused);
+	}
+}
+
+static struct widget *find_focus(struct widget *current, bool reverse)
+{
+	struct widget *candidate = current;
+	struct widget *first = NULL;
+	for (;;) {
+		if (reverse) {
+			candidate = candidate ? TAILQ_PREV(candidate, widgethead, focuses) : NULL;
+			if (!candidate)
+				candidate = TAILQ_LAST(&focusable, widgethead);
+		} else {
+			candidate = candidate ? TAILQ_NEXT(candidate, focuses) : NULL;
+			if (!candidate)
+				candidate = TAILQ_FIRST(&focusable);
+		}
+		if (!candidate || candidate == first)
+			return NULL;
+		if (!first)
+			first = candidate;
+		if (widget_is_interactive(candidate))
+			return candidate;
 	}
 }
 
 void daemon_focus_next(void)
 {
-	if (focused) {
-		ui_focused(false);
-		focused = TAILQ_NEXT(focused, focuses);
-	}
-	if (!focused)
-		focused = TAILQ_FIRST(&focusable);
-	if (focused) {
-		ui_focused(true);
-	}
+	ui_focused(false);
+	focused = find_focus(focused, false);
+	ui_focused(true);
 }
 
 void daemon_focus_prev(void)
 {
-	if (focused) {
-		ui_focused(false);
-		focused = TAILQ_PREV(focused, widgethead, focuses);
-	}
-	if (!focused)
-		focused = TAILQ_LAST(&focusable, widgethead);
-	if (focused)
-		ui_focused(true);
+	ui_focused(false);
+	focused = find_focus(focused, true);
+	ui_focused(true);
 }
 
 bool daemon_instance_create(struct request *req)
@@ -268,7 +280,7 @@ bool daemon_instance_create(struct request *req)
 	pthread_mutex_unlock(&instances_mutex);
 
 	if (!focused)
-		focused = TAILQ_FIRST(&focusable);
+		focused = find_focus(NULL, false);
 
 	ui_focused(true);
 
@@ -303,9 +315,10 @@ bool daemon_instance_focus(struct instance *instance)
 	struct widget *w;
 	TAILQ_FOREACH(w, &focusable, focuses)
 	{
-		if (streq(w->instance_id, instance->id)) {
+		if (streq(w->instance_id, instance->id) && widget_is_interactive(w)) {
+			ui_focused(false);
 			focused = w;
-			top_panel(instance->panel);
+			ui_focused(true);
 			return true;
 		}
 	}

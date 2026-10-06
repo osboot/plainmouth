@@ -47,6 +47,9 @@ testcase_dump()
 	"$topdir"/plainmouth action=set-style name=button fg=white bg=red attrs=italic
 	"$topdir"/plainmouth action=set-style name=button fg=black bg=white
 	"$topdir"/plainmouth action=set-style name=main attrs=dim
+	"$topdir"/plainmouth action=set-style name=readonly attrs=underline
+	"$topdir"/plainmouth action=set-style name=disabled attrs=dim
+	"$topdir"/plainmouth action=set-style name=invalid fg=white bg=red attrs=bold
 	expect_error name=unknown attrs=bold
 	expect_error name=focus attrs=
 	expect_error name=focus attrs=bold,

@@ -118,7 +118,7 @@ static void ui_update_cursor(void)
 	int y, x;
 	struct instance *focused_ins = NULL;
 
-	if (!focused || !(focused->attrs & ATTR_CAN_CURSOR)) {
+	if (!focused || !(focused->attrs & ATTR_CAN_CURSOR) || !widget_is_interactive(focused)) {
 		curs_set(0);
 		return;
 	}
@@ -548,7 +548,7 @@ static void handle_input(void)
 		if (!iswprint(code))
 			return;
 
-		focused->ops->input_event(focused, (wchar_t) code, false);
+		widget_dispatch_input(focused, (wchar_t) code, false);
 		ui_update();
 		return;
 	}
@@ -602,6 +602,9 @@ static void curses_init(FILE *inf, FILE *outf)
 	keypad(stdscr, TRUE);
 	set_escdelay(100);
 	curs_set(0);
+	widget_style_set_attrs(COLOR_PAIR_READONLY, A_UNDERLINE);
+	widget_style_set_attrs(COLOR_PAIR_DISABLED, A_DIM);
+	widget_style_set_attrs(COLOR_PAIR_INVALID, A_BOLD);
 
 	if (has_colors()) {
 		start_color();
@@ -609,6 +612,10 @@ static void curses_init(FILE *inf, FILE *outf)
 		init_pair(COLOR_PAIR_WINDOW, COLOR_WHITE, COLOR_BLUE);
 		init_pair(COLOR_PAIR_BUTTON, COLOR_BLACK, COLOR_WHITE);
 		init_pair(COLOR_PAIR_FOCUS,  COLOR_WHITE, COLOR_GREEN);
+		if (init_pair(COLOR_PAIR_READONLY, COLOR_WHITE, COLOR_BLUE) == ERR ||
+		    init_pair(COLOR_PAIR_DISABLED, COLOR_WHITE, COLOR_BLACK) == ERR ||
+		    init_pair(COLOR_PAIR_INVALID, COLOR_WHITE, COLOR_RED) == ERR)
+			errx(EXIT_FAILURE, "unable to initialize widget state colors");
 		bkgd(COLOR_PAIR(COLOR_PAIR_MAIN));
 	}
 

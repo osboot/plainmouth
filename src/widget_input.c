@@ -198,7 +198,7 @@ int input_input(const struct widget *w, wchar_t key)
 {
 	struct widget_input *st = w->state;
 
-	if (st->finished)
+	if (st->finished || !widget_is_interactive(w))
 		return 0;
 
 	switch (key) {
@@ -247,6 +247,8 @@ int input_input(const struct widget *w, wchar_t key)
 
 static int input_event(const struct widget *w, wchar_t key, bool keycode)
 {
+	if (!widget_is_interactive(w))
+		return 0;
 	if (keycode) {
 		switch (key) {
 			case KEY_ENTER:
@@ -266,7 +268,11 @@ static int input_event(const struct widget *w, wchar_t key, bool keycode)
 	if (!iswprint((wint_t) key))
 		return 0;
 	struct widget_input *st = w->state;
-	if (st->finished || !__input_append(st, key))
+	if (st->finished)
+		return 0;
+	if (st->len >= st->max_length)
+		return -1;
+	if (!__input_append(st, key))
 		return 0;
 	inc_cursor(w);
 	return 1;

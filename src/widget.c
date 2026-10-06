@@ -17,17 +17,24 @@
 #include "macros.h"
 #include "widget.h"
 
-static attr_t style_attrs[COLOR_PAIR_FOCUS + 1];
+static attr_t style_attrs[COLOR_PAIR_INVALID + 1];
 
 int widget_dispatch_input(struct widget *w, wchar_t key, bool keycode)
 {
 	if (!w)
+		return 0;
+	w->flags &= ~FLAG_REJECTED;
+	if (!widget_is_interactive(w))
 		return 0;
 	int handled = 0;
 	if (w->ops && w->ops->input_event)
 		handled = w->ops->input_event(w, key, keycode);
 	else if (w->ops && w->ops->input)
 		handled = w->ops->input(w, key);
+	if (handled < 0) {
+		w->flags |= FLAG_REJECTED;
+		return 1;
+	}
 	if (handled || !keycode)
 		return handled;
 
@@ -47,6 +54,15 @@ int widget_dispatch_input(struct widget *w, wchar_t key, bool keycode)
 	return 0;
 }
 
+bool widget_is_interactive(const struct widget *w)
+{
+	for (; w; w = w->parent) {
+		if (w->attrs & (ATTR_READONLY | ATTR_DISABLED))
+			return false;
+	}
+	return true;
+}
+
 struct color_slot {
 	TAILQ_ENTRY(color_slot)
 	entries;
@@ -54,7 +70,7 @@ struct color_slot {
 };
 TAILQ_HEAD(color_slots, color_slot);
 static struct color_slots color_slots = TAILQ_HEAD_INITIALIZER(color_slots);
-static int next_color_pair = COLOR_PAIR_FOCUS + 1;
+static int next_color_pair = COLOR_PAIR_INVALID + 1;
 
 struct style_override {
 	int fg, bg, current_fg, current_bg;
@@ -64,7 +80,7 @@ struct style_override {
 };
 
 struct widget_styles {
-	struct style_override roles[COLOR_PAIR_FOCUS + 1];
+	struct style_override roles[COLOR_PAIR_INVALID + 1];
 };
 
 short widget_color_pair_alloc(void)
@@ -126,7 +142,7 @@ static bool style_update_pair(struct style_override *style, short base_pair)
 bool widget_style_override(struct widget *w, enum color_pair color,
 			   const int *fg, const int *bg, const attr_t *attrs, bool reset)
 {
-	if (!w || color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_FOCUS)
+	if (!w || color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_INVALID)
 		return false;
 	if (reset) {
 		if (w->styles) {
@@ -189,7 +205,7 @@ bool widget_style_resolve(const struct widget *w, enum color_pair color,
 {
 	*attrs = widget_style_attrs(color);
 	*pair = (short) color;
-	if (color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_FOCUS)
+	if (color < COLOR_PAIR_WINDOW || color > COLOR_PAIR_INVALID)
 		return true;
 	if (w) {
 		const struct widget *base = w->parent ? w->parent : w->style_owner;
@@ -211,14 +227,14 @@ bool widget_style_resolve(const struct widget *w, enum color_pair color,
 
 attr_t widget_style_attrs(enum color_pair color)
 {
-	if (color < COLOR_PAIR_MAIN || color > COLOR_PAIR_FOCUS)
+	if (color < COLOR_PAIR_MAIN || color > COLOR_PAIR_INVALID)
 		return A_NORMAL;
 	return style_attrs[color];
 }
 
 void widget_style_set_attrs(enum color_pair color, attr_t attrs)
 {
-	if (color >= COLOR_PAIR_MAIN && color <= COLOR_PAIR_FOCUS)
+	if (color >= COLOR_PAIR_MAIN && color <= COLOR_PAIR_INVALID)
 		style_attrs[color] = attrs;
 }
 
@@ -232,6 +248,20 @@ void widget_style_apply(WINDOW *win, enum color_pair color)
 
 void widget_style_apply_widget(struct widget *w, enum color_pair color)
 {
+	bool active_row = true;
+	for (const struct widget *parent = w; parent; parent = parent->parent) {
+		if (parent->type == WIDGET_SELECT_OPT && !(parent->flags & FLAG_INFOCUS))
+			active_row = false;
+		if (parent->attrs & ATTR_DISABLED) {
+			color = COLOR_PAIR_DISABLED;
+			break;
+		}
+		if (parent->attrs & ATTR_READONLY)
+			color = COLOR_PAIR_READONLY;
+		else if (active_row && (parent->flags & (FLAG_REJECTED | FLAG_INFOCUS)) ==
+					       (FLAG_REJECTED | FLAG_INFOCUS))
+			color = COLOR_PAIR_INVALID;
+	}
 	attr_t attrs;
 	short pair;
 	if (!widget_style_resolve(w, color, &attrs, &pair)) {
@@ -656,7 +686,7 @@ void widget_free(struct widget *w)
 	}
 
 	if (w->styles) {
-		for (int role = COLOR_PAIR_WINDOW; role <= COLOR_PAIR_FOCUS; role++)
+		for (int role = COLOR_PAIR_WINDOW; role <= COLOR_PAIR_INVALID; role++)
 			widget_color_pair_free(w->styles->roles[role].pair);
 		free(w->styles);
 	}

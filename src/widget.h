@@ -60,6 +60,9 @@ enum color_pair {
 	COLOR_PAIR_WINDOW,
 	COLOR_PAIR_BUTTON,
 	COLOR_PAIR_FOCUS,
+	COLOR_PAIR_READONLY,
+	COLOR_PAIR_DISABLED,
+	COLOR_PAIR_INVALID,
 };
 
 int simple_round(float number);
@@ -124,16 +127,19 @@ enum widget_property {
 };
 
 enum widget_flags {
-	FLAG_NONE    = 0,        // Nothing has been set
+	FLAG_NONE = 0,           // Nothing has been set
 	FLAG_CREATED = (1 << 0), // Rendering enabled flag
 	FLAG_INFOCUS = (1 << 1), // Is this subtree in focus
 	FLAG_VISIBLE = (1 << 2),
+	FLAG_REJECTED = (1 << 3),
 };
 
 enum widget_attributes {
-	ATTR_NONE       = 0,        // Nothing has been set
+	ATTR_NONE = 0,              // Nothing has been set
 	ATTR_CAN_CURSOR = (1 << 0), // Cursor may be displayed in the widget
-	ATTR_CAN_FOCUS  = (1 << 1), // Widget can be in focus
+	ATTR_CAN_FOCUS = (1 << 1),  // Widget can be in focus
+	ATTR_READONLY = (1 << 2),
+	ATTR_DISABLED = (1 << 3),
 };
 
 struct widget_ops {
@@ -238,6 +244,7 @@ struct widget {
 
 const char *widget_type(struct widget *w);
 struct widget *widget_create(enum widget_type);
+bool widget_is_interactive(const struct widget *w);
 void widget_add(struct widget *parent, struct widget *child);
 void widget_free(struct widget *w);
 bool widget_coordinates_yx(struct widget *w, int *w_abs_y, int *w_abs_x);
