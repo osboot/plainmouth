@@ -87,6 +87,24 @@ static WINDOW *pad_box_child_render_win(struct widget *w)
 {
 	struct widget_pad_box *st = w->state;
 
+	if (st->pad) {
+		int height, width;
+
+		getmaxyx(st->pad, height, width);
+
+		if (height < MAX(1, st->content_h) || width < MAX(1, st->content_w)) {
+			struct widget *child;
+
+			TAILQ_FOREACH(child, &w->children, siblings)
+				widget_hide_tree(child);
+
+			if (wresize(st->pad, MAX(height, st->content_h), MAX(width, st->content_w)) == ERR) {
+				warnx("unable to resize pad window");
+				return NULL;
+			}
+		}
+	}
+
 	if (!st->pad) {
 		st->pad = newpad(MAX(1, st->content_h), MAX(1, st->content_w));
 		if (!st->pad) {

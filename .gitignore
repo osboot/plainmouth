@@ -19,6 +19,7 @@ tests/*.log
 tests/*/*.log
 tests/daemon/daemon_task_test
 tests/daemon/daemon_worker_test
+tests/daemon/daemon_resize_test
 tests/ipc/ipc_command_processing
 tests/ipc/ipc_handle_key_value_pairs
 tests/ipc/ipc_init_and_free

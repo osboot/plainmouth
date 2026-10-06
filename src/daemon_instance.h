@@ -17,6 +17,8 @@ struct instance {
 	struct plugin *plugin;
 	struct widget *root;
 	PANEL *panel;
+	int requested_w, requested_h;
+	int requested_x, requested_y;
 	bool finished; /* Written by the module; UI-thread readers only. */
 	bool events_disabled;
 	bool redraw_pending;
@@ -30,6 +32,7 @@ struct instance *daemon_instance_next(struct instance *instance);
 bool daemon_instance_create(struct request *req);
 void daemon_instance_delete(struct instance *instance);
 void daemon_instances_free(void);
+void daemon_instances_resize(void);
 void daemon_instance_check_finished(struct instance *instance);
 bool daemon_instance_focus(struct instance *instance);
 struct widget *daemon_focus_get(void);

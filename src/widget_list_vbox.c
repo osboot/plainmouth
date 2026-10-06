@@ -28,7 +28,6 @@ static struct widget *list_vbox_find_anchor_by_scroll_y(struct widget *w, int sc
 static bool list_vbox_setter(struct widget *w, enum widget_property prop, const void *val) __attribute__((nonnull(1,3)));
 static void list_vbox_free(struct widget *w);
 
-
 static inline int widget_height(const struct widget *c)
 {
 	return MAX(1, c->pref_h ? c->pref_h : c->min_h);
@@ -56,6 +55,8 @@ void list_vbox_layout(struct widget *w)
 	struct widget_list_vbox *st = w->state;
 
 	int y = 0;
+	struct widget *first, *last;
+	get_visible_range(w, &first, &last);
 
 	st->content_h = 0;
 
@@ -67,6 +68,14 @@ void list_vbox_layout(struct widget *w)
 		y += ch;
 
 		st->content_h += ch;
+	}
+
+	if (first) {
+		int scroll_y = MIN(st->scroll_y, MAX(0, st->content_h - w->h));
+
+		first = list_vbox_find_anchor_by_scroll_y(w, scroll_y);
+		if (first)
+			shift_window_anchor_first(w, first);
 	}
 }
 
@@ -117,7 +126,8 @@ void set_visible_range(struct widget *w, struct widget *first, struct widget *la
 		if (!first_found) {
 			if (c == first)
 				first_found = true;
-			st->scroll_y += c->h;
+			else
+				st->scroll_y += c->h;
 		}
 		c->flags &= ~FLAG_VISIBLE;
 	}

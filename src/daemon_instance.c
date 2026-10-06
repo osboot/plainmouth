@@ -126,6 +126,67 @@ void daemon_instance_check_finished(struct instance *instance)
 	pthread_mutex_unlock(&instances_mutex);
 }
 
+void daemon_instances_resize(void)
+{
+	struct instance *ins;
+	TAILQ_FOREACH(ins, &instances, entries)
+	{
+		struct widget *root = ins->root;
+
+		widget_measure_tree(root);
+
+		if (COLS < MAX(2, root->min_w) || LINES < MAX(2, root->min_h)) {
+			root->flags &= ~FLAG_VISIBLE;
+			if (hide_panel(ins->panel) == ERR)
+				warnx("unable to hide panel of instance '%s'", ins->id);
+			continue;
+		}
+
+		int width = MIN(ins->requested_w, COLS);
+		int height = MIN(ins->requested_h, LINES);
+		int x = (COLS - width) / 2;
+		int y = (LINES - height) / 2;
+
+		if (ins->requested_x >= 0)
+			x = MIN(ins->requested_x, COLS - width);
+
+		if (ins->requested_y >= 0)
+			y = MIN(ins->requested_y, LINES - height);
+
+		WINDOW *win = newwin(height, width, y, x);
+
+		if (!win) {
+			warnx("unable to resize instance '%s'", ins->id);
+			continue;
+		}
+
+		if (replace_panel(ins->panel, win) == ERR) {
+			warnx("unable to replace panel of instance '%s'", ins->id);
+			delwin(win);
+			continue;
+		}
+
+		/* Destroy derived windows before releasing their backing window. */
+		widget_hide_tree(root);
+		root->win = win;
+		root->flags |= FLAG_VISIBLE | FLAG_CREATED;
+		widget_layout_tree(root, x, y, width, height);
+
+		if (focused && streq(focused->instance_id, ins->id))
+			widget_ensure_visible(focused);
+
+		widget_render_tree(root);
+
+		if (panel_hidden(ins->panel) && show_panel(ins->panel) == ERR)
+			warnx("unable to show panel of instance '%s'", ins->id);
+	}
+	if (focused) {
+		ins = daemon_instance_find(focused->instance_id);
+		if (ins && (ins->root->flags & FLAG_VISIBLE))
+			top_panel(ins->panel);
+	}
+}
+
 static void ui_focused(bool state)
 {
 	if (!focused)
@@ -254,6 +315,10 @@ bool daemon_instance_create(struct request *req)
 		}
 
 		wnew->panel = new_panel(wnew->root->win);
+		wnew->requested_w = wnew->root->w;
+		wnew->requested_h = wnew->root->h;
+		wnew->requested_x = req_get_int(req, "x", -1);
+		wnew->requested_y = req_get_int(req, "y", -1);
 		if (!wnew->panel) {
 			ipc_send_string(req_fd(req),
 					"RESPDATA %s ERR=unable to create panel",

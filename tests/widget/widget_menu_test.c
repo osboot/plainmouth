@@ -76,6 +76,20 @@ static void test_navigation(int maximum)
 	assert(scroll_y > 0);
 	struct widget *last = TAILQ_LAST(&list->children, widgethead);
 	assert(last && (last->flags & FLAG_VISIBLE));
+	/* Relayout must retain the cursor and include it in the new viewport. */
+	widget_hide_tree(root);
+	widget_layout_tree(root, 0, 0, 20, 1);
+	widget_render_tree(root);
+	assert_cursor(w, 5);
+	assert(last->flags & FLAG_VISIBLE);
+	assert(last->win && getmaxy(last->win) == 1);
+	assert(widget_get(list, PROP_SCROLL_Y, &scroll_y) && scroll_y == 5);
+	widget_hide_tree(root);
+	widget_layout_tree(root, 0, 0, 20, 4);
+	widget_render_tree(root);
+	assert_cursor(w, 5);
+	assert(last->flags & FLAG_VISIBLE);
+	assert(widget_get(list, PROP_SCROLL_Y, &scroll_y) && scroll_y == 2);
 	assert(!w->ops->input_event(w, KEY_F(1), true));
 	if (!maximum) {
 		assert(widget_select_search_timeout(w) > 0);

@@ -209,6 +209,14 @@ tests/daemon/daemon_worker_test: tests/daemon/daemon_worker_test.o src/daemon_wo
 tests/daemon/daemon_worker_test.o: src/daemon_worker.h src/daemon_task.h src/ipc.h
 GARBAGE += tests/daemon/daemon_worker_test.o
 
+tests/daemon/daemon_resize_test: tests/daemon/daemon_resize_test.o src/daemon_instance.o src/daemon_style.o $(COMMON_SO)
+	$(call cmd_LINK,$^) $(COMMON_LIBS) $(PTHREAD_LIBS) -Wl,-rpath,$(CURDIR)
+
+tests/daemon/daemon_resize_test.chk: VALGRIND += --suppressions=$(CURDIR)/tests/valgrind.supp
+
+tests/daemon/daemon_resize_test.o: src/daemon_instance.h src/plugin.h src/widget.h
+GARBAGE += tests/daemon/daemon_resize_test.o
+
 tests/ipc/%: tests/ipc/%.o src/ipc.o
 	$(call cmd_LINK,$^)
 

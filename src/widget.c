@@ -925,10 +925,11 @@ static void widget_render_subtree(struct widget *w)
 		return;
 
 	if (w->win && w->parent) {
-		int wy, wx;
+		int wy, wx, height, width;
 		getparyx(w->win, wy, wx);
+		getmaxyx(w->win, height, width);
 
-		if (w->ly != wy || w->lx != wx) {
+		if (w->ly != wy || w->lx != wx || w->h != height || w->w != width) {
 			/*
 			 * mvderwin does not work for some reason. There are no
 			 * errors, but the window does not move.
@@ -966,6 +967,11 @@ void widget_render_tree(struct widget *w)
 {
 	if (!w)
 		return;
+
+	for (struct widget *parent = w; parent; parent = parent->parent)
+		if (!(parent->flags & FLAG_VISIBLE))
+			return;
+
 	/* A pad child update must also redraw the viewport containing it. */
 	struct widget *root = w;
 	for (struct widget *parent = w->parent; parent; parent = parent->parent)

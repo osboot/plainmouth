@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <sys/signalfd.h>
+#include <sys/ioctl.h>
 #include <sys/queue.h>
 
 #include <unistd.h>
@@ -127,7 +128,8 @@ static void ui_update_cursor(void)
 	}
 
 	focused_ins = daemon_instance_find(focused->instance_id);
-	if (!focused_ins || focused_ins->finished) {
+	if (!focused_ins || focused_ins->finished ||
+	    !(focused_ins->root->flags & FLAG_VISIBLE)) {
 		curs_set(0);
 		return;
 	}
@@ -509,6 +511,56 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 	return daemon_task_submit_and_wait(t);
 }
 
+static void ui_resize(void)
+{
+	struct winsize size;
+
+	if (ioctl(fileno(terminal_output), TIOCGWINSZ, &size) < 0) {
+		warn("unable to get terminal size");
+		return;
+	}
+
+	if (!size.ws_row || !size.ws_col)
+		return;
+
+	if (resize_term(size.ws_row, size.ws_col) == ERR) {
+		warnx("unable to resize terminal");
+		return;
+	}
+
+	erase();
+	wnoutrefresh(stdscr);
+	daemon_instances_resize();
+	ui_update();
+}
+
+static void handle_resize(int fd)
+{
+	struct signalfd_siginfo info;
+	bool pending = false;
+
+	for (;;) {
+		ssize_t n = read(fd, &info, sizeof(info));
+
+		if (n == sizeof(info)) {
+			pending = true;
+			continue;
+		}
+
+		if (n < 0 && errno == EINTR)
+			continue;
+
+		if (n < 0 && errno == EAGAIN)
+			break;
+
+		warnx("unable to read resize signal notification");
+		break;
+	}
+
+	if (pending)
+		ui_resize();
+}
+
 static void handle_input(void)
 {
 	struct widget *focused = daemon_focus_get();
@@ -521,14 +573,15 @@ static void handle_input(void)
 	/* KEYCODE (F1..F12, arrows, HOME, END, PAGEUP etc, including WINCH) */
 	if (ret == KEY_CODE_YES) {
 		if (code == KEY_RESIZE) {
-			int rows, cols;
-
-			getmaxyx(stdscr, rows, cols);
-			resize_term(rows, cols);
-
-			ui_update();
+			ui_resize();
 			return;
 		}
+	}
+
+	if (focused) {
+		struct instance *ins = daemon_instance_find(focused->instance_id);
+		if (ins && !(ins->root->flags & FLAG_VISIBLE))
+			return;
 	}
 
 	if (ret == KEY_CODE_YES && code == KEY_PASTE_BEGIN) {
@@ -680,15 +733,28 @@ int main(int argc, char **argv)
 	setlocale(LC_ALL, "");
 	setlocale(LC_CTYPE, "");
 
-	/* Every subsequently created thread inherits this blocked signal. */
-	sigset_t child_signals, original_signals;
+	/* Every subsequently created thread inherits these blocked signals. */
+	sigset_t child_signals, resize_signals, blocked_signals, original_signals;
+
 	sigemptyset(&child_signals);
 	sigaddset(&child_signals, SIGCHLD);
-	r = pthread_sigmask(SIG_BLOCK, &child_signals, &original_signals);
+
+	sigemptyset(&resize_signals);
+	sigaddset(&resize_signals, SIGWINCH);
+
+	blocked_signals = child_signals;
+	sigaddset(&blocked_signals, SIGWINCH);
+
+	r = pthread_sigmask(SIG_BLOCK, &blocked_signals, &original_signals);
 	if (r)
 		error(EXIT_FAILURE, r, "pthread_sigmask");
+
 	int child_eventfd = signalfd(-1, &child_signals, SFD_CLOEXEC | SFD_NONBLOCK);
 	if (child_eventfd < 0)
+		err(EXIT_FAILURE, "signalfd");
+
+	int resize_eventfd = signalfd(-1, &resize_signals, SFD_CLOEXEC | SFD_NONBLOCK);
+	if (resize_eventfd < 0)
 		err(EXIT_FAILURE, "signalfd");
 
 	retcode = EXIT_SUCCESS;
@@ -719,7 +785,8 @@ int main(int argc, char **argv)
 		POLL_STDIN   = 1,
 		POLL_EVENTFD = 2,
 		POLL_CHILDFD = 3,
-		POLL_N_FDS   = 4,
+		POLL_RESIZEFD = 4,
+		POLL_N_FDS   = 5,
 	};
 
 	struct pollfd base_pfd[] = {
@@ -737,6 +804,10 @@ int main(int argc, char **argv)
 		},
 		[POLL_CHILDFD] = {
 			.fd = child_eventfd,
+			.events = POLLIN,
+		},
+		[POLL_RESIZEFD] = {
+			.fd = resize_eventfd,
 			.events = POLLIN,
 		},
 	};
@@ -781,8 +852,13 @@ int main(int argc, char **argv)
 
 		/* Dispatch the snapshot before input/tasks can delete its owners. */
 		daemon_events_dispatch(&events);
+
 		if (pfd[POLL_CHILDFD].revents & POLLIN)
 			daemon_events_handle_children(child_eventfd);
+
+		if (pfd[POLL_RESIZEFD].revents & POLLIN)
+			handle_resize(resize_eventfd);
+
 		if (daemon_events_redraw())
 			ui_update();
 
@@ -817,6 +893,7 @@ int main(int argc, char **argv)
 
 	daemon_task_free();
 	close(child_eventfd);
+	close(resize_eventfd);
 
 	r = pthread_sigmask(SIG_SETMASK, &original_signals, NULL);
 	if (r)

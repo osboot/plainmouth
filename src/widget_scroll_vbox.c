@@ -63,36 +63,38 @@ void scroll_vbox_layout(struct widget *w)
 	if (!vbox)
 		return;
 
-	widget_layout_tree(vbox, 0, 0, w->w, w->h);
+	/* Adding one scrollbar can make the other axis overflow as well. */
+	bool vertical = false, horizontal = false;
 
-	int content_h = 0, content_w = 0;
-	widget_get(st->pad, PROP_SCROLL_CONTENT_H, &content_h);
-	widget_get(st->pad, PROP_SCROLL_CONTENT_W, &content_w);
+	for (int pass = 0; pass < 3; pass++) {
+		st->vscroll->ops->measure(st->vscroll);
+		st->hscroll->ops->measure(st->hscroll);
 
-	/*
-	 * We check whether the content fits into the widget without taking
-	 * scrollbars into account. If the content is larger than pad but not
-	 * larger than the size of scrollbar, then the scrollbar is not needed.
-	 */
-	bool need_vscroll = (content_h > w->h);
-	bool need_hscroll = (content_w > w->w);
+		if (!vertical) {
+			st->vscroll->min_h = st->vscroll->min_w = 0;
+			st->vscroll->pref_h = st->vscroll->pref_w = 0;
+		}
 
-	bool relayout = false;
+		if (!horizontal) {
+			st->hscroll->min_h = st->hscroll->min_w = 0;
+			st->hscroll->pref_h = st->hscroll->pref_w = 0;
+		}
 
-	if (!need_vscroll && st->vscroll->min_w > 0) {
-		st->vscroll->min_h  = st->vscroll->min_w  = 0;
-		st->vscroll->pref_h = st->vscroll->pref_w = 0;
-		relayout = true;
-	}
-
-	if (!need_hscroll && st->hscroll->min_h > 0) {
-		st->hscroll->min_h  = st->hscroll->min_w  = 0;
-		st->hscroll->pref_h = st->hscroll->pref_w = 0;
-		relayout = true;
-	}
-
-	if (relayout) {
 		widget_layout_tree(vbox, 0, 0, w->w, w->h);
+
+		int content_h = 0, content_w = 0;
+
+		widget_get(st->pad, PROP_SCROLL_CONTENT_H, &content_h);
+		widget_get(st->pad, PROP_SCROLL_CONTENT_W, &content_w);
+
+		bool need_v = vertical || content_h > st->pad->h;
+		bool need_h = horizontal || content_w > st->pad->w;
+
+		if (need_v == vertical && need_h == horizontal)
+			break;
+
+		vertical = need_v;
+		horizontal = need_h;
 	}
 }
 
@@ -166,7 +168,7 @@ int scroll_vbox_input(const struct widget *w, wchar_t key)
 			delta_x = +1;
 			break;
 		default:
-				return 0;
+			return 0;
 	}
 
 	if (delta_y)
@@ -198,14 +200,14 @@ static const struct widget_ops scroll_vbox_ops = {
 	.render           = scroll_vbox_render,
 	.finalize_render  = NULL,
 	.child_render_win = NULL,
-	.free = scroll_vbox_free,
-	.input = scroll_vbox_input,
-	.input_event = scroll_vbox_input_event,
-	.add_child = scroll_vbox_add_child,
-	.ensure_visible = scroll_vbox_ensure_visible,
-	.setter = NULL,
-	.getter = NULL,
-	.getter_index = NULL,
+	.free             = scroll_vbox_free,
+	.input            = scroll_vbox_input,
+	.input_event      = scroll_vbox_input_event,
+	.add_child        = scroll_vbox_add_child,
+	.ensure_visible   = scroll_vbox_ensure_visible,
+	.setter           = NULL,
+	.getter           = NULL,
+	.getter_index     = NULL,
 };
 
 struct widget *make_scroll_vbox(void)

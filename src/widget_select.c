@@ -40,7 +40,8 @@ void select_sync(struct widget *sv)
 	struct widget_select *st = sv->state;
 
 	widget_sync_vscroll(st->list, st->vscroll);
-	widget_render_tree(st->vscroll);
+	if (st->vscroll->win)
+		widget_render_tree(st->vscroll);
 }
 
 void select_measure(struct widget *w)
@@ -58,9 +59,18 @@ void select_measure(struct widget *w)
 
 void select_layout(struct widget *w)
 {
+	struct widget_select *st = w->state;
 	struct widget *hbox = TAILQ_FIRST(&w->children);
 
 	widget_layout_tree(hbox, 0, 0, w->w, w->h);
+
+	struct widget *option;
+	TAILQ_FOREACH(option, &st->list->children, siblings) {
+		if (option->flags & FLAG_INFOCUS) {
+			st->list->ops->ensure_visible(st->list, option);
+			break;
+		}
+	}
 }
 
 int widget_select_search_timeout(struct widget *w)
@@ -468,20 +478,20 @@ void select_free(struct widget *w)
 }
 
 static const struct widget_ops select_ops = {
-	.measure = select_measure,
-	.layout = select_layout,
-	.render = select_render,
-	.finalize_render = NULL,
+	.measure          = select_measure,
+	.layout           = select_layout,
+	.render           = select_render,
+	.finalize_render  = NULL,
 	.child_render_win = NULL,
-	.free = select_free,
-	.input = select_input,
-	.input_event = select_input_event,
-	.add_child = select_add_child,
-	.ensure_visible = select_ensure_visible,
-	.setter = select_setter,
-	.getter = select_getter,
-	.getter_index = select_getter_index,
-	.setter_index = select_setter_index,
+	.free             = select_free,
+	.input            = select_input,
+	.input_event      = select_input_event,
+	.add_child        = select_add_child,
+	.ensure_visible   = select_ensure_visible,
+	.setter           = select_setter,
+	.getter           = select_getter,
+	.getter_index     = select_getter_index,
+	.setter_index     = select_setter_index,
 };
 
 struct widget *make_select(int max_selected, int view_rows)
