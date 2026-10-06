@@ -19,6 +19,34 @@
 
 static attr_t style_attrs[COLOR_PAIR_FOCUS + 1];
 
+int widget_dispatch_input(struct widget *w, wchar_t key, bool keycode)
+{
+	if (!w)
+		return 0;
+	int handled = 0;
+	if (w->ops && w->ops->input_event)
+		handled = w->ops->input_event(w, key, keycode);
+	else if (w->ops && w->ops->input)
+		handled = w->ops->input(w, key);
+	if (handled || !keycode)
+		return handled;
+
+	switch (key) {
+		case KEY_UP:
+		case KEY_DOWN:
+		case KEY_PPAGE:
+		case KEY_NPAGE:
+			break;
+		default:
+			return 0;
+	}
+	for (struct widget *parent = w->parent; parent; parent = parent->parent) {
+		if (parent->type == WIDGET_SCROLL_VBOX)
+			return parent->ops->input_event(parent, key, true);
+	}
+	return 0;
+}
+
 struct color_slot {
 	TAILQ_ENTRY(color_slot)
 	entries;

@@ -128,6 +128,13 @@ bool widget_offset_in_ancestor(struct widget *ancestor, struct widget *w, int *o
 	int y = 0, x = 0;
 
 	while (w && w != ancestor) {
+		if (w->type == WIDGET_PAD_BOX) {
+			int scroll_y = 0, scroll_x = 0;
+			widget_get(w, PROP_SCROLL_Y, &scroll_y);
+			widget_get(w, PROP_SCROLL_X, &scroll_x);
+			y -= scroll_y;
+			x -= scroll_x;
+		}
 		y += w->ly;
 		x += w->lx;
 		w = w->parent;
@@ -171,7 +178,6 @@ void pad_box_ensure_visible(struct widget *container, struct widget *child)
 		pad_box_clamp_scroll(container);
 	}
 }
-
 
 bool pad_box_getter(struct widget *w, enum widget_property prop, void *val)
 {

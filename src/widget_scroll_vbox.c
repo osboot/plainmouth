@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "config.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <err.h>
 
@@ -21,7 +22,6 @@ static void scroll_vbox_ensure_visible(struct widget *w, struct widget *child) _
 static void scroll_vbox_add_child(struct widget *sv, struct widget *child)  __attribute__((nonnull(1,2)));
 static int scroll_vbox_input(const struct widget *w, wchar_t key) __attribute__((nonnull(1)));
 static void scroll_vbox_free(struct widget *w);
-
 
 void scroll_vbox_sync(struct widget *sv)
 {
@@ -139,12 +139,32 @@ int scroll_vbox_input(const struct widget *w, wchar_t key)
 	int delta_x = 0;
 
 	switch (key) {
-		case KEY_UP:    delta_y = -1;    break;
-		case KEY_DOWN:  delta_y = +1;    break;
-		case KEY_PPAGE: delta_y = -w->h; break;
-		case KEY_NPAGE: delta_y = +w->h; break;
-		case KEY_LEFT:  delta_x = -1;    break;
-		case KEY_RIGHT: delta_x = +1;    break;
+		case KEY_UP:
+			delta_y = -1;
+			break;
+		case KEY_DOWN:
+			delta_y = +1;
+			break;
+		case KEY_PPAGE:
+			delta_y = -MAX(1, st->pad->h);
+			break;
+		case KEY_NPAGE:
+			delta_y = +MAX(1, st->pad->h);
+			break;
+		case KEY_HOME: {
+			int start = 0;
+			return widget_set(st->pad, PROP_SCROLL_Y, &start);
+		}
+		case KEY_END: {
+			int end = INT_MAX;
+			return widget_set(st->pad, PROP_SCROLL_Y, &end);
+		}
+		case KEY_LEFT:
+			delta_x = -1;
+			break;
+		case KEY_RIGHT:
+			delta_x = +1;
+			break;
 		default:
 				return 0;
 	}
@@ -156,6 +176,13 @@ int scroll_vbox_input(const struct widget *w, wchar_t key)
 		widget_set(st->pad, PROP_SCROLL_INC_X, &delta_x);
 
 	return 1;
+}
+
+static int scroll_vbox_input_event(const struct widget *w, wchar_t key, bool keycode)
+{
+	if (!keycode)
+		return 0;
+	return scroll_vbox_input(w, key);
 }
 
 void scroll_vbox_free(struct widget *w)
@@ -171,13 +198,14 @@ static const struct widget_ops scroll_vbox_ops = {
 	.render           = scroll_vbox_render,
 	.finalize_render  = NULL,
 	.child_render_win = NULL,
-	.free             = scroll_vbox_free,
-	.input            = scroll_vbox_input,
-	.add_child        = scroll_vbox_add_child,
-	.ensure_visible   = scroll_vbox_ensure_visible,
-	.setter           = NULL,
-	.getter           = NULL,
-	.getter_index     = NULL,
+	.free = scroll_vbox_free,
+	.input = scroll_vbox_input,
+	.input_event = scroll_vbox_input_event,
+	.add_child = scroll_vbox_add_child,
+	.ensure_visible = scroll_vbox_ensure_visible,
+	.setter = NULL,
+	.getter = NULL,
+	.getter_index = NULL,
 };
 
 struct widget *make_scroll_vbox(void)

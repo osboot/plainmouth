@@ -60,6 +60,30 @@ static void check_cell(WINDOW *win, int y, int x, wchar_t expected, short pair)
 	assert(actual_pair == pair);
 }
 
+static void test_nested_visibility(void)
+{
+	struct widget *outer = make_pad_box();
+	struct widget *canvas = make_positioned();
+	struct widget *inner = make_scroll_vbox();
+	struct widget *fields = make_positioned();
+	struct widget *field = make_input(L"value", NULL);
+	assert(outer && canvas && inner && fields && field);
+	widget_add(outer, canvas);
+	assert(positioned_add(canvas, inner, 0, 8, 10, 5));
+	widget_add(inner, fields);
+	assert(positioned_add(fields, field, 0, 15, 5, 1));
+	widget_measure_tree(outer);
+	widget_layout_tree(outer, 0, 0, 10, 10);
+	struct widget *pad = find_widget_by_type_and_id(inner, WIDGET_PAD_BOX, 0);
+	assert(pad);
+	pad->ops->ensure_visible(pad, field);
+	outer->ops->ensure_visible(outer, field);
+	int y;
+	assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 11);
+	assert(widget_get(outer, PROP_SCROLL_Y, &y) && y == 3);
+	widget_free(outer);
+}
+
 static void test_render(bool oversized)
 {
 	struct widget *root = make_window();
@@ -135,6 +159,28 @@ static void test_render(bool oversized)
 		widget_render_tree(scroll);
 		assert(!(vscroll->flags & FLAG_INFOCUS));
 		assert(!(hscroll->flags & FLAG_INFOCUS));
+		int start = 0;
+		assert(widget_set(pad, PROP_SCROLL_Y, &start));
+		assert(widget_dispatch_input(empty, KEY_NPAGE, true));
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == pad->h);
+		assert(widget_dispatch_input(empty, KEY_PPAGE, true));
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 0);
+		assert(widget_dispatch_input(empty, KEY_DOWN, true));
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 1);
+		assert(widget_dispatch_input(empty, KEY_HOME, true));
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 1);
+		assert(widget_dispatch_input(scroll, KEY_END, true));
+		int content_h;
+		assert(widget_get(pad, PROP_SCROLL_CONTENT_H, &content_h));
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == content_h - pad->h);
+		assert(widget_dispatch_input(scroll, KEY_NPAGE, true));
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == content_h - pad->h);
+		assert(widget_dispatch_input(scroll, KEY_HOME, true));
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 0);
+		assert(!widget_dispatch_input(scroll, KEY_DOWN, false));
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 0);
+		const wchar_t *value;
+		assert(widget_get(empty, PROP_INPUT_VALUE, &value) && value[0] == L'\0');
 	}
 	widget_free(root);
 }
@@ -142,6 +188,7 @@ static void test_render(bool oversized)
 int main(void)
 {
 	test_layout();
+	test_nested_visibility();
 	FILE *input = tmpfile(), *output = tmpfile();
 	assert(input && output);
 	SCREEN *screen = newterm("xterm", output, input);

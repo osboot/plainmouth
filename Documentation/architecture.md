@@ -275,6 +275,14 @@ are copied only after children finish drawing, with clipping to the source
 dimensions; unused viewport cells retain the viewport background. Pad windows
 are not refreshed directly onto the terminal. Scroll containers indicate focus
 through their scrollbars.
+
+Focused scroll containers use arrows for single-row or single-column movement,
+Page Up/Down for one pad viewport, and Home/End for the vertical endpoints.
+Only actual terminal keycodes trigger these commands. Unhandled Up/Down and
+Page Up/Down from a field scroll its nearest enclosing scroll container without
+moving focus or changing the field value. Lists consume their own navigation
+keys, and input fields retain Home/End for editing. Visibility calculations
+subtract intervening pad offsets when scrolling nested regions.
 - Window (single child with decoration)
 
 Responsibilities:

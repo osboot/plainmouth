@@ -324,6 +324,7 @@ struct widget *make_list_vbox(int view_rows);
 struct widget *make_select(int max_selected, int view_rows);
 struct widget *make_menu(int view_rows);
 int widget_select_search_timeout(struct widget *w);
+int widget_dispatch_input(struct widget *w, wchar_t key, bool keycode);
 struct widget *make_menu_option(const wchar_t *text);
 struct widget *make_select_option(const wchar_t *text, bool checked, bool is_radio);
 
