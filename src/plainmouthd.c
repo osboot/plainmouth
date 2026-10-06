@@ -70,18 +70,22 @@ static _Thread_local bool quit_requested;
 static bool use_terminal = true;
 static char *debug_file = NULL;
 static enum widget_theme theme = WIDGET_THEME_AUTO;
+static enum daemon_animation animation = DAEMON_ANIMATION_AUTO;
+static int animation_duration_ms = 150;
 
 static pthread_t ui_thread;
 
 static const char cmdopts_s[] = "S:Vh";
 static const struct option cmdopts[] = {
-	{ "debug-file",  required_argument, NULL, 1   },
-	{ "tty",         required_argument, NULL, 2   },
-	{ "theme",       required_argument, NULL, 3   },
-	{ "socket-file", required_argument, NULL, 'S' },
-	{ "version",     no_argument,       NULL, 'V' },
-	{ "help",        no_argument,       NULL, 'h' },
-	{ NULL,          no_argument,       NULL, 0   },
+	{ "debug-file",         required_argument, NULL, 1   },
+	{ "tty",                required_argument, NULL, 2   },
+	{ "theme",              required_argument, NULL, 3   },
+	{ "animation",          required_argument, NULL, 4   },
+	{ "animation-duration", required_argument, NULL, 5   },
+	{ "socket-file",        required_argument, NULL, 'S' },
+	{ "version",            no_argument,       NULL, 'V' },
+	{ "help",               no_argument,       NULL, 'h' },
+	{ NULL,                 no_argument,       NULL, 0   },
 };
 
 static void __attribute__((noreturn))
@@ -93,12 +97,14 @@ print_help(const char *progname, int retcode)
 	       "It does the heavy lifting of the plainmouth system.\n"
 	       "\n"
 	       "Options:\n"
-	       "   --tty=DEVICE         TTY to use instead of default.\n"
-	       "   --debug-file=FILE    File to write debugging information to.\n"
-	       "   --socket-file=FILE   Server socket file.\n"
-	       "   --theme=NAME         auto (default), basic, or terminal.\n"
-	       "   -V, --version        Show version of program and exit.\n"
-	       "   -h, --help           Show this text and exit.\n"
+	       "   --tty=DEVICE             TTY to use instead of default.\n"
+	       "   --debug-file=FILE        File to write debugging information to.\n"
+	       "   --socket-file=FILE       Server socket file.\n"
+	       "   --theme=NAME             auto (default), basic, or terminal.\n"
+	       "   --animation=MODE         auto (default), none, or slide.\n"
+	       "   --animation-duration=MS  0..10000 milliseconds (default: 150).\n"
+	       "   -V, --version            Show version of program and exit.\n"
+	       "   -h, --help               Show this text and exit.\n"
 	       "\n",
 	       progname);
 	exit(retcode);
@@ -531,6 +537,7 @@ static void ui_resize(void)
 		return;
 	}
 
+	help.animating = false;
 	erase();
 	wnoutrefresh(stdscr);
 	daemon_instances_resize();
@@ -654,6 +661,8 @@ static void curses_init(FILE *inf, FILE *outf)
 	set_term(scr);
 
 	terminal_output = outf;
+	help.animation = daemon_animation_resolve(animation, fileno(outf));
+	help.duration_ms = animation_duration_ms;
 
 	paste_keys = define_key("\033[200~", KEY_PASTE_BEGIN) == OK &&
 		     define_key("\033[201~", KEY_PASTE_END) == OK;
@@ -708,13 +717,40 @@ int main(int argc, char **argv)
 					theme = WIDGET_THEME_TERMINAL;
 				else
 					errx(EXIT_FAILURE, "unknown theme: %s", optarg);
+
 				break;
+			case 4:
+				if (streq(optarg, "auto"))
+					animation = DAEMON_ANIMATION_AUTO;
+				else if (streq(optarg, "none"))
+					animation = DAEMON_ANIMATION_NONE;
+				else if (streq(optarg, "slide"))
+					animation = DAEMON_ANIMATION_SLIDE;
+				else
+					errx(EXIT_FAILURE, "unknown animation: %s", optarg);
+
+				break;
+			case 5: {
+				char *end;
+
+				errno = 0;
+				long duration = strtol(optarg, &end, 10);
+
+				if (!*optarg || strspn(optarg, "0123456789") != strlen(optarg) ||
+				    *end || errno || duration > 10000)
+					errx(EXIT_FAILURE, "invalid animation duration: %s", optarg);
+
+				animation_duration_ms = (int) duration;
+				break;
+			}
 			case 'V':
 				print_version(basename(argv[0]));
 				break;
 			case 'h':
 				print_help(basename(argv[0]), EXIT_SUCCESS);
 				break;
+			default:
+				print_help(basename(argv[0]), EXIT_FAILURE);
 		}
 	}
 
@@ -730,11 +766,14 @@ int main(int argc, char **argv)
 
 	FILE *outf = stdout;
 	FILE *inf = stdin;
+	FILE *tty = NULL;
 
 	if (tty_file && *tty_file) {
-		FILE *tty = fopen(tty_file, "w+");
+		tty = fopen(tty_file, "w+");
+
 		if (!tty)
 			err(EXIT_FAILURE, "unable to open terminal device: %s", tty_file);
+
 		inf = outf = tty;
 	}
 
@@ -835,6 +874,16 @@ int main(int argc, char **argv)
 			timeout = -1;
 		}
 
+		int help_timeout = daemon_help_timeout(&help);
+
+		if (help_timeout == 0) {
+			ui_update();
+			help_timeout = daemon_help_timeout(&help);
+		}
+
+		if (help_timeout >= 0 && (timeout < 0 || help_timeout < timeout))
+			timeout = help_timeout;
+
 		errno = 0;
 		r = poll(pfd, (nfds_t) events.count, timeout);
 
@@ -909,6 +958,11 @@ int main(int argc, char **argv)
 		error(0, r, "pthread_sigmask");
 
 	curses_finish();
+
+	if (tty && fclose(tty) == EOF) {
+		warn("unable to close terminal device: %s", tty_file);
+		retcode = EXIT_FAILURE;
+	}
 
 	return retcode;
 }

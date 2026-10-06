@@ -79,6 +79,50 @@ static void expect_cursor(VTerm *terminal, int row, int column)
 	}
 }
 
+static void open_help(int fd, VTerm *terminal)
+{
+	require(write(fd, "\033OP", 3) == 3);
+	VTermScreen *screen = vterm_obtain_screen(terminal);
+	struct pollfd pfd = { .fd = fd, .events = POLLIN };
+
+	/* Stop at the first visible frame so the next key arrives during sliding. */
+	for (int attempt = 0; attempt < 20; attempt++) {
+		int ret = poll(&pfd, 1, 100);
+
+		if (ret < 0 && errno == EINTR)
+			continue;
+
+		require(ret >= 0);
+
+		if (!ret)
+			continue;
+
+		char buffer[8192];
+		ssize_t n = read(fd, buffer, sizeof(buffer));
+		require(n > 0);
+		require(vterm_input_write(terminal, buffer, (size_t) n) == (size_t) n);
+
+		for (int column = 76; column < 120; column++) {
+			VTermScreenCell cell;
+			VTermPos position = { .row = 1, .col = column };
+			require(vterm_screen_get_cell(screen, position, &cell));
+
+			if (cell.chars[0] && cell.chars[0] != ' ') {
+				require(column > 76);
+				VTermPos cursor;
+				vterm_state_get_cursorpos(vterm_obtain_state(terminal), &cursor);
+
+				if (cursor.row == 11 && cursor.col == 61)
+					return;
+
+				break;
+			}
+		}
+	}
+
+	require(false);
+}
+
 int main(void)
 {
 	require(mkdtemp(directory) != NULL);
@@ -104,7 +148,8 @@ int main(void)
 		    dup2(slave, STDERR_FILENO) < 0)
 			_exit(127);
 		close(slave);
-		execl("./plainmouthd", "plainmouthd", "-S", socket_path, (char *) NULL);
+		execl("./plainmouthd", "plainmouthd", "-S", socket_path,
+		      "--tty=/dev/tty", "--animation-duration=400", (char *) NULL);
 		_exit(127);
 	}
 	close(slave);
@@ -148,7 +193,7 @@ int main(void)
 	drain(master, terminal);
 	press(master, terminal, "\t");
 	expect_cursor(terminal, 11, 61);
-	press(master, terminal, "\033OP");
+	open_help(master, terminal);
 	expect_cursor(terminal, 11, 61);
 	press(master, terminal, "x");
 	expect_cursor(terminal, 11, 62);
@@ -158,7 +203,7 @@ int main(void)
 	expect_cursor(terminal, 11, 60);
 	press(master, terminal, "\033OC");
 	expect_cursor(terminal, 11, 61);
-	for (int i = 0; i < 20; i++) {
+	for (int i = 0; i < 14; i++) {
 		press(master, terminal, "x");
 		int column = 62 + i;
 		if (column > 73)

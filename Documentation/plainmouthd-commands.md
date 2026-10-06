@@ -32,6 +32,25 @@ to use Up and Down in the dialog again.
 Entering a termbox closes help. F1, Esc and arrow keys in termbox continue to
 reach the child process.
 
+The daemon option `--animation=MODE` accepts `auto` (default), `none`, and `slide`.
+In `auto` mode, animation is enabled for a pseudoterminal with cursor-addressing
+support. Linux virtual consoles, serial terminals, unknown devices, and
+terminals without cursor addressing use `none`. Detection uses the actual
+output TTY, including when it is opened through `/dev/tty` or `/dev/console`,
+rather than the TERM name or color count. Explicit `none` and `slide` override
+the automatic choice. This does not measure connection speed; a pseudoterminal
+over SSH can still have a slow connection.
+
+Currently, `slide` makes help slide in from the right. Set
+`--animation-duration=MS` to choose a duration from 0 to 10000 milliseconds
+(default: 150); zero shows the panel immediately. Input remains available
+during the animation. F1 or Esc closes it immediately, and terminal resizing
+finishes the animation. Text wrapping uses the final panel width throughout.
+
+To try it in an interactive test, run
+`MODE=view tests/e2e-form.sh` (uses `auto`), or set `ANIMATION=slide` to force
+animation. `ANIMATION_DURATION` overrides the duration for these test sessions.
+
 ### set-title
 
 Defines the title for the global screen that `plainmouthd` uses to render

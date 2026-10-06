@@ -51,7 +51,9 @@ run_server()
 				< /dev/null > /dev/null
 			;;
 		view)
-			_run "$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET"
+			_run "$topdir"/plainmouthd -S "$PLAINMOUTH_SOCKET" \
+				--animation="${ANIMATION:-auto}" \
+				--animation-duration="${ANIMATION_DURATION:-150}"
 			;;
 	esac
 	# An explicit testcase PID preserves its failure status.

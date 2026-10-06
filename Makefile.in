@@ -78,7 +78,7 @@ COMMON_LIBS = $(NCURSES_LIBS) $(PANEL_LIBS)
 GARBAGE += $(COMMON_SO) $(COMMON_OBJ)
 
 PROGS += plainmouthd
-SRC_plainmouthd = src/plainmouthd.c src/daemon_style.c src/daemon_instance.c src/daemon_task.c src/daemon_worker.c src/daemon_event.c src/daemon_help.c
+SRC_plainmouthd = src/plainmouthd.c src/daemon_style.c src/daemon_instance.c src/daemon_task.c src/daemon_worker.c src/daemon_event.c src/daemon_help.c src/daemon_animation.c
 OBJ_plainmouthd = $(SRC_plainmouthd:.c=.o)
 LIB_plainmouthd = $(PTHREAD_LIBS) $(NCURSES_LIBS) $(PANEL_LIBS) -L$(CURDIR) -lplainmouth
 GARBAGE += plainmouthd $(OBJ_plainmouthd)
@@ -223,8 +223,16 @@ tests/daemon/daemon_help_test: tests/daemon/daemon_help_test.o src/daemon_help.o
 
 tests/daemon/daemon_help_test.chk: VALGRIND += --suppressions=$(CURDIR)/tests/valgrind.supp
 
-tests/daemon/daemon_help_test.o: src/daemon_help.h src/widget.h
+tests/daemon/daemon_help_test.o: src/daemon_help.h src/daemon_animation.h src/widget.h
 GARBAGE += tests/daemon/daemon_help_test.o
+
+tests/daemon/daemon_animation_test: tests/daemon/daemon_animation_test.o src/daemon_animation.o
+	$(call cmd_LINK,$^) $(NCURSES_LIBS)
+
+tests/daemon/daemon_animation_test.chk: VALGRIND += --suppressions=$(CURDIR)/tests/valgrind.supp
+
+tests/daemon/daemon_animation_test.o: src/daemon_animation.h
+GARBAGE += tests/daemon/daemon_animation_test.o
 
 tests/daemon/daemon_cursor_test: tests/daemon/daemon_cursor_test.o $(COMMON_SO) plainmouthd plugins
 	$(call cmd_LINK,$(filter %.o,$^)) $(VTERM_LIBS) -L$(CURDIR) -lplainmouth -Wl,-rpath,$(CURDIR)

@@ -22,6 +22,7 @@ tests/daemon/daemon_worker_test
 tests/daemon/daemon_resize_test
 tests/daemon/daemon_help_test
 tests/daemon/daemon_cursor_test
+tests/daemon/daemon_animation_test
 tests/ipc/ipc_command_processing
 tests/ipc/ipc_handle_key_value_pairs
 tests/ipc/ipc_init_and_free

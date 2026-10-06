@@ -509,6 +509,18 @@ over the dialog's Up/Down bindings while open. The panel follows focus without
 joining the focusable widget list. It is raised after widget rendering and
 released before instance teardown; terminal widgets retain their own keys.
 
+The UI-thread `daemon_animation` module resolves the global animation mode
+after ncurses initialization. Auto enables sliding only for a recognized PTY
+slave with cursor-addressing support, using `TIOCGDEV` to identify the actual
+output device. Explicit modes bypass detection. The help module receives the
+resolved mode and duration; the command-line settings can be reused by other
+animated UI elements.
+
+Help animation uses monotonic deadlines combined with the list-search
+timeout in the main poll loop. Its content is rendered into a full-width pad
+and copied into a growing panel window so descriptions do not rewrap between
+frames. Closing help cancels its deadline; resize completes the animation.
+
 Local color overrides and termbox screen colors share a bounded color-pair
 allocator, excluding the four global role pairs. Colors used by a live widget
 are not reassigned to another owner. Pairs are released on reset or widget
