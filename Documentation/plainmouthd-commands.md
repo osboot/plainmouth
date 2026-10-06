@@ -17,6 +17,21 @@ reverse-video windows to distinguish them from the screen. Terminals without
 enough colors or pairs use a monochrome palette with reverse and bold focus.
 Palette selection uses ncurses capabilities rather than the TERM name.
 
+### Keyboard Help
+
+F1 opens a panel on the right with commands for the focused widget and
+available scrolling commands from its parent. F1 or Esc closes the panel.
+The panel follows the dialog's window style and uses the full screen width
+when the terminal is narrower than the panel.
+
+Help keeps the current widget focused. While it is open, Up and Down scroll
+the help text; other keys still go to the dialog. Tab and Shift-Tab move focus
+and update the descriptions, resetting the help scroll position. Close help
+to use Up and Down in the dialog again.
+
+Entering a termbox closes help. F1, Esc and arrow keys in termbox continue to
+reach the child process.
+
 ### set-title
 
 Defines the title for the global screen that `plainmouthd` uses to render

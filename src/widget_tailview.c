@@ -111,7 +111,22 @@ static void tailview_free(struct widget *w)
 	free(st);
 }
 
+static size_t tailview_keybindings(const struct widget *w, const struct widget_keybinding **bindings)
+{
+	(void) w;
+	static const struct widget_keybinding keys[] = {
+		{ KEY_LEFT,  true,  "Left",  "Scroll left"       },
+		{ KEY_RIGHT, true,  "Right", "Scroll right"      },
+		{ L'h',      false, "h",     "Scroll left"       },
+		{ L'l',      false, "l",     "Scroll right"      },
+		{ L'0',      false, "0",     "Beginning of line" },
+	};
+	*bindings = keys;
+	return sizeof(keys) / sizeof(*keys);
+}
+
 static const struct widget_ops tailview_ops = {
+	.keybindings = tailview_keybindings,
 	.render = tailview_render,
 	.free = tailview_free,
 	.input = tailview_input,

@@ -194,7 +194,25 @@ void scroll_vbox_free(struct widget *w)
 	free(w->state);
 }
 
+static size_t scroll_keybindings(const struct widget *w, const struct widget_keybinding **bindings)
+{
+	(void) w;
+	static const struct widget_keybinding keys[] = {
+		{ KEY_UP,    true, "Up",     "Scroll up"            },
+		{ KEY_DOWN,  true, "Down",   "Scroll down"          },
+		{ KEY_LEFT,  true, "Left",   "Scroll left"          },
+		{ KEY_RIGHT, true, "Right",  "Scroll right"         },
+		{ KEY_PPAGE, true, "PgUp",   "Scroll one page up"   },
+		{ KEY_NPAGE, true, "PgDown", "Scroll one page down" },
+		{ KEY_HOME,  true, "Home",   "Beginning of content" },
+		{ KEY_END,   true, "End",    "End of content"       },
+	};
+	*bindings = keys;
+	return sizeof(keys) / sizeof(*keys);
+}
+
 static const struct widget_ops scroll_vbox_ops = {
+	.keybindings      = scroll_keybindings,
 	.measure          = scroll_vbox_measure,
 	.layout           = scroll_vbox_layout,
 	.render           = scroll_vbox_render,

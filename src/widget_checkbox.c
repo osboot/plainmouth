@@ -92,7 +92,18 @@ bool checkbox_setter(struct widget *w, enum widget_property prop, const void *va
 	return false;
 }
 
+static size_t checkbox_keybindings(const struct widget *w, const struct widget_keybinding **bindings)
+{
+	(void) w;
+	static const struct widget_keybinding keys[] = {
+		{ L' ', false, "Space", "Toggle selection" },
+	};
+	*bindings = keys;
+	return sizeof(keys) / sizeof(*keys);
+}
+
 static const struct widget_ops checkbox_ops = {
+	.keybindings      = checkbox_keybindings,
 	.measure          = checkbox_measure,
 	.layout           = NULL,
 	.render           = checkbox_render,

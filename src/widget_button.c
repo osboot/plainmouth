@@ -92,7 +92,18 @@ bool button_setter(struct widget *w, enum widget_property prop, const void *valu
 	return false;
 }
 
+static size_t button_keybindings(const struct widget *w, const struct widget_keybinding **bindings)
+{
+	(void) w;
+	static const struct widget_keybinding keys[] = {
+		{ KEY_ENTER, true, "Enter", "Activate button" },
+	};
+	*bindings = keys;
+	return sizeof(keys) / sizeof(*keys);
+}
+
 static const struct widget_ops button_ops = {
+	.keybindings      = button_keybindings,
 	.measure          = button_measure,
 	.layout           = NULL,
 	.render           = button_render,

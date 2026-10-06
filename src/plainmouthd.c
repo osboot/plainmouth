@@ -33,8 +33,10 @@
 #include "daemon_task.h"
 #include "daemon_worker.h"
 #include "daemon_event.h"
+#include "daemon_help.h"
 
 static SCREEN *scr = NULL;
+static struct daemon_help help;
 static FILE *terminal_output;
 static bool paste_keys;
 static bool paste_enabled;
@@ -124,6 +126,7 @@ static void ui_update_cursor(void)
 
 	if (!focused || !(focused->attrs & ATTR_CAN_CURSOR) || !widget_is_interactive(focused)) {
 		curs_set(0);
+		setsyx(-1, -1);
 		return;
 	}
 
@@ -131,22 +134,22 @@ static void ui_update_cursor(void)
 	if (!focused_ins || focused_ins->finished ||
 	    !(focused_ins->root->flags & FLAG_VISIBLE)) {
 		curs_set(0);
+		setsyx(-1, -1);
 		return;
 	}
 
-	if (!widget_coordinates_yx(focused, &y, &x)) {
+	if (!widget_coordinates_yx(focused, &y, &x) ||
+	    (help.panel && x >= getbegx(help.win) &&
+	     x < getbegx(help.win) + getmaxx(help.win) && y >= getbegy(help.win) &&
+	     y < getbegy(help.win) + getmaxy(help.win))) {
 		curs_set(0);
+		setsyx(-1, -1);
 		return;
 	}
 
 	curs_set(1);
-	int root_y, root_x;
-	getbegyx(focused_ins->root->win, root_y, root_x);
-	y -= root_y;
-	x -= root_x;
-
-	wmove(focused_ins->root->win, y, x);
-	widget_noutrefresh(focused_ins->root);
+	/* Panel updates may leave the virtual screen cursor unspecified. */
+	setsyx(y, x);
 }
 
 static void ui_update(void)
@@ -177,6 +180,7 @@ static void ui_update(void)
 	if (focused)
 		widget_render_tree(focused);
 
+	daemon_help_render(&help, focused);
 	update_panels();
 	ui_update_cursor();
 	doupdate();
@@ -216,7 +220,7 @@ static int ui_process_task_update(struct ui_task *t)
 		return -1;
 
 	if (instance->plugin->p_update_instance &&
-			instance->plugin->p_update_instance(&t->req, instance->root) != P_RET_OK) {
+	    instance->plugin->p_update_instance(&t->req, instance->root) != P_RET_OK) {
 		return -1;
 	}
 	widget_render_tree(instance->root);
@@ -472,8 +476,7 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 
 		ipc_send_string(req_fd(&req), "RESPDATA %s ISTTY=%d", req_id(&req), res);
 		return 0;
-	}
-	else if (streq(action, "wait-result")) {
+	} else if (streq(action, "wait-result")) {
 		const char *instance_id = req_get_val(&req, "id");
 		if (!instance_id) {
 			ipc_send_string(req_fd(&req), "RESPDATA %s ERR=field is missing: id", req_id(&req));
@@ -576,6 +579,11 @@ static void handle_input(void)
 			ui_resize();
 			return;
 		}
+	}
+
+	if (!pasting && daemon_help_input(&help, focused, (wchar_t) code, ret == KEY_CODE_YES)) {
+		ui_update();
+		return;
 	}
 
 	if (focused) {
@@ -682,13 +690,13 @@ int main(int argc, char **argv)
 
 	while ((c = getopt_long(argc, argv, cmdopts_s, cmdopts, NULL)) != -1) {
 		switch (c) {
-			case 1:		// --debug-file=Filename
+			case 1: // --debug-file=Filename
 				debug_file = optarg;
 				break;
-			case 2:		// --tty=TTYDevice
+			case 2: // --tty=TTYDevice
 				tty_file = optarg;
 				break;
-			case 'S':	// --socket-file=Filename
+			case 'S': // --socket-file=Filename
 				socket_file = optarg;
 				break;
 			case 3:
@@ -721,7 +729,7 @@ int main(int argc, char **argv)
 		stderr = freopen(debug_file, "w", stderr);
 
 	FILE *outf = stdout;
-	FILE *inf  = stdin;
+	FILE *inf = stdin;
 
 	if (tty_file && *tty_file) {
 		FILE *tty = fopen(tty_file, "w+");
@@ -776,40 +784,40 @@ int main(int argc, char **argv)
 	ctx.handle_message = handle_message;
 
 	curses_init(inf, outf);
-	//atexit(curses_finish);
+	// atexit(curses_finish);
 
 	ipc_listen(&ctx, socket_file, 42, 0);
 
 	enum {
-		POLL_SRVFD   = 0,
-		POLL_STDIN   = 1,
-		POLL_EVENTFD = 2,
-		POLL_CHILDFD = 3,
+		POLL_SRVFD    = 0,
+		POLL_STDIN    = 1,
+		POLL_EVENTFD  = 2,
+		POLL_CHILDFD  = 3,
 		POLL_RESIZEFD = 4,
-		POLL_N_FDS   = 5,
+		POLL_N_FDS    = 5,
 	};
 
 	struct pollfd base_pfd[] = {
 		[POLL_SRVFD] = {
-			.fd = ctx.fd,
-			.events = POLLIN,
-		},
+				.fd = ctx.fd,
+				.events = POLLIN,
+				},
 		[POLL_STDIN] = {
-			.fd = fileno(inf),
-			.events = POLLIN,
-		},
+				.fd = fileno(inf),
+				.events = POLLIN,
+				},
 		[POLL_EVENTFD] = {
-			.fd = daemon_task_fd(),
-			.events = POLLIN,
-		},
+				.fd = daemon_task_fd(),
+				.events = POLLIN,
+				},
 		[POLL_CHILDFD] = {
-			.fd = child_eventfd,
-			.events = POLLIN,
-		},
+				.fd = child_eventfd,
+				.events = POLLIN,
+				},
 		[POLL_RESIZEFD] = {
-			.fd = resize_eventfd,
-			.events = POLLIN,
-		},
+				.fd = resize_eventfd,
+				.events = POLLIN,
+				},
 	};
 
 	while (!do_quit) {
@@ -884,6 +892,7 @@ int main(int argc, char **argv)
 	daemon_instances_stop();
 	daemon_workers_stop();
 
+	daemon_help_close(&help);
 	daemon_instances_free();
 	unload_plugins();
 	daemon_styles_free();

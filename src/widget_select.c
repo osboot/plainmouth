@@ -477,7 +477,41 @@ void select_free(struct widget *w)
 	free(w->state);
 }
 
+static size_t select_keybindings(const struct widget *w, const struct widget_keybinding **bindings)
+{
+	const struct widget_select *st = w->state;
+	static const struct widget_keybinding menu_keys[] = {
+		{ KEY_UP,    true,  "Up",     "Previous item"        },
+		{ KEY_DOWN,  true,  "Down",   "Next item"            },
+		{ KEY_PPAGE, true,  "PgUp",   "Previous page"        },
+		{ KEY_NPAGE, true,  "PgDown", "Next page"            },
+		{ KEY_HOME,  true,  "Home",   "First item"           },
+		{ KEY_END,   true,  "End",    "Last item"            },
+		{ 0,         false, "Text",   "Search by prefix"     },
+		{ KEY_ENTER, true,  "Enter",  "Accept selected item" },
+	};
+	static const struct widget_keybinding select_keys[] = {
+		{ KEY_UP,    true,  "Up",     "Previous item"        },
+		{ KEY_DOWN,  true,  "Down",   "Next item"            },
+		{ KEY_PPAGE, true,  "PgUp",   "Previous page"        },
+		{ KEY_NPAGE, true,  "PgDown", "Next page"            },
+		{ KEY_HOME,  true,  "Home",   "First item"           },
+		{ KEY_END,   true,  "End",    "Last item"            },
+		{ 0,         false, "Text",   "Search by prefix"     },
+		{ L' ',      false, "Space",  "Toggle selected item" },
+	};
+	if (!st->focus)
+		return 0;
+	if (st->menu) {
+		*bindings = menu_keys;
+		return sizeof(menu_keys) / sizeof(*menu_keys);
+	}
+	*bindings = select_keys;
+	return sizeof(select_keys) / sizeof(*select_keys);
+}
+
 static const struct widget_ops select_ops = {
+	.keybindings      = select_keybindings,
 	.measure          = select_measure,
 	.layout           = select_layout,
 	.render           = select_render,

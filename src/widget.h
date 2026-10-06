@@ -151,6 +151,13 @@ enum widget_attributes {
 	ATTR_DISABLED = (1 << 3),
 };
 
+struct widget_keybinding {
+	wchar_t key;
+	bool keycode;
+	const char *name;
+	const char *description;
+};
+
 struct widget_ops {
 	void (*measure)(struct widget *);              /* Compute intrinsic minimum size */
 	void (*layout)(struct widget *);               /* Assign positions/sizes to children */
@@ -169,6 +176,8 @@ struct widget_ops {
 	bool (*setter_index)(struct widget *, enum widget_property, int, const void *);
 	/* Optional typed input: keycodes can overlap with Unicode characters. */
 	int (*input_event)(const struct widget *, wchar_t, bool keycode);
+	/* Borrowed descriptions of the widget's current keyboard commands. */
+	size_t (*keybindings)(const struct widget *, const struct widget_keybinding **);
 };
 
 struct widget_scrollbar_state {
@@ -341,6 +350,7 @@ struct widget *make_select(int max_selected, int view_rows);
 struct widget *make_menu(int view_rows);
 int widget_select_search_timeout(struct widget *w);
 int widget_dispatch_input(struct widget *w, wchar_t key, bool keycode);
+size_t widget_keybindings(const struct widget *w, struct widget_keybinding *bindings, size_t capacity);
 struct widget *make_menu_option(const wchar_t *text);
 struct widget *make_select_option(const wchar_t *text, bool checked, bool is_radio);
 

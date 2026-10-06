@@ -498,6 +498,17 @@ blocked reads and writes, joins workers, and finally frees UI resources.
 The quit connection requests shutdown at its next IPC loop iteration, after
 the protocol response has been sent.
 
+Widgets can expose borrowed key descriptions through `widget_ops.keybindings`.
+The collector includes the nearest scrolling parent's vertical navigation
+commands, following the same forwarding rules as input dispatch and giving
+the focused widget precedence over duplicate keys.
+
+The UI-thread `daemon_help` module owns the context-help window and panel.
+It adds global focus-navigation commands and gives help scrolling precedence
+over the dialog's Up/Down bindings while open. The panel follows focus without
+joining the focusable widget list. It is raised after widget rendering and
+released before instance teardown; terminal widgets retain their own keys.
+
 Local color overrides and termbox screen colors share a bounded color-pair
 allocator, excluding the four global role pairs. Colors used by a live widget
 are not reassigned to another owner. Pairs are released on reset or widget

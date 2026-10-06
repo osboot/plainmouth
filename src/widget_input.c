@@ -350,7 +350,27 @@ bool input_setter(struct widget *w, enum widget_property prop, const void *value
 	return false;
 }
 
+static size_t input_keybindings(const struct widget *w, const struct widget_keybinding **bindings)
+{
+	const struct widget_input *st = w->state;
+	static const struct widget_keybinding keys[] = {
+		{ 0,             false, "Text",      "Insert text"               },
+		{ KEY_LEFT,      true,  "Left",      "Move cursor left"          },
+		{ KEY_RIGHT,     true,  "Right",     "Move cursor right"         },
+		{ KEY_HOME,      true,  "Home",      "Beginning of line"         },
+		{ KEY_END,       true,  "End",       "End of line"               },
+		{ KEY_DC,        true,  "Delete",    "Delete next character"     },
+		{ KEY_BACKSPACE, true,  "Backspace", "Delete previous character" },
+		{ KEY_ENTER,     true,  "Enter",     "Accept input"              },
+	};
+	*bindings = keys;
+	if (st->finished)
+		return 0;
+	return sizeof(keys) / sizeof(*keys) - (st->finish_on_enter ? 0U : 1U);
+}
+
 static const struct widget_ops input_ops = {
+	.keybindings      = input_keybindings,
 	.measure          = input_measure,
 	.layout           = NULL,
 	.render           = input_render,

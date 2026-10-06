@@ -115,7 +115,19 @@ int tooltip_input(const struct widget *w, wchar_t key)
 	return 1;
 }
 
+static size_t tooltip_keybindings(const struct widget *w, const struct widget_keybinding **bindings)
+{
+	(void) w;
+	static const struct widget_keybinding keys[] = {
+		{ KEY_ENTER, true,  "Enter", "Show tooltip" },
+		{ L' ',      false, "Space", "Show tooltip" },
+	};
+	*bindings = keys;
+	return sizeof(keys) / sizeof(*keys);
+}
+
 static const struct widget_ops tooltip_ops = {
+	.keybindings      = tooltip_keybindings,
 	.measure          = tooltip_measure,
 	.layout           = NULL,
 	.render           = tooltip_render,

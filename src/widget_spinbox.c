@@ -135,7 +135,21 @@ bool spinbox_setter(struct widget *w, enum widget_property prop, const void *in)
 	return false;
 }
 
+static size_t spinbox_keybindings(const struct widget *w, const struct widget_keybinding **bindings)
+{
+	(void) w;
+	static const struct widget_keybinding keys[] = {
+		{ KEY_UP,        true,  "Up",        "Increase value"       },
+		{ KEY_DOWN,      true,  "Down",      "Decrease value"       },
+		{ KEY_BACKSPACE, true,  "Backspace", "Clear pending digits" },
+		{ 0,             false, "0-9",       "Enter numeric value"  },
+	};
+	*bindings = keys;
+	return sizeof(keys) / sizeof(*keys);
+}
+
 static const struct widget_ops spinbox_ops = {
+	.keybindings      = spinbox_keybindings,
 	.measure          = spinbox_measure,
 	.layout           = NULL,
 	.render           = spinbox_render,
