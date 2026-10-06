@@ -16,6 +16,7 @@
 enum compose_type {
 	COMPOSE_VBOX,
 	COMPOSE_HBOX,
+	COMPOSE_SCROLL,
 	COMPOSE_LABEL,
 	COMPOSE_INPUT,
 	COMPOSE_PASSWORD,
@@ -31,6 +32,7 @@ static const struct {
 } types[COMPOSE_COUNT] = {
 	[COMPOSE_VBOX]     = { "vbox",     { NULL }                               },
 	[COMPOSE_HBOX]     = { "hbox",     { NULL }                               },
+	[COMPOSE_SCROLL]   = { "scroll",   { NULL }                               },
 	[COMPOSE_LABEL]    = { "label",    { "text", NULL }                       },
 	[COMPOSE_INPUT]    = { "input",    { "value", "max-length", NULL }        },
 	[COMPOSE_PASSWORD] = { "password", { "value", "max-length", NULL }        },
@@ -100,6 +102,8 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 			return make_vbox();
 		case COMPOSE_HBOX:
 			return make_hbox();
+		case COMPOSE_SCROLL:
+			return make_scroll_vbox();
 		case COMPOSE_LABEL:
 			return make_label(text);
 		case COMPOSE_BUTTON:
@@ -179,6 +183,24 @@ fail:
 	widget_free(w);
 	req_error(req, "unable to create node: %s", types[type].name);
 	return NULL;
+}
+
+static bool validate_pad_size(struct widget *w, void *data)
+{
+	if (w->type != WIDGET_PAD_BOX)
+		return true;
+
+	int width, height;
+
+	if (!widget_get(w, PROP_SCROLL_CONTENT_W, &width) ||
+	    !widget_get(w, PROP_SCROLL_CONTENT_H, &height))
+		return false;
+
+	if (width > COMPOSE_MAX_SIZE || height > COMPOSE_MAX_SIZE ||
+	    (size_t) width * (size_t) height > 1024 * 1024)
+		return req_error(data, "compose scroll content exceeds 4096 per axis or 1048576 cells");
+
+	return true;
 }
 
 static struct widget *compose_create(struct request *req)
@@ -311,7 +333,8 @@ static struct widget *compose_create(struct request *req)
 		if ((!depth && count) ||
 		    (!count && type != COMPOSE_VBOX && type != COMPOSE_HBOX) ||
 		    (depth && stack[depth - 1]->type != WIDGET_VBOX &&
-		     stack[depth - 1]->type != WIDGET_HBOX)) {
+		     stack[depth - 1]->type != WIDGET_HBOX &&
+		     stack[depth - 1]->type != WIDGET_SCROLL_VBOX)) {
 			req_error(req, "compose requires one container root; leaves cannot have children");
 			goto fail;
 		}
@@ -355,6 +378,10 @@ static struct widget *compose_create(struct request *req)
 
 	position_center(width, height, &y, &x);
 	widget_layout_tree(root, x, y, width, height);
+
+	if (!walk_widget_tree(root, validate_pad_size, req))
+		goto fail;
+
 	widget_render_tree(root);
 	return root;
 
@@ -459,6 +486,11 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 	if (!ok) {
 		req_error(req, "unable to set node value: node=%d", id);
 		return P_RET_ERR;
+	}
+
+	for (struct widget *parent = w->parent; parent; parent = parent->parent) {
+		if (parent->ops && parent->ops->ensure_visible)
+			parent->ops->ensure_visible(parent, w);
 	}
 
 	return P_RET_OK;

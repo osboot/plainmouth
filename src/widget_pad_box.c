@@ -73,6 +73,8 @@ void pad_box_layout(struct widget *w)
 		int ch = (c->pref_h > 0) ? c->pref_h : c->min_h;
 		int cw = c->stretch_w ? w->w : (c->pref_w > 0 ? c->pref_w : c->min_w);
 
+		cw = MAX(cw, c->min_w);
+
 		widget_layout_tree(c, 0, y, cw, ch);
 		y += ch;
 

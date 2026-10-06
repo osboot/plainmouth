@@ -250,7 +250,11 @@ plainmouth action=create plugin=compose id=connection width=40 height=7 border=t
 
 Supported node types and their properties:
 
-- `vbox`, `hbox`: containers; only these types accept declared children.
+- `vbox`, `hbox`: containers arranging children vertically or horizontally.
+- `scroll`: a container with automatic vertical and horizontal scrollbars.
+  Its direct children are arranged vertically; use an `hbox` child for a row.
+  Nested scroll containers are supported. Internal pads and scrollbars do
+  not receive declaration-order result IDs.
 - `label`, `button`: required `text`.
 - `input`, `password`: required `value` (may be empty), optional `max-length`
   (0..65536 characters, default 65536). Passwords are masked on screen but
@@ -276,7 +280,9 @@ plainmouth action=set-value id=connection node=9 clicked=true
 
 Inputs/passwords accept `value`, checkboxes require `checked`, selects require
 `value` (a 1-based option number), and buttons accept `clicked` (default true).
-Selecting an off-screen option scrolls it into view. Results use `INPUT_N`,
+Changing a node with `set-value` brings it into view through its enclosing
+scroll containers. Selecting an off-screen option also scrolls the select's
+own list into view. Results use `INPUT_N`,
 `CHECKBOX_N`, `SELECT_N`, and `BUTTON_N`, where N is the node ID, not an index
 among nodes of the same type. Select results contain option numbers, not
 arbitrary client tags. Containers and labels produce no result pairs.
@@ -284,15 +290,41 @@ arbitrary client tags. Containers and labels produce no result pairs.
 Creation allows at most 256 nodes, 32 tree levels, 256 options per select,
 4096 characters per initial text/option, and 1048576 window cells. Window
 dimensions are limited to 4096 per axis. Content must fit the window's
-minimum geometry. Unbalanced nodes, multiple roots, children of leaves,
+minimum geometry; a `scroll` allows its contents to exceed the viewport.
+Each backing pad is limited to 4096 per axis and 1048576 cells, checked
+before rendering. Unbalanced nodes, multiple roots, children of leaves,
 unknown or duplicate properties, and invalid values reject the entire tree
 before rendering. The old `node=start type=TYPE parent=N` syntax is not
 supported. Inserting nodes requires no changes to parent references; clients
-still calculate result IDs from declaration order. The
-first version does not provide scrolling containers, dynamic structural
-updates, or non-closing button events.
+still calculate result IDs from declaration order. Dynamic structural
+updates and non-closing button events are not supported.
 
 Try `MODE=view tests/e2e-compose.sh` for an interactive connection dialog.
+For a long form with fixed buttons, try
+`MODE=view tests/e2e-compose-scroll.sh`. Put the scroll and button row next
+to each other in the root `vbox` so only the form contents move:
+
+```sh
+plainmouth action=create plugin=compose id=settings width=40 height=8 border=true \
+  node=vbox \
+    node=scroll flex-h=1 \
+      node=vbox \
+        node=input value=first node=end \
+        node=input value=second node=end \
+      node=end \
+    node=end \
+    node=hbox \
+      node=button text=OK node=end \
+      node=button text=Cancel node=end \
+    node=end \
+  node=end
+```
+
+`scroll` takes the common `flex-w` and `flex-h` properties. Use `flex-h=1`
+to give it the height remaining after fixed labels and buttons. Tab visits
+the scroll container and its fields; focus movement brings fields into view.
+On the container, arrows, Home/End and PgUp/PgDown scroll the contents.
+Terminal resizing preserves values and keeps the focused field visible.
 
 ### checklistbox
 

@@ -192,10 +192,26 @@ static void test_render(bool oversized)
 		assert(widget_set(pad, PROP_SCROLL_Y, &start));
 		assert(widget_dispatch_input(empty, KEY_NPAGE, true));
 		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == pad->h);
+		widget_render_tree(empty);
+		int scrollbar_y;
+		assert(widget_get(vscroll, PROP_SCROLL_Y, &scrollbar_y) && scrollbar_y == y);
+
 		assert(widget_dispatch_input(empty, KEY_PPAGE, true));
 		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 0);
+		widget_render_tree(empty);
+		assert(widget_get(vscroll, PROP_SCROLL_Y, &scrollbar_y) && scrollbar_y == y);
+
 		assert(widget_dispatch_input(empty, KEY_DOWN, true));
 		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 1);
+		widget_render_tree(empty);
+		assert(widget_get(vscroll, PROP_SCROLL_Y, &scrollbar_y) && scrollbar_y == y);
+
+		assert(widget_dispatch_input(empty, KEY_UP, true));
+		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 0);
+		widget_render_tree(empty);
+		assert(widget_get(vscroll, PROP_SCROLL_Y, &scrollbar_y) && scrollbar_y == y);
+
+		assert(widget_dispatch_input(empty, KEY_DOWN, true));
 		assert(widget_dispatch_input(empty, KEY_HOME, true));
 		assert(widget_get(pad, PROP_SCROLL_Y, &y) && y == 1);
 		assert(widget_dispatch_input(scroll, KEY_END, true));

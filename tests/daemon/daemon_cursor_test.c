@@ -207,6 +207,147 @@ static void check_compose(struct ipc_ctx *ctx, int master, VTerm *terminal)
 	ipc_pair_free(&response);
 }
 
+static bool screen_contains(VTerm *terminal, const char *text)
+{
+	VTermScreen *screen = vterm_obtain_screen(terminal);
+	int rows, cols;
+	vterm_get_size(terminal, &rows, &cols);
+	size_t length = strlen(text);
+
+	for (int row = 0; row < rows; row++) {
+		for (int col = 0; col + (int) length <= cols; col++) {
+			size_t i;
+
+			for (i = 0; i < length; i++) {
+				VTermScreenCell cell;
+				VTermPos position = { .row = row, .col = col + (int) i };
+				require(vterm_screen_get_cell(screen, position, &cell));
+
+				if (cell.chars[0] != (unsigned char) text[i])
+					break;
+			}
+
+			if (i == length)
+				return true;
+		}
+	}
+
+	return false;
+}
+
+static void expect_screen_character(VTerm *terminal, int row, int col, uint32_t character)
+{
+	VTermScreenCell cell;
+	VTermPos position = { .row = row, .col = col };
+
+	require(vterm_screen_get_cell(vterm_obtain_screen(terminal), position, &cell));
+	require(cell.chars[0] == character);
+}
+
+static void check_compose_scroll(struct ipc_ctx *ctx, int master, VTerm *terminal)
+{
+	struct ipc_pair request = { 0 };
+	const char *old_ids[] = { "form", "compose" };
+
+	for (size_t i = 0; i < sizeof(old_ids) / sizeof(*old_ids); i++) {
+		require(ipc_pair_add(&request, "action", "delete"));
+		require(ipc_pair_add(&request, "id", old_ids[i]));
+		require(ipc_send_message2(ctx, &request, NULL));
+		ipc_pair_free(&request);
+		request = (struct ipc_pair) { 0 };
+	}
+
+	const char *fields[][2] = {
+		{ "action", "create"  },
+		{ "plugin", "compose" },
+		{ "id",     "scroll"  },
+		{ "x",      "0"       },
+		{ "y",      "0"       },
+		{ "width",  "30"      },
+		{ "height", "8"       },
+		{ "border", "true"    },
+		{ "node",   "vbox"    },
+		{ "node",   "scroll"  },
+		{ "flex-h", "1"       },
+		{ "node",   "vbox"    },
+	};
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		require(ipc_pair_add(&request, fields[i][0], fields[i][1]));
+
+	for (int i = 1; i <= 10; i++) {
+		require(ipc_pair_add(&request, "node", "hbox"));
+		require(ipc_pair_add(&request, "node", "label"));
+		require(ipc_pair_sprintf(&request, "text", "Field %d: ", i));
+		require(ipc_pair_add(&request, "node", "end"));
+		require(ipc_pair_add(&request, "node", "input"));
+		require(ipc_pair_add(&request, "value", ""));
+		require(ipc_pair_add(&request, "flex-w", "1"));
+		require(ipc_pair_add(&request, "node", "end"));
+		require(ipc_pair_add(&request, "node", "end"));
+	}
+
+	require(ipc_pair_add(&request, "node", "end"));
+	require(ipc_pair_add(&request, "node", "end"));
+	require(ipc_pair_add(&request, "node", "button"));
+	require(ipc_pair_add(&request, "text", "OK"));
+	require(ipc_pair_add(&request, "node", "end"));
+	require(ipc_pair_add(&request, "node", "end"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	drain(master, terminal);
+	require(screen_contains(terminal, "Field 1:"));
+	require(!screen_contains(terminal, "Field 10:"));
+	expect_screen_character(terminal, 1, 28, '^');
+	press(master, terminal, "\t\033OB\033OB");
+	require(screen_contains(terminal, "Field 3:"));
+	require(!screen_contains(terminal, "Field 1:"));
+	require(screen_contains(terminal, "[OK]"));
+	expect_screen_character(terminal, 2, 28, '^');
+	expect_screen_character(terminal, 3, 28, 'v');
+	press(master, terminal, "\033OA\033OA");
+	require(screen_contains(terminal, "Field 1:"));
+	expect_screen_character(terminal, 1, 28, '^');
+	press(master, terminal, "\t\t\t\t\t\t\t\t\tz");
+	require(screen_contains(terminal, "Field 10: z"));
+	require(!screen_contains(terminal, "Field 1:"));
+	require(screen_contains(terminal, "[OK]"));
+	expect_cursor(terminal, 5, 12);
+
+	for (int i = 0; i < 3; i++) {
+		struct winsize size = { .ws_row = 6, .ws_col = 20 };
+		vterm_set_size(terminal, 6, 20);
+		require(ioctl(master, TIOCSWINSZ, &size) == 0);
+		drain(master, terminal);
+		require(screen_contains(terminal, "Field 10: z"));
+		require(screen_contains(terminal, "[OK]"));
+		expect_cursor(terminal, 3, 12);
+		size = (struct winsize) { .ws_row = 24, .ws_col = 120 };
+		vterm_set_size(terminal, 24, 120);
+		require(ioctl(master, TIOCSWINSZ, &size) == 0);
+		drain(master, terminal);
+		require(screen_contains(terminal, "Field 10: z"));
+		require(screen_contains(terminal, "[OK]"));
+		expect_cursor(terminal, 5, 12);
+	}
+
+	struct ipc_pair response = { 0 };
+	require(ipc_pair_add(&request, "action", "result"));
+	require(ipc_pair_add(&request, "id", "scroll"));
+	require(ipc_send_message2(ctx, &request, &response));
+	ipc_pair_free(&request);
+	require(response.num_kv == 11);
+	require(strcmp(response.kv[9].key, "INPUT_33") == 0);
+	require(strcmp(response.kv[9].val, "z") == 0);
+	require(strcmp(response.kv[10].key, "BUTTON_34") == 0);
+	require(strcmp(response.kv[10].val, "0") == 0);
+	ipc_pair_free(&response);
+	press(master, terminal, "\033[Z\033[Z\033[Z\033[Z\033[Z\033[Z\033[Z\033[Z\033[Z");
+	require(screen_contains(terminal, "Field 1:"));
+	require(!screen_contains(terminal, "Field 10:"));
+}
+
 int main(void)
 {
 	require(mkdtemp(directory) != NULL);
@@ -297,6 +438,7 @@ int main(void)
 	press(master, terminal, "\033OP");
 	expect_cursor(terminal, 11, 73);
 	check_compose(&ctx, master, terminal);
+	check_compose_scroll(&ctx, master, terminal);
 	require(ipc_pair_add(&request, "action", "quit"));
 	require(ipc_send_message2(&ctx, &request, NULL));
 	ipc_pair_free(&request);

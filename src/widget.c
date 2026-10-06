@@ -972,11 +972,13 @@ void widget_render_tree(struct widget *w)
 		if (!(parent->flags & FLAG_VISIBLE))
 			return;
 
-	/* A pad child update must also redraw the viewport containing it. */
+	/* Redraw enclosing scroll containers so viewports and bars stay in sync. */
 	struct widget *root = w;
+
 	for (struct widget *parent = w->parent; parent; parent = parent->parent)
-		if (parent->type == WIDGET_PAD_BOX)
+		if (parent->type == WIDGET_PAD_BOX || parent->type == WIDGET_SCROLL_VBOX)
 			root = parent;
+
 	widget_render_subtree(root);
 }
 
