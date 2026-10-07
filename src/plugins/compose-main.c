@@ -672,6 +672,35 @@ fail:
 	return NULL;
 }
 
+static bool compose_replace_options(struct request *req, struct widget *w, bool clear)
+{
+	struct widget *replacement;
+
+	if (clear)
+		replacement = make_menu(3);
+	else
+		replacement = create_node(req, COMPOSE_SELECT);
+
+	if (!replacement)
+		return false;
+
+	bool ok = widget_menu_replace_options(w, replacement);
+	widget_free(replacement);
+
+	if (!ok)
+		return req_error(req, "replacement options do not fit the select viewport");
+
+	return true;
+}
+
+static void compose_update_attribute(struct widget *w, int attr, bool enabled)
+{
+	w->attrs &= ~attr;
+
+	if (enabled)
+		w->attrs |= attr;
+}
+
 static enum p_retcode compose_update(struct request *req, struct widget *root)
 {
 	static const struct req_parameter parameters[] = {
@@ -721,137 +750,99 @@ static enum p_retcode compose_update(struct request *req, struct widget *root)
 		return P_RET_ERR;
 	}
 
-	if (options || clear) {
-		struct widget *replacement;
+	if ((options || clear) && !compose_replace_options(req, w, clear))
+		return P_RET_ERR;
 
-		if (clear)
-			replacement = make_menu(3);
-		else
-			replacement = create_node(req, COMPOSE_SELECT);
+	if (req_get_val(req, "disabled"))
+		compose_update_attribute(w, ATTR_DISABLED, disabled);
 
-		if (!replacement)
-			return P_RET_ERR;
-
-		bool ok = widget_menu_replace_options(w, replacement);
-		widget_free(replacement);
-
-		if (!ok) {
-			req_error(req, "replacement options do not fit the select viewport");
-			return P_RET_ERR;
-		}
-	}
-
-	if (req_get_val(req, "disabled")) {
-		w->attrs &= ~ATTR_DISABLED;
-
-		if (disabled)
-			w->attrs |= ATTR_DISABLED;
-	}
-
-	if (req_get_val(req, "readonly")) {
-		w->attrs &= ~ATTR_READONLY;
-
-		if (readonly)
-			w->attrs |= ATTR_READONLY;
-	}
+	if (req_get_val(req, "readonly"))
+		compose_update_attribute(w, ATTR_READONLY, readonly);
 
 	return P_RET_OK;
 }
 
-static enum p_retcode compose_set_value(struct request *req, struct widget *root)
+static const char *compose_value_field(const struct widget *w)
 {
-	struct widget *w = resolve_node(req, root);
-
-	if (!w)
-		return P_RET_ERR;
-
-	const char *field = "value";
-
 	if (w->type == WIDGET_CHECKBOX)
-		field = "checked";
-	else if (w->type == WIDGET_BUTTON)
-		field = "clicked";
-	else if (w->type == WIDGET_LABEL)
-		field = "text";
-	else if (w->type == WIDGET_SPINNER)
-		field = "active";
+		return "checked";
 
-	const struct req_parameter parameters[] = {
-		{ "action",  false },
-		{ "id",      false },
-		{ "node",    false },
-		{ "node-id", false },
-		{ field,     false },
-		{ NULL,      false },
-	};
+	if (w->type == WIDGET_BUTTON)
+		return "clicked";
 
-	if (!req_validate_parameters(req, parameters, "unknown set-value parameter",
-				     "duplicate set-value parameter"))
-		return P_RET_ERR;
+	if (w->type == WIDGET_LABEL)
+		return "text";
 
-	if (w->type != WIDGET_BUTTON && !req_get_val(req, field)) {
-		req_error(req, "field is missing: %s", field);
-		return P_RET_ERR;
-	}
+	if (w->type == WIDGET_SPINNER)
+		return "active";
 
+	return "value";
+}
+
+static bool compose_set_textview(struct widget *w, struct request *req)
+{
+	wchar_t *text __free(ptr) = req_get_wchars(req, "value");
+
+	if (!text || wcslen(text) > COMPOSE_MAX_SIZE)
+		return false;
+
+	struct widget *candidate = make_label(text);
+
+	if (!candidate)
+		return false;
+
+	widget_measure_tree(candidate);
+	bool fits = candidate->min_w <= COMPOSE_MAX_SIZE &&
+		    candidate->min_h <= COMPOSE_MAX_SIZE &&
+		    (size_t) candidate->min_w * (size_t) candidate->min_h <= 1024 * 1024;
+	widget_free(candidate);
+
+	if (!fits || !widget_set(w, PROP_TEXT_VALUE, text))
+		return false;
+
+	widget_measure_tree(w);
+	widget_layout_tree(w, w->lx, w->ly, w->w, w->h);
+	return true;
+}
+
+static bool compose_set_label(struct widget *w, struct request *req)
+{
+	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
+
+	if (!text || wcslen(text) > COMPOSE_MAX_SIZE)
+		return false;
+
+	/* Keep the existing geometry: status updates must fit the label. */
+	struct widget *candidate = make_label(text);
+
+	if (!candidate)
+		return false;
+
+	widget_measure_tree(candidate);
+	bool fits = candidate->min_w <= w->w && candidate->min_h <= w->h;
+	widget_free(candidate);
+
+	return fits && widget_set(w, PROP_TEXT_VALUE, text);
+}
+
+static enum p_retcode compose_set_node_value(struct request *req, struct widget *root,
+					     struct widget *w)
+{
 	bool ok = false;
 
 	switch (w->type) {
-		case WIDGET_TEXTVIEW: {
-			wchar_t *text __free(ptr) = req_get_wchars(req, "value");
-
-			if (!text || wcslen(text) > COMPOSE_MAX_SIZE)
-				break;
-
-			struct widget *candidate = make_label(text);
-
-			if (!candidate)
-				break;
-
-			widget_measure_tree(candidate);
-			bool fits = candidate->min_w <= COMPOSE_MAX_SIZE &&
-				    candidate->min_h <= COMPOSE_MAX_SIZE &&
-				    (size_t) candidate->min_w * (size_t) candidate->min_h <= 1024 * 1024;
-			widget_free(candidate);
-
-			if (fits)
-				ok = widget_set(w, PROP_TEXT_VALUE, text);
-
-			if (ok) {
-				widget_measure_tree(w);
-				widget_layout_tree(w, w->lx, w->ly, w->w, w->h);
-			}
-
+		case WIDGET_TEXTVIEW:
+			ok = compose_set_textview(w, req);
 			break;
-		}
-		case WIDGET_LABEL: {
-			wchar_t *text __free(ptr) = req_get_wchars(req, "text");
-
-			if (!text || wcslen(text) > COMPOSE_MAX_SIZE)
-				break;
-
-			/* Keep the existing geometry: status updates must fit the label. */
-			struct widget *candidate = make_label(text);
-
-			if (!candidate)
-				break;
-
-			widget_measure_tree(candidate);
-			bool fits = candidate->min_w <= w->w && candidate->min_h <= w->h;
-			widget_free(candidate);
-
-			if (fits)
-				ok = widget_set(w, PROP_TEXT_VALUE, text);
-
+		case WIDGET_LABEL:
+			ok = compose_set_label(w, req);
 			break;
-		}
 		case WIDGET_INPUT: {
 			wchar_t *value __free(ptr) = req_get_wchars(req, "value");
 
-			if (!value)
-				break;
+			if (value)
+				ok = widget_set(w, PROP_INPUT_VALUE, value);
 
-			ok = widget_set(w, PROP_INPUT_VALUE, value);
 			break;
 		}
 		case WIDGET_METER: {
@@ -933,33 +924,54 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 		return P_RET_ERR;
 	}
 
+	return P_RET_OK;
+}
+
+static void compose_reveal_node(struct widget *w)
+{
 	for (struct widget *parent = w->parent; parent; parent = parent->parent) {
 		if (parent->ops && parent->ops->ensure_visible)
 			parent->ops->ensure_visible(parent, w);
 	}
-
-	return P_RET_OK;
 }
 
-static enum p_retcode compose_get_value(struct request *req, struct widget *root)
+static enum p_retcode compose_set_value(struct request *req, struct widget *root)
 {
-	static const struct req_parameter parameters[] = {
-		{ "action",  false },
-		{ "id",      false },
-		{ "node",    false },
-		{ "node-id", false },
-		{ NULL,      false },
-	};
-
-	if (!req_validate_parameters(req, parameters, "unknown get-value parameter",
-				     "duplicate get-value parameter"))
-		return P_RET_ERR;
-
 	struct widget *w = resolve_node(req, root);
 
 	if (!w)
 		return P_RET_ERR;
 
+	const char *field = compose_value_field(w);
+
+	const struct req_parameter parameters[] = {
+		{ "action",  false },
+		{ "id",      false },
+		{ "node",    false },
+		{ "node-id", false },
+		{ field,     false },
+		{ NULL,      false },
+	};
+
+	if (!req_validate_parameters(req, parameters, "unknown set-value parameter",
+				     "duplicate set-value parameter"))
+		return P_RET_ERR;
+
+	if (w->type != WIDGET_BUTTON && !req_get_val(req, field)) {
+		req_error(req, "field is missing: %s", field);
+		return P_RET_ERR;
+	}
+
+	if (compose_set_node_value(req, root, w) != P_RET_OK)
+		return P_RET_ERR;
+
+	compose_reveal_node(w);
+
+	return P_RET_OK;
+}
+
+static enum p_retcode compose_send_node_value(struct request *req, struct widget *w)
+{
 	int number = 0;
 	bool state = false, ok = false;
 
@@ -1004,6 +1016,28 @@ static enum p_retcode compose_get_value(struct request *req, struct widget *root
 
 	req_error(req, "unable to get node value: node=%d", w->w_id);
 	return P_RET_ERR;
+}
+
+static enum p_retcode compose_get_value(struct request *req, struct widget *root)
+{
+	static const struct req_parameter parameters[] = {
+		{ "action",  false },
+		{ "id",      false },
+		{ "node",    false },
+		{ "node-id", false },
+		{ NULL,      false },
+	};
+
+	if (!req_validate_parameters(req, parameters, "unknown get-value parameter",
+				     "duplicate get-value parameter"))
+		return P_RET_ERR;
+
+	struct widget *w = resolve_node(req, root);
+
+	if (!w)
+		return P_RET_ERR;
+
+	return compose_send_node_value(req, w);
 }
 
 static bool collect_result(struct widget *w, void *data)
