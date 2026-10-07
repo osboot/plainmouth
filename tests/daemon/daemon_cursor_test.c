@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,20 +45,67 @@ static void check(bool condition, int line)
 
 #define require(condition) check((condition), __LINE__)
 
-static void drain(int fd, VTerm *terminal)
+static int64_t monotonic_ms(void)
+{
+	struct timespec now;
+	require(clock_gettime(CLOCK_MONOTONIC, &now) == 0);
+	return (int64_t) now.tv_sec * 1000 + now.tv_nsec / 1000000;
+}
+
+static bool read_terminal(int fd, VTerm *terminal, int timeout)
 {
 	struct pollfd pfd = { .fd = fd, .events = POLLIN };
-	for (;;) {
-		int ret = poll(&pfd, 1, 50);
-		if (ret < 0 && errno == EINTR)
-			continue;
-		require(ret >= 0);
-		if (!ret)
-			return;
-		char buffer[8192];
-		ssize_t n = read(fd, buffer, sizeof(buffer));
-		require(n > 0);
-		require(vterm_input_write(terminal, buffer, (size_t) n) == (size_t) n);
+	int ret;
+
+	do {
+		ret = poll(&pfd, 1, timeout);
+	} while (ret < 0 && errno == EINTR);
+
+	require(ret >= 0);
+
+	if (!ret)
+		return false;
+
+	char buffer[8192];
+	ssize_t n = read(fd, buffer, sizeof(buffer));
+	require(n > 0);
+	require(vterm_input_write(terminal, buffer, (size_t) n) == (size_t) n);
+	return true;
+}
+
+static void drain(int fd, VTerm *terminal)
+{
+	while (read_terminal(fd, terminal, 50))
+		;
+}
+
+static bool await_output(int fd, VTerm *terminal, int64_t deadline)
+{
+	int64_t remaining = deadline - monotonic_ms();
+
+	if (remaining <= 0)
+		return false;
+
+	return read_terminal(fd, terminal, (int) remaining);
+}
+
+static void dump_screen(VTerm *terminal)
+{
+	int rows, cols;
+	vterm_get_size(terminal, &rows, &cols);
+
+	for (int row = 0; row < rows; row++) {
+		fputc('|', stderr);
+
+		for (int col = 0; col < cols; col++) {
+			VTermScreenCell cell;
+			VTermPos position = { .row = row, .col = col };
+			require(vterm_screen_get_cell(vterm_obtain_screen(terminal), position, &cell));
+			uint32_t character = cell.chars[0];
+			fputc(character >= 32 && character < 127 ? (int) character : ' ', stderr);
+		}
+
+		fputs("|\n", stderr);
 	}
 }
 
@@ -68,15 +116,25 @@ static void press(int fd, VTerm *terminal, const char *key)
 	drain(fd, terminal);
 }
 
-static void expect_cursor(VTerm *terminal, int row, int column)
+static void expect_cursor(int fd, VTerm *terminal, int row, int column)
 {
+	int64_t deadline = monotonic_ms() + 2000;
 	VTermPos position;
-	vterm_state_get_cursorpos(vterm_obtain_state(terminal), &position);
-	if (position.row != row || position.col != column) {
-		fprintf(stderr, "cursor: expected %d,%d, got %d,%d\n", row, column,
-			position.row, position.col);
-		require(false);
+
+	for (;;) {
+		vterm_state_get_cursorpos(vterm_obtain_state(terminal), &position);
+
+		if (position.row == row && position.col == column)
+			return;
+
+		if (!await_output(fd, terminal, deadline))
+			break;
 	}
+
+	fprintf(stderr, "cursor: expected %d,%d, got %d,%d\n", row, column,
+		position.row, position.col);
+	dump_screen(terminal);
+	require(false);
 }
 
 static void open_help(int fd, VTerm *terminal)
@@ -375,13 +433,40 @@ static bool screen_contains(VTerm *terminal, const char *text)
 	return false;
 }
 
-static void expect_screen_character(VTerm *terminal, int row, int col, uint32_t character)
+static void expect_screen_text(int fd, VTerm *terminal, const char *text, bool present)
+{
+	int64_t deadline = monotonic_ms() + 2000;
+
+	while (screen_contains(terminal, text) != present) {
+		if (!await_output(fd, terminal, deadline)) {
+			fprintf(stderr, "screen: expected '%s' to be %s\n", text,
+				present ? "present" : "absent");
+			dump_screen(terminal);
+			require(false);
+		}
+	}
+}
+
+static void expect_screen_character(int fd, VTerm *terminal, int row, int col, uint32_t character)
 {
 	VTermScreenCell cell;
 	VTermPos position = { .row = row, .col = col };
+	int64_t deadline = monotonic_ms() + 2000;
 
-	require(vterm_screen_get_cell(vterm_obtain_screen(terminal), position, &cell));
-	require(cell.chars[0] == character);
+	for (;;) {
+		require(vterm_screen_get_cell(vterm_obtain_screen(terminal), position, &cell));
+
+		if (cell.chars[0] == character)
+			return;
+
+		if (!await_output(fd, terminal, deadline))
+			break;
+	}
+
+	fprintf(stderr, "screen at %d,%d: expected U+%04X, got U+%04X\n",
+		row, col, character, cell.chars[0]);
+	dump_screen(terminal);
+	require(false);
 }
 
 static void check_compose_scroll(struct ipc_ctx *ctx, int master, VTerm *terminal)
@@ -437,39 +522,39 @@ static void check_compose_scroll(struct ipc_ctx *ctx, int master, VTerm *termina
 	ipc_pair_free(&request);
 	request = (struct ipc_pair) { 0 };
 	drain(master, terminal);
-	require(screen_contains(terminal, "Field 1:"));
-	require(!screen_contains(terminal, "Field 10:"));
-	expect_screen_character(terminal, 1, 28, '^');
+	expect_screen_text(master, terminal, "Field 1:", true);
+	expect_screen_text(master, terminal, "Field 10:", false);
+	expect_screen_character(master, terminal, 1, 28, '^');
 	press(master, terminal, "\t\033OB\033OB");
-	require(screen_contains(terminal, "Field 3:"));
-	require(!screen_contains(terminal, "Field 1:"));
-	require(screen_contains(terminal, "[OK]"));
-	expect_screen_character(terminal, 2, 28, '^');
-	expect_screen_character(terminal, 3, 28, 'v');
+	expect_screen_text(master, terminal, "Field 3:", true);
+	expect_screen_text(master, terminal, "Field 1:", false);
+	expect_screen_text(master, terminal, "[OK]", true);
+	expect_screen_character(master, terminal, 2, 28, '^');
+	expect_screen_character(master, terminal, 3, 28, 'v');
 	press(master, terminal, "\033OA\033OA");
-	require(screen_contains(terminal, "Field 1:"));
-	expect_screen_character(terminal, 1, 28, '^');
+	expect_screen_text(master, terminal, "Field 1:", true);
+	expect_screen_character(master, terminal, 1, 28, '^');
 	press(master, terminal, "\t\t\t\t\t\t\t\t\tz");
-	require(screen_contains(terminal, "Field 10: z"));
-	require(!screen_contains(terminal, "Field 1:"));
-	require(screen_contains(terminal, "[OK]"));
-	expect_cursor(terminal, 5, 12);
+	expect_screen_text(master, terminal, "Field 10: z", true);
+	expect_screen_text(master, terminal, "Field 1:", false);
+	expect_screen_text(master, terminal, "[OK]", true);
+	expect_cursor(master, terminal, 5, 12);
 
 	for (int i = 0; i < 3; i++) {
 		struct winsize size = { .ws_row = 6, .ws_col = 20 };
 		vterm_set_size(terminal, 6, 20);
 		require(ioctl(master, TIOCSWINSZ, &size) == 0);
 		drain(master, terminal);
-		require(screen_contains(terminal, "Field 10: z"));
-		require(screen_contains(terminal, "[OK]"));
-		expect_cursor(terminal, 3, 12);
+		expect_screen_text(master, terminal, "Field 10: z", true);
+		expect_screen_text(master, terminal, "[OK]", true);
+		expect_cursor(master, terminal, 3, 12);
 		size = (struct winsize) { .ws_row = 24, .ws_col = 120 };
 		vterm_set_size(terminal, 24, 120);
 		require(ioctl(master, TIOCSWINSZ, &size) == 0);
 		drain(master, terminal);
-		require(screen_contains(terminal, "Field 10: z"));
-		require(screen_contains(terminal, "[OK]"));
-		expect_cursor(terminal, 5, 12);
+		expect_screen_text(master, terminal, "Field 10: z", true);
+		expect_screen_text(master, terminal, "[OK]", true);
+		expect_cursor(master, terminal, 5, 12);
 	}
 
 	struct ipc_pair response = { 0 };
@@ -484,8 +569,8 @@ static void check_compose_scroll(struct ipc_ctx *ctx, int master, VTerm *termina
 	require(strcmp(response.kv[10].val, "0") == 0);
 	ipc_pair_free(&response);
 	press(master, terminal, "\033[Z\033[Z\033[Z\033[Z\033[Z\033[Z\033[Z\033[Z\033[Z");
-	require(screen_contains(terminal, "Field 1:"));
-	require(!screen_contains(terminal, "Field 10:"));
+	expect_screen_text(master, terminal, "Field 1:", true);
+	expect_screen_text(master, terminal, "Field 10:", false);
 }
 
 static void check_compose_layout(struct ipc_ctx *ctx, int master, VTerm *terminal)
@@ -546,28 +631,28 @@ static void check_compose_layout(struct ipc_ctx *ctx, int master, VTerm *termina
 	ipc_pair_free(&request);
 	drain(master, terminal);
 	press(master, terminal, "x");
-	expect_cursor(terminal, 3, 9);
-	expect_screen_character(terminal, 10, 17, '[');
-	expect_screen_character(terminal, 10, 21, ' ');
-	expect_screen_character(terminal, 10, 22, ' ');
-	expect_screen_character(terminal, 10, 23, '[');
-	expect_screen_character(terminal, 10, 30, ']');
+	expect_cursor(master, terminal, 3, 9);
+	expect_screen_character(master, terminal, 10, 17, '[');
+	expect_screen_character(master, terminal, 10, 21, ' ');
+	expect_screen_character(master, terminal, 10, 22, ' ');
+	expect_screen_character(master, terminal, 10, 23, '[');
+	expect_screen_character(master, terminal, 10, 30, ']');
 	struct winsize size = { .ws_row = 10, .ws_col = 24 };
 	vterm_set_size(terminal, 10, 24);
 	require(ioctl(master, TIOCSWINSZ, &size) == 0);
 	drain(master, terminal);
-	expect_cursor(terminal, 3, 9);
-	expect_screen_character(terminal, 8, 9, '[');
-	expect_screen_character(terminal, 8, 13, ' ');
-	expect_screen_character(terminal, 8, 14, ' ');
-	expect_screen_character(terminal, 8, 15, '[');
-	expect_screen_character(terminal, 8, 22, ']');
+	expect_cursor(master, terminal, 3, 9);
+	expect_screen_character(master, terminal, 8, 9, '[');
+	expect_screen_character(master, terminal, 8, 13, ' ');
+	expect_screen_character(master, terminal, 8, 14, ' ');
+	expect_screen_character(master, terminal, 8, 15, '[');
+	expect_screen_character(master, terminal, 8, 22, ']');
 	size = (struct winsize) { .ws_row = 24, .ws_col = 120 };
 	vterm_set_size(terminal, 24, 120);
 	require(ioctl(master, TIOCSWINSZ, &size) == 0);
 	drain(master, terminal);
-	expect_screen_character(terminal, 10, 17, '[');
-	expect_screen_character(terminal, 10, 30, ']');
+	expect_screen_character(master, terminal, 10, 17, '[');
+	expect_screen_character(master, terminal, 10, 30, ']');
 	press(master, terminal, "\t\n");
 	request = (struct ipc_pair) { 0 };
 	struct ipc_pair response = { 0 };
@@ -654,26 +739,26 @@ int main(void)
 	request = (struct ipc_pair) { 0 };
 	drain(master, terminal);
 	press(master, terminal, "\t");
-	expect_cursor(terminal, 11, 61);
+	expect_cursor(master, terminal, 11, 61);
 	open_help(master, terminal);
-	expect_cursor(terminal, 11, 61);
+	expect_cursor(master, terminal, 11, 61);
 	press(master, terminal, "x");
-	expect_cursor(terminal, 11, 62);
+	expect_cursor(master, terminal, 11, 62);
 	press(master, terminal, "\177");
-	expect_cursor(terminal, 11, 61);
+	expect_cursor(master, terminal, 11, 61);
 	press(master, terminal, "\033OD");
-	expect_cursor(terminal, 11, 60);
+	expect_cursor(master, terminal, 11, 60);
 	press(master, terminal, "\033OC");
-	expect_cursor(terminal, 11, 61);
+	expect_cursor(master, terminal, 11, 61);
 	for (int i = 0; i < 14; i++) {
 		press(master, terminal, "x");
 		int column = 62 + i;
 		if (column > 73)
 			column = 73;
-		expect_cursor(terminal, 11, column);
+		expect_cursor(master, terminal, 11, column);
 	}
 	press(master, terminal, "\033OP");
-	expect_cursor(terminal, 11, 73);
+	expect_cursor(master, terminal, 11, 73);
 	check_compose(&ctx, master, terminal);
 	check_compose_scroll(&ctx, master, terminal);
 	check_compose_events(&ctx, master, terminal);
