@@ -384,6 +384,8 @@ size_t widget_keybindings(const struct widget *w, struct widget_keybinding *bind
 struct widget *make_menu_option(const wchar_t *text);
 struct widget *make_select_option(const wchar_t *text, bool checked, bool is_radio);
 
+/* PROP_TEXT_VALUE copies an optional single-line label; get returns borrowed text.
+ * Labels are clipped between the upper corners without affecting minimum size. */
 struct widget *make_border(void);
 struct widget *make_border_vbox(struct widget *parent);
 struct widget *make_border_hbox(struct widget *parent);

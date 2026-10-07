@@ -2,6 +2,8 @@
 #include "config.h"
 
 #include <assert.h>
+#include <locale.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "widget.h"
@@ -155,6 +157,57 @@ static void test_node_ids(void)
 	widget_free(other);
 }
 
+static void test_border_label(void)
+{
+	assert(setlocale(LC_CTYPE, "C.UTF-8"));
+	FILE *output = tmpfile();
+	FILE *input = tmpfile();
+	assert(output && input);
+	SCREEN *screen = newterm("xterm", output, input);
+	assert(screen);
+	struct widget *border = make_border();
+	assert(border);
+	border->w = 6;
+	border->h = 3;
+	border->win = newwin(3, 6, 0, 0);
+	assert(border->win);
+	border->ops->render(border);
+	chtype corner = mvwinch(border->win, 0, 5);
+	wchar_t label[] = L"Settings";
+	assert(widget_set(border, PROP_TEXT_VALUE, label));
+	label[0] = L'X';
+	const wchar_t *value;
+	assert(widget_get(border, PROP_TEXT_VALUE, &value));
+	assert(wcscmp(value, L"Settings") == 0);
+	widget_measure_tree(border);
+	assert(border->min_w == 2 && border->min_h == 2);
+	border->ops->render(border);
+	assert((mvwinch(border->win, 0, 1) & A_CHARTEXT) == 'S');
+	assert((mvwinch(border->win, 0, 4) & A_CHARTEXT) == 't');
+	assert(mvwinch(border->win, 0, 5) == corner);
+	assert(!widget_set(border, PROP_TEXT_VALUE, L"bad\nlabel"));
+	assert(widget_set(border, PROP_TEXT_VALUE, L"\u754c\u754cX"));
+	border->ops->render(border);
+	assert(mvwinch(border->win, 0, 5) == corner);
+	cchar_t cell;
+	wchar_t chars[CCHARW_MAX];
+	attr_t attrs;
+	short pair;
+	assert(mvwin_wch(border->win, 0, 3, &cell) != ERR);
+	assert(getcchar(&cell, chars, &attrs, &pair, NULL) != ERR);
+	assert(chars[0] == L'\u754c');
+	assert(widget_set(border, PROP_TEXT_VALUE, L""));
+	border->ops->render(border);
+	assert((mvwinch(border->win, 0, 1) & A_CHARTEXT) != 'S');
+	delwin(border->win);
+	border->win = NULL;
+	widget_free(border);
+	endwin();
+	delscreen(screen);
+	fclose(input);
+	fclose(output);
+}
+
 int main(void)
 {
 	test_horizontal();
@@ -162,5 +215,6 @@ int main(void)
 	test_empty_and_single();
 	test_scroll_content();
 	test_node_ids();
+	test_border_label();
 	return 0;
 }

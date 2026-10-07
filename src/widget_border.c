@@ -10,6 +10,8 @@
 #include <sys/queue.h>
 #include <unistd.h>
 #include <err.h>
+#include <stdlib.h>
+#include <wchar.h>
 
 #include "macros.h"
 #include "widget.h"
@@ -47,6 +49,63 @@ void border_layout(struct widget *w)
 void border_render(struct widget *w)
 {
 	box(w->win, 0, 0);
+
+	const wchar_t *text = w->state;
+	int available = w->w - 2;
+	int columns = 0;
+	int length = 0;
+
+	if (!text || available <= 0)
+		return;
+
+	while (text[length]) {
+		int width = wcwidth(text[length]);
+
+		if (width < 0 || width > available - columns)
+			break;
+
+		columns += width;
+		length++;
+	}
+
+	if (length)
+		mvwaddnwstr(w->win, 0, 1, text, length);
+}
+
+static bool border_setter(struct widget *w, enum widget_property prop, const void *value)
+{
+	if (prop != PROP_TEXT_VALUE || !value)
+		return false;
+
+	const wchar_t *text = value;
+
+	for (size_t i = 0; text[i]; i++) {
+		if (wcwidth(text[i]) < 0)
+			return false;
+	}
+
+	wchar_t *copy = wcsdup(text);
+
+	if (!copy)
+		return false;
+
+	free(w->state);
+	w->state = copy;
+	return true;
+}
+
+static bool border_getter(struct widget *w, enum widget_property prop, void *value)
+{
+	if (prop != PROP_TEXT_VALUE)
+		return false;
+
+	*(const wchar_t **) value = w->state ? w->state : L"";
+	return true;
+}
+
+static void border_free(struct widget *w)
+{
+	free(w->state);
 }
 
 static const struct widget_ops border_ops = {
@@ -55,12 +114,12 @@ static const struct widget_ops border_ops = {
 	.render           = border_render,
 	.finalize_render  = NULL,
 	.child_render_win = NULL,
-	.free             = NULL,
+	.free             = border_free,
 	.input            = NULL,
 	.add_child        = NULL,
 	.ensure_visible   = NULL,
-	.setter           = NULL,
-	.getter           = NULL,
+	.setter           = border_setter,
+	.getter           = border_getter,
 	.getter_index     = NULL,
 };
 
