@@ -646,9 +646,7 @@ static void handle_input(void)
 	if (focused && focused->ops && (focused->ops->input_event || focused->ops->input)) {
 		struct instance *instance = daemon_instance_find(focused->instance_id);
 
-		widget_dispatch_input(focused, (wchar_t) code, ret == KEY_CODE_YES);
-
-		daemon_instance_check_finished(instance);
+		daemon_instance_input(instance, focused, (wchar_t) code, ret == KEY_CODE_YES);
 		ui_update();
 	}
 }

@@ -411,14 +411,25 @@ supported. Inserting nodes requires no changes to parent references; clients
 still calculate result IDs from declaration order. Dynamic structural
 updates are not supported.
 
-`action=wait-event id=ID` waits for a non-closing button activation and returns
+Checkbox, select and spinbox nodes accept `notify=true` (default false).
+After a user changes their value, `action=wait-event id=ID` returns
+`EVENT=change`, `NODE=N`, optional `NODE_ID=ID`, and `VALUE=number`.
+Checkbox values are 0/1; select values are 1-based option numbers; spinbox
+values are committed integers. Pending digits, cancelled edits, and keys
+that leave the value unchanged produce no event. `set-value` updates do not
+produce change events. `notify` is fixed at creation; disabled and read-only
+nodes do not react to input. Inputs and passwords do not support `notify`.
+
+`action=wait-event id=ID` also waits for a non-closing button activation and returns
 `EVENT=button` and `NODE=N` (the declaration-order ID). An event from
 a named button also returns `NODE_ID=ID`; unnamed buttons omit this pair.
 The name is captured when the event is queued.
 Keyboard activation and `set-value clicked=true` both enqueue events and reset the button
 state, allowing repeated clicks. Events are consumed once, in FIFO order;
 multiple waiting clients compete for events rather than receiving broadcasts.
-Clicks before a waiter connects are retained. Each dialog queues at most 256
+Changes and clicks share a FIFO queue, retaining the value at the time of
+the event, even when later input or `set-value` changes the node again.
+Events before a waiter connects are retained. Each dialog queues at most 256
 events; overflow makes subsequent waits fail explicitly until deletion.
 When the queue is empty, finishing/deleting the dialog or stopping the server
 wakes waiters with an error. Closing buttons continue to use `wait-result`.

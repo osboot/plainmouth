@@ -40,7 +40,7 @@ enum compose_type {
 
 static const struct {
 	const char *name;
-	const char *properties[5];
+	const char *properties[6];
 } types[COMPOSE_COUNT] = {
 	[COMPOSE_VBOX]     = { "vbox",     { "gap", NULL }                        },
 	[COMPOSE_HBOX]     = { "hbox",     { "gap", NULL }                        },
@@ -48,19 +48,20 @@ static const struct {
 	[COMPOSE_LABEL]    = { "label",    { "text", NULL }                       },
 	[COMPOSE_INPUT]    = { "input",    { "value", "max-length", NULL }        },
 	[COMPOSE_PASSWORD] = { "password", { "value", "max-length", NULL }        },
-	[COMPOSE_CHECKBOX] = { "checkbox", { "checked", NULL }                    },
-	[COMPOSE_SELECT]   = { "select",   { "option", "visible", "value", NULL } },
+	[COMPOSE_CHECKBOX] = { "checkbox", { "checked", "notify", NULL } },
+	[COMPOSE_SELECT]   = { "select",   { "option", "visible", "value", "notify", NULL } },
 	[COMPOSE_BUTTON]   = { "button",   { "text", "close", NULL }              },
 	[COMPOSE_SPACER]   = { "spacer",   { "width", "height", NULL }            },
 	[COMPOSE_METER]    = { "meter",    { "total", "value", NULL }             },
 	[COMPOSE_SPINNER]  = { "spinner",  { "active", "frames", NULL }           },
-	[COMPOSE_SPINBOX]  = { "spinbox",  { "min", "max", "step", "value", NULL } },
+	[COMPOSE_SPINBOX]  = { "spinbox",  { "min", "max", "step", "value", "notify", NULL } },
 	[COMPOSE_TEXTVIEW] = { "textview", { "text", NULL }                       },
 };
 
 struct compose_state {
 	struct pollfd timer;
 	bool running, finished, failed;
+	bool notify[COMPOSE_MAX_NODES + 1];
 };
 
 static bool find_active_spinner(struct widget *w, void *data)
@@ -591,12 +592,13 @@ static struct widget *compose_create(struct request *req)
 		}
 
 		int flex_w, flex_h;
-		bool disabled, readonly;
+		bool disabled, readonly, notify;
 
 		if (!read_number(&node, "flex-w", 0, 0, 256, &flex_w) ||
 		    !read_number(&node, "flex-h", count ? 0 : 1, 0, 256, &flex_h) ||
 		    !req_read_bool(&node, "disabled", false, &disabled) ||
-		    !req_read_bool(&node, "readonly", false, &readonly))
+		    !req_read_bool(&node, "readonly", false, &readonly) ||
+		    !req_read_bool(&node, "notify", false, &notify))
 			goto fail;
 
 		if ((!depth && count) ||
@@ -631,6 +633,7 @@ static struct widget *compose_create(struct request *req)
 		}
 
 		w->w_id = ++count;
+		st->notify[count] = notify;
 		w->flex_w = flex_w;
 		w->flex_h = flex_h;
 
@@ -989,6 +992,37 @@ static bool scan_buttons(struct widget *w, void *data)
 	return false;
 }
 
+static bool compose_change_value(struct widget *root, struct widget *node, int *value)
+{
+	struct compose_state *st = root->data;
+
+	if (node->w_id <= 0 || node->w_id > COMPOSE_MAX_NODES || !st->notify[node->w_id])
+		return false;
+
+	switch (node->type) {
+		case WIDGET_CHECKBOX: {
+			bool checked;
+
+			if (!widget_get(node, PROP_CHECKBOX_STATE, &checked))
+				return false;
+
+			*value = checked;
+			return true;
+		}
+		case WIDGET_SELECT:
+
+			if (!widget_get(node, PROP_SELECT_CURSOR, value))
+				return false;
+
+			(*value)++;
+			return true;
+		case WIDGET_SPINBOX:
+			return widget_get(node, PROP_SPINBOX_VALUE, value);
+		default:
+			return false;
+	}
+}
+
 static int compose_take_event(struct widget *root)
 {
 	struct button_scan scan = { 0 };
@@ -1099,6 +1133,7 @@ struct plugin plugin = {
 	.p_set_value_instance = compose_set_value,
 	.p_finished           = compose_finished,
 	.p_take_button_event  = compose_take_event,
+	.p_change_value       = compose_change_value,
 	.p_result             = compose_result,
 	.p_pollfds            = compose_pollfds,
 	.p_handle_event       = compose_event,

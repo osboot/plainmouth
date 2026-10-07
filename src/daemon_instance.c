@@ -114,6 +114,41 @@ static void widget_ensure_visible(struct widget *w)
 	}
 }
 
+static void queue_event(struct instance *instance, int node, bool change, int value)
+{
+	pthread_mutex_lock(&instances_mutex);
+
+	if (instance->event_count == INSTANCE_MAX_EVENTS) {
+		instance->event_overflow = true;
+	} else {
+		size_t pos = (instance->event_head + instance->event_count++) % INSTANCE_MAX_EVENTS;
+		struct instance_event *event = &instance->events[pos];
+		*event = (struct instance_event) { .node = node, .change = change, .value = value };
+		struct widget *w = find_widget_by_id(instance->root, node);
+
+		if (w && w->node_id)
+			snprintf(event->node_id, sizeof(event->node_id), "%s", w->node_id);
+	}
+
+	pthread_cond_broadcast(&instance_cond);
+	pthread_mutex_unlock(&instances_mutex);
+}
+
+void daemon_instance_input(struct instance *instance, struct widget *node,
+			   wchar_t key, bool keycode)
+{
+	int before, after;
+	bool notify = instance && !instance->finished && instance->plugin->p_change_value &&
+		      instance->plugin->p_change_value(instance->root, node, &before);
+	widget_dispatch_input(node, key, keycode);
+
+	if (notify && instance->plugin->p_change_value(instance->root, node, &after) &&
+	    before != after)
+		queue_event(instance, node->w_id, true, after);
+
+	daemon_instance_check_finished(instance);
+}
+
 void daemon_instance_check_finished(struct instance *instance)
 {
 	if (!instance || instance->finished)
@@ -123,24 +158,7 @@ void daemon_instance_check_finished(struct instance *instance)
 		int node;
 
 		while ((node = instance->plugin->p_take_button_event(instance->root)) > 0) {
-			pthread_mutex_lock(&instances_mutex);
-
-			if (instance->event_count == INSTANCE_MAX_EVENTS) {
-				instance->event_overflow = true;
-			} else {
-				size_t pos = (instance->event_head + instance->event_count++) %
-					     INSTANCE_MAX_EVENTS;
-				struct button_event *event = &instance->button_events[pos];
-				event->node = node;
-				event->node_id[0] = '\0';
-				struct widget *w = find_widget_by_id(instance->root, node);
-
-				if (w && w->node_id)
-					snprintf(event->node_id, sizeof(event->node_id), "%s", w->node_id);
-			}
-
-			pthread_cond_broadcast(&instance_cond);
-			pthread_mutex_unlock(&instances_mutex);
+			queue_event(instance, node, false, 0);
 		}
 	}
 
@@ -477,7 +495,7 @@ bool daemon_instance_wait_event(struct request *req)
 {
 	const char *id = req_get_val(req, "id");
 	const char *error = NULL;
-	struct button_event event = { 0 };
+	struct instance_event event = { 0 };
 	pthread_mutex_lock(&instances_mutex);
 	struct instance *initial = daemon_instance_find(id);
 	size_t generation = initial ? initial->generation : 0;
@@ -489,7 +507,7 @@ bool daemon_instance_wait_event(struct request *req)
 			error = "server stopping";
 		else if (!instance || instance->generation != generation)
 			error = "no instance";
-		else if (!instance->plugin->p_take_button_event)
+		else if (!instance->plugin->p_take_button_event && !instance->plugin->p_change_value)
 			error = "wait-event is unsupported by plugin";
 		else if (instance->event_overflow)
 			error = "event queue overflow";
@@ -498,7 +516,7 @@ bool daemon_instance_wait_event(struct request *req)
 			break;
 
 		if (instance->event_count) {
-			event = instance->button_events[instance->event_head];
+			event = instance->events[instance->event_head];
 			instance->event_head = (instance->event_head + 1) %
 					       INSTANCE_MAX_EVENTS;
 			instance->event_count--;
@@ -518,10 +536,17 @@ bool daemon_instance_wait_event(struct request *req)
 	if (error)
 		return req_error(req, "%s", error);
 
-	return ipc_send_string(req_fd(req), "RESPDATA %s EVENT=button", req_id(req)) > 0 &&
+	const char *type = "button";
+
+	if (event.change)
+		type = "change";
+
+	return ipc_send_string(req_fd(req), "RESPDATA %s EVENT=%s", req_id(req), type) > 0 &&
 	       ipc_send_string(req_fd(req), "RESPDATA %s NODE=%d", req_id(req), event.node) > 0 &&
 	       (!event.node_id[0] ||
-		ipc_send_string(req_fd(req), "RESPDATA %s NODE_ID=%s", req_id(req), event.node_id) > 0);
+		ipc_send_string(req_fd(req), "RESPDATA %s NODE_ID=%s", req_id(req), event.node_id) > 0) &&
+	       (!event.change ||
+		ipc_send_string(req_fd(req), "RESPDATA %s VALUE=%d", req_id(req), event.value) > 0);
 }
 
 void daemon_instances_stop(void)

@@ -14,9 +14,11 @@ struct request;
 
 #define INSTANCE_MAX_EVENTS 256
 
-struct button_event {
+struct instance_event {
 	int node;
 	char node_id[WIDGET_NODE_ID_MAX + 1];
+	bool change;
+	int value;
 };
 
 struct instance {
@@ -31,7 +33,7 @@ struct instance {
 	bool finished; /* Written by the module; UI-thread readers only. */
 	bool events_disabled;
 	bool redraw_pending;
-	struct button_event button_events[INSTANCE_MAX_EVENTS];
+	struct instance_event events[INSTANCE_MAX_EVENTS];
 	size_t event_head, event_count;
 	bool event_overflow;
 	size_t generation;
@@ -47,6 +49,8 @@ void daemon_instance_delete(struct instance *instance);
 void daemon_instances_free(void);
 void daemon_instances_resize(void);
 void daemon_instance_check_finished(struct instance *instance);
+void daemon_instance_input(struct instance *instance, struct widget *node,
+			   wchar_t key, bool keycode);
 bool daemon_instance_focus(struct instance *instance);
 struct widget *daemon_focus_get(void);
 void daemon_focus_next(void);

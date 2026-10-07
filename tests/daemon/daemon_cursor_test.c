@@ -844,6 +844,121 @@ static void check_compose_textview(struct ipc_ctx *ctx, int master, VTerm *termi
 	ipc_pair_free(&request);
 }
 
+static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *terminal)
+{
+	const char *fields[][2] = {
+		{ "action",  "create"   },
+		{ "plugin",  "compose"  },
+		{ "id",      "changes"  },
+		{ "width",   "32"       },
+		{ "height",  "10"       },
+		{ "x",       "0"        },
+		{ "y",       "0"        },
+		{ "node",    "vbox"     },
+		{ "node",    "checkbox" },
+		{ "node-id", "tls"      },
+		{ "notify",  "true"     },
+		{ "node",    "end"      },
+		{ "node",    "select"   },
+		{ "notify",  "true"     },
+		{ "option",  "One"      },
+		{ "option",  "Two"      },
+		{ "node",    "end"      },
+		{ "node",    "spinbox"  },
+		{ "node-id", "count"    },
+		{ "notify",  "true"     },
+		{ "min",     "-10"      },
+		{ "max",     "10"       },
+		{ "value",   "0"        },
+		{ "node",    "end"      },
+		{ "node",    "checkbox" },
+		{ "notify",  "false"    },
+		{ "node",    "end"      },
+		{ "node",    "button"   },
+		{ "text",    "Test"     },
+		{ "close",   "false"    },
+		{ "node",    "end"      },
+		{ "node",    "button"   },
+		{ "text",    "OK"       },
+		{ "node",    "end"      },
+		{ "node",    "end"      },
+	};
+	struct ipc_pair request = { 0 };
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		require(ipc_pair_add(&request, fields[i][0], fields[i][1]));
+
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "focus"));
+	require(ipc_pair_add(&request, "id", "changes"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	press(master, terminal, " ");
+	press(master, terminal, " ");
+	press(master, terminal, "\t");
+	press(master, terminal, "\033OB");
+	press(master, terminal, "\033OB");
+	press(master, terminal, "\t");
+	press(master, terminal, "\033OA");
+	press(master, terminal, "2");
+	press(master, terminal, "\n");
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "set-value"));
+	require(ipc_pair_add(&request, "id", "changes"));
+	require(ipc_pair_add(&request, "node-id", "count"));
+	require(ipc_pair_add(&request, "value", "5"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	press(master, terminal, "\033OA");
+	press(master, terminal, "\t");
+	press(master, terminal, " ");
+	press(master, terminal, "\t");
+	press(master, terminal, "\n");
+	press(master, terminal, "\t");
+	press(master, terminal, "\n");
+	const char *nodes[] = { "2", "2", "3", "4", "4", "4", "6" };
+	const char *values[] = { "1", "0", "2", "1", "2", "6", NULL };
+	const char *names[] = { "tls", "tls", NULL, "count", "count", "count", NULL };
+
+	for (size_t i = 0; i < sizeof(nodes) / sizeof(*nodes); i++) {
+		request = (struct ipc_pair) { 0 };
+		struct ipc_pair response = { 0 };
+		require(ipc_pair_add(&request, "action", "wait-event"));
+		require(ipc_pair_add(&request, "id", "changes"));
+		require(ipc_send_message2(ctx, &request, &response));
+		size_t count = 2;
+		require(strcmp(response.kv[0].key, "EVENT") == 0);
+		require(strcmp(response.kv[0].val, values[i] ? "change" : "button") == 0);
+		require(strcmp(response.kv[1].key, "NODE") == 0);
+		require(strcmp(response.kv[1].val, nodes[i]) == 0);
+
+		if (names[i]) {
+			require(strcmp(response.kv[count].key, "NODE_ID") == 0);
+			require(strcmp(response.kv[count++].val, names[i]) == 0);
+		}
+
+		if (values[i]) {
+			require(strcmp(response.kv[count].key, "VALUE") == 0);
+			require(strcmp(response.kv[count++].val, values[i]) == 0);
+		}
+
+		require(response.num_kv == count);
+		ipc_pair_free(&request);
+		ipc_pair_free(&response);
+	}
+
+	request = (struct ipc_pair) { 0 };
+	struct ipc_pair response = { 0 };
+	require(ipc_pair_add(&request, "action", "wait-event"));
+	require(ipc_pair_add(&request, "id", "changes"));
+	require(!ipc_send_message2(ctx, &request, &response));
+	require(response.num_kv == 1 && strcmp(response.kv[0].val, "instance finished") == 0);
+	ipc_pair_free(&request);
+	ipc_pair_free(&response);
+}
+
 int main(void)
 {
 	require(mkdtemp(directory) != NULL);
@@ -944,6 +1059,7 @@ int main(void)
 	check_compose_layout(&ctx, master, terminal);
 	check_compose_spinbox(&ctx, master, terminal);
 	check_compose_textview(&ctx, master, terminal);
+	check_compose_changes(&ctx, master, terminal);
 	require(ipc_pair_add(&request, "action", "quit"));
 	require(ipc_send_message2(&ctx, &request, NULL));
 	ipc_pair_free(&request);

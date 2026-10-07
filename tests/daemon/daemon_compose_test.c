@@ -43,6 +43,107 @@ static void expect_timer(int fd, bool armed)
 		assert(interval.it_value.tv_sec == 0 && interval.it_value.tv_nsec == 0);
 }
 
+static void check_changes(void)
+{
+	struct ipc_ctx ctx = { .fd = -1 };
+	char id[] = "changes";
+	struct ipc_message msg = { .id = id };
+	struct request req = { .r_ctx = &ctx, .r_msg = &msg };
+	const char *fields[][2] = {
+		{ "id",      "changes"  },
+		{ "plugin",  "compose"  },
+		{ "width",   "32"       },
+		{ "height",  "10"       },
+		{ "node",    "vbox"     },
+		{ "node",    "checkbox" },
+		{ "node-id", "check"    },
+		{ "notify",  "true"     },
+		{ "node",    "end"      },
+		{ "node",    "spinbox"  },
+		{ "min",     "-10"      },
+		{ "max",     "10"       },
+		{ "value",   "10"       },
+		{ "notify",  "true"     },
+		{ "node",    "end"      },
+		{ "node",    "select"   },
+		{ "option",  "One"      },
+		{ "option",  "Two"      },
+		{ "value",   "2"        },
+		{ "notify",  "true"     },
+		{ "node",    "end"      },
+		{ "node",    "checkbox" },
+		{ "node",    "end"      },
+		{ "node",    "button"   },
+		{ "text",    "Test"     },
+		{ "close",   "false"    },
+		{ "node",    "end"      },
+		{ "node",    "button"   },
+		{ "text",    "OK"       },
+		{ "node",    "end"      },
+		{ "node",    "end"      },
+	};
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		assert(ipc_pair_add(&msg.data, fields[i][0], fields[i][1]));
+
+	assert(daemon_instance_create(&req));
+	struct instance *ins = daemon_instance_find("changes");
+	assert(ins && ins->event_count == 0);
+	struct widget *check = find_widget_by_id(ins->root, 2);
+	struct widget *spin = find_widget_by_id(ins->root, 3);
+	struct widget *select = find_widget_by_id(ins->root, 4);
+	assert(check && spin && select);
+	daemon_instance_input(ins, check, L' ', false);
+	assert(ins->event_count == 1 && ins->events[0].value == 1);
+	assert(ins->events[0].change && ins->events[0].node == 2);
+	assert(strcmp(ins->events[0].node_id, "check") == 0);
+	daemon_instance_input(ins, spin, KEY_UP, true);
+	assert(ins->event_count == 1);
+	daemon_instance_input(ins, spin, KEY_DOWN, true);
+	assert(ins->event_count == 2 && ins->events[1].value == 9);
+	daemon_instance_input(ins, spin, L'2', false);
+	assert(ins->event_count == 2);
+	daemon_instance_input(ins, spin, KEY_BACKSPACE, true);
+	assert(ins->event_count == 2);
+	daemon_instance_input(ins, spin, L'-', false);
+	daemon_instance_input(ins, spin, L'2', false);
+	assert(ins->event_count == 2);
+	daemon_instance_input(ins, spin, L'\n', false);
+	assert(ins->event_count == 3 && ins->events[2].value == -2);
+	daemon_instance_input(ins, select, KEY_DOWN, true);
+	assert(ins->event_count == 3);
+	daemon_instance_input(ins, select, KEY_UP, true);
+	assert(ins->event_count == 4 && ins->events[3].value == 1);
+	check->attrs |= ATTR_READONLY;
+	daemon_instance_input(ins, check, L' ', false);
+	assert(ins->event_count == 4);
+	check->attrs &= ~ATTR_READONLY;
+	struct widget *container = find_widget_by_id(ins->root, 1);
+	container->attrs |= ATTR_DISABLED;
+	daemon_instance_input(ins, spin, KEY_UP, true);
+	assert(ins->event_count == 4);
+	container->attrs &= ~ATTR_DISABLED;
+	daemon_instance_input(ins, find_widget_by_id(ins->root, 5), L' ', false);
+	assert(ins->event_count == 4);
+	struct ipc_message update = { .id = id };
+	struct request setter = { .r_ctx = &ctx, .r_msg = &update };
+	assert(ipc_pair_add(&update.data, "node-id", "check"));
+	assert(ipc_pair_add(&update.data, "checked", "false"));
+	assert(plugin.p_set_value_instance(&setter, ins->root) == P_RET_OK);
+	daemon_instance_check_finished(ins);
+	assert(ins->event_count == 4 && ins->events[0].value == 1);
+	ipc_pair_free(&update.data);
+	daemon_instance_input(ins, find_widget_by_id(ins->root, 6), L'\n', false);
+	assert(ins->event_count == 5 && !ins->events[4].change && ins->events[4].node == 6);
+
+	for (int i = 0; i < INSTANCE_MAX_EVENTS; i++)
+		daemon_instance_input(ins, check, L' ', false);
+
+	assert(ins->event_count == INSTANCE_MAX_EVENTS && ins->event_overflow);
+	daemon_instance_delete(ins);
+	ipc_pair_free(&msg.data);
+}
+
 int main(void)
 {
 	FILE *input = tmpfile(), *output = tmpfile();
@@ -136,6 +237,7 @@ int main(void)
 	errno = 0;
 	assert(fcntl(fd, F_GETFD) == -1 && errno == EBADF);
 	ipc_pair_free(&msg.data);
+	check_changes();
 	endwin();
 	delscreen(screen);
 	fclose(input);
