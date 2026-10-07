@@ -118,6 +118,84 @@ static void test_navigation(int maximum)
 	widget_free(root);
 }
 
+static void test_replace_options(void)
+{
+	struct widget *root = make_window(), *menu = make_menu(2);
+	assert(root && menu);
+	widget_add(root, menu);
+	menu->flags |= FLAG_INFOCUS;
+
+	for (int i = 0; i < 6; i++) {
+		struct widget *option = make_menu_option(L"Original");
+		assert(option);
+		widget_add(menu, option);
+	}
+
+	widget_measure_tree(root);
+	widget_layout_tree(root, 0, 0, 20, 2);
+	widget_render_tree(root);
+
+	for (int i = 0; i < 5; i++)
+		assert(menu->ops->input_event(menu, L'o', false));
+
+	assert(widget_select_search_timeout(menu) > 0);
+	struct widget *list = find_widget_by_type_and_id(menu, WIDGET_LIST_VBOX, 0);
+	int scroll;
+	assert(widget_get(list, PROP_SCROLL_Y, &scroll) && scroll > 0);
+	struct widget *replacement = make_menu(5);
+	assert(replacement);
+	const wchar_t *labels[] = { L"Alpha", L"Beta", L"Gamma", L"Delta" };
+
+	for (size_t i = 0; i < sizeof(labels) / sizeof(*labels); i++) {
+		struct widget *option = make_menu_option(labels[i]);
+		assert(option);
+		widget_add(replacement, option);
+	}
+
+	int selected = 3;
+	assert(widget_set(replacement, PROP_SELECT_CURSOR, &selected));
+	assert(widget_menu_replace_options(menu, replacement));
+	widget_free(replacement);
+	widget_render_tree(root);
+	assert_cursor(menu, 3);
+	assert(menu->flags & FLAG_INFOCUS);
+	assert(menu->w == 20 && menu->h == 2);
+	assert(widget_select_search_timeout(menu) == -1);
+	assert(widget_get(list, PROP_SCROLL_Y, &scroll) && scroll == 2);
+	struct widget *last = TAILQ_LAST(&list->children, widgethead);
+	assert(last && last->win && (last->flags & FLAG_VISIBLE));
+	assert((mvwinch(last->win, 0, 0) & A_CHARTEXT) == 'D');
+	replacement = make_menu(2);
+	struct widget *too_wide = make_menu_option(L"This replacement is too wide for the viewport");
+	assert(replacement && too_wide);
+	widget_add(replacement, too_wide);
+	assert(!widget_menu_replace_options(menu, replacement));
+	widget_free(replacement);
+	assert_cursor(menu, 3);
+	assert(TAILQ_LAST(&list->children, widgethead) == last);
+	replacement = make_menu(2);
+	assert(replacement && widget_menu_replace_options(menu, replacement));
+	widget_free(replacement);
+	widget_render_tree(root);
+	assert_cursor(menu, -1);
+	assert(menu->flags & FLAG_INFOCUS);
+	assert(widget_get(list, PROP_SCROLL_Y, &scroll) && scroll == 0);
+	assert(!menu->ops->input_event(menu, KEY_DOWN, true));
+	assert(!menu->ops->input_event(menu, L'a', false));
+	replacement = make_menu(2);
+	struct widget *new_option = make_menu_option(L"Restored");
+	assert(replacement && new_option);
+	widget_add(replacement, new_option);
+	assert(widget_menu_replace_options(menu, replacement));
+	widget_free(replacement);
+	widget_render_tree(root);
+	assert_cursor(menu, 0);
+	assert(new_option->win && (new_option->flags & FLAG_VISIBLE));
+	assert((mvwinch(new_option->win, 0, 0) & A_CHARTEXT) == 'R');
+	assert(widget_get(list, PROP_SCROLL_Y, &scroll) && scroll == 0);
+	widget_free(root);
+}
+
 static void test_wide_prefix(void)
 {
 	struct widget *root = make_window(), *menu = make_menu(1);
@@ -158,6 +236,7 @@ int main(void)
 	test_navigation(1);
 	test_navigation(3);
 	test_wide_prefix();
+	test_replace_options();
 	struct widget *menu = make_menu(2);
 	assert(menu);
 	for (int i = 0; i < 5; i++) {

@@ -327,6 +327,11 @@ bool select_getter(struct widget *w, enum widget_property prop, void *value)
 	}
 
 	if (prop == PROP_SELECT_CURSOR) {
+		if (!st->focus) {
+			*(int *) value = -1;
+			return true;
+		}
+
 		int index = 0;
 
 		struct widget *c;
@@ -581,4 +586,54 @@ struct widget *make_menu(int view_rows)
 	if (w)
 		((struct widget_select *) w->state)->menu = true;
 	return w;
+}
+
+bool widget_menu_replace_options(struct widget *menu, struct widget *replacement)
+{
+	if (!menu || !replacement || menu == replacement ||
+	    menu->type != WIDGET_SELECT || replacement->type != WIDGET_SELECT)
+		return false;
+
+	struct widget_select *st = menu->state, *next = replacement->state;
+
+	if (!st->menu || !next->menu)
+		return false;
+
+	widget_measure_tree(replacement);
+
+	if (next->list->min_w > st->list->w)
+		return false;
+
+	struct widget *option;
+
+	TAILQ_FOREACH(option, &next->list->children, siblings)
+	{
+		if (option->min_h > st->list->h)
+			return false;
+	}
+
+	while ((option = TAILQ_FIRST(&st->list->children))) {
+		TAILQ_REMOVE(&st->list->children, option, siblings);
+		widget_free(option);
+	}
+
+	while ((option = TAILQ_FIRST(&next->list->children))) {
+		TAILQ_REMOVE(&next->list->children, option, siblings);
+		widget_add(st->list, option);
+	}
+
+	st->focus = next->focus;
+	next->focus = NULL;
+	st->selected = 0;
+	st->finished = false;
+	st->prefix_len = 0;
+	widget_measure_tree(menu);
+	widget_layout_tree(menu, menu->lx, menu->ly, menu->w, menu->h);
+	int zero = 0;
+	widget_set(st->list, PROP_SCROLL_Y, &zero);
+
+	if (st->focus)
+		st->list->ops->ensure_visible(st->list, st->focus);
+
+	return true;
 }

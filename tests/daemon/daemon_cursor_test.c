@@ -1009,6 +1009,110 @@ static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *termin
 	ipc_pair_free(&response);
 }
 
+static void replace_compose_options(struct ipc_ctx *ctx, const char **options,
+				    size_t count, int selected)
+{
+	struct ipc_pair request = { 0 };
+	require(ipc_pair_add(&request, "action", "update"));
+	require(ipc_pair_add(&request, "id", "changes"));
+	require(ipc_pair_add(&request, "node-id", "mode"));
+
+	if (count) {
+		for (size_t i = 0; i < count; i++)
+			require(ipc_pair_add(&request, "option", options[i]));
+
+		require(ipc_pair_sprintf(&request, "value", "%d", selected));
+	} else {
+		require(ipc_pair_add(&request, "clear", "true"));
+	}
+
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+}
+
+static void check_compose_options(struct ipc_ctx *ctx, int master, VTerm *terminal)
+{
+	struct ipc_pair request = { 0 };
+	require(ipc_pair_add(&request, "action", "delete"));
+	require(ipc_pair_add(&request, "id", "changes"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	const char *fields[][2] = {
+		{ "action",  "create"  },
+		{ "plugin",  "compose" },
+		{ "id",      "changes" },
+		{ "width",   "32"      },
+		{ "height",  "8"       },
+		{ "x",       "0"       },
+		{ "y",       "0"       },
+		{ "node",    "vbox"    },
+		{ "node",    "input"   },
+		{ "node-id", "query"   },
+		{ "value",   ""        },
+		{ "notify",  "true"    },
+		{ "node",    "end"     },
+		{ "node",    "select"  },
+		{ "node-id", "mode"    },
+		{ "option",  "Old"     },
+		{ "notify",  "true"    },
+		{ "node",    "end"     },
+		{ "node",    "button"  },
+		{ "text",    "OK"      },
+		{ "node",    "end"     },
+		{ "node",    "end"     },
+	};
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		require(ipc_pair_add(&request, fields[i][0], fields[i][1]));
+
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "focus"));
+	require(ipc_pair_add(&request, "id", "changes"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	expect_screen_text(master, terminal, "Old", true);
+	const char *options[] = { "Alpha", "Beta", "Gamma", "Delta", "Echo", "Foxtrot" };
+	replace_compose_options(ctx, options, 6, 6);
+	expect_node_value(ctx, "mode", "6");
+	expect_screen_text(master, terminal, "Old", false);
+	expect_screen_text(master, terminal, "Foxtrot", true);
+	press(master, terminal, "x");
+	expect_node_value(ctx, "query", "x");
+	press(master, terminal, "\t");
+	press(master, terminal, "\033OA");
+	expect_node_value(ctx, "mode", "5");
+	replace_compose_options(ctx, NULL, 0, 0);
+	expect_node_value(ctx, "mode", "0");
+	expect_screen_text(master, terminal, "Foxtrot", false);
+	press(master, terminal, "\033OB");
+	press(master, terminal, "a");
+	expect_node_value(ctx, "mode", "0");
+	const char *restored[] = { "Restored", "Second" };
+	replace_compose_options(ctx, restored, 2, 1);
+	expect_screen_text(master, terminal, "Restored", true);
+	press(master, terminal, "\033OB");
+	expect_node_value(ctx, "mode", "2");
+	press(master, terminal, "\t");
+	press(master, terminal, "\n");
+
+	for (int i = 0; i < 2; i++) {
+		request = (struct ipc_pair) { 0 };
+		struct ipc_pair response = { 0 };
+		require(ipc_pair_add(&request, "action", "wait-event"));
+		require(ipc_pair_add(&request, "id", "changes"));
+		require(ipc_send_message2(ctx, &request, &response));
+		require(response.num_kv == 3);
+		require(strcmp(response.kv[0].val, "change") == 0);
+		require(strcmp(response.kv[1].val, i == 0 ? "2" : "3") == 0);
+		require(strcmp(response.kv[2].val, i == 0 ? "query" : "mode") == 0);
+		ipc_pair_free(&request);
+		ipc_pair_free(&response);
+	}
+}
+
 int main(void)
 {
 	require(mkdtemp(directory) != NULL);
@@ -1110,6 +1214,7 @@ int main(void)
 	check_compose_spinbox(&ctx, master, terminal);
 	check_compose_textview(&ctx, master, terminal);
 	check_compose_changes(&ctx, master, terminal);
+	check_compose_options(&ctx, master, terminal);
 	require(ipc_pair_add(&request, "action", "quit"));
 	require(ipc_send_message2(&ctx, &request, NULL));
 	ipc_pair_free(&request);

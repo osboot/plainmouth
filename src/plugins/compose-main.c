@@ -695,14 +695,21 @@ fail:
 static enum p_retcode compose_update(struct request *req, struct widget *root)
 {
 	struct ipc_pair *pairs = req_data(req);
+	bool options = false;
 
 	for (size_t i = 0; i < pairs->num_kv; i++) {
 		const char *key = pairs->kv[i].key;
 
 		if (!streq(key, "action") && !streq(key, "id") && !streq(key, "node") && !streq(key, "node-id") &&
-		    !streq(key, "disabled") && !streq(key, "readonly")) {
+		    !streq(key, "disabled") && !streq(key, "readonly") &&
+		    !streq(key, "option") && !streq(key, "clear") && !streq(key, "value")) {
 			req_error(req, "unknown update parameter: %s", key);
 			return P_RET_ERR;
+		}
+
+		if (streq(key, "option")) {
+			options = true;
+			continue;
 		}
 
 		for (size_t j = 0; j < i; j++) {
@@ -713,10 +720,11 @@ static enum p_retcode compose_update(struct request *req, struct widget *root)
 		}
 	}
 
-	bool disabled, readonly;
+	bool disabled, readonly, clear;
 
 	if (!req_read_bool(req, "disabled", false, &disabled) ||
-	    !req_read_bool(req, "readonly", false, &readonly))
+	    !req_read_bool(req, "readonly", false, &readonly) ||
+	    !req_read_bool(req, "clear", false, &clear))
 		return P_RET_ERR;
 
 	struct widget *w = resolve_node(req, root);
@@ -724,9 +732,40 @@ static enum p_retcode compose_update(struct request *req, struct widget *root)
 	if (!w)
 		return P_RET_ERR;
 
-	if (!req_get_val(req, "disabled") && !req_get_val(req, "readonly")) {
-		req_error(req, "update requires disabled or readonly");
+	if ((options || req_get_val(req, "clear") || req_get_val(req, "value")) &&
+	    w->type != WIDGET_SELECT) {
+		req_error(req, "option, clear and value updates require a select node");
 		return P_RET_ERR;
+	}
+
+	if ((clear && options) || (req_get_val(req, "value") && !options)) {
+		req_error(req, "clear cannot accompany options; value requires options");
+		return P_RET_ERR;
+	}
+
+	if (!req_get_val(req, "disabled") && !req_get_val(req, "readonly") && !options && !clear) {
+		req_error(req, "update requires disabled, readonly, options or clear=true");
+		return P_RET_ERR;
+	}
+
+	if (options || clear) {
+		struct widget *replacement;
+
+		if (clear)
+			replacement = make_menu(3);
+		else
+			replacement = create_node(req, COMPOSE_SELECT);
+
+		if (!replacement)
+			return P_RET_ERR;
+
+		bool ok = widget_menu_replace_options(w, replacement);
+		widget_free(replacement);
+
+		if (!ok) {
+			req_error(req, "replacement options do not fit the select viewport");
+			return P_RET_ERR;
+		}
 	}
 
 	if (req_get_val(req, "disabled")) {

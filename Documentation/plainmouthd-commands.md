@@ -376,12 +376,37 @@ plainmouth action=update id=probe node=3 disabled=true
 plainmouth action=update id=probe node=3 disabled=false readonly=false
 ```
 
-Omitted states retain their previous values. Updates require at least one
-state and reject invalid, unknown or duplicate parameters before mutation.
+Omitted states retain their previous values. State updates require at least
+one state and reject invalid, unknown or duplicate parameters before mutation.
 Blocking the focused node or its ancestor moves focus to the next available
 widget. If none are available, focus is cleared; enabling a node restores
 focus only when there is no current focus. Enabling a node does not override
 its ancestors' states or its descendants' own states.
+
+For a `select` node, repeated `option=` fields in `update` replace the entire
+list. The optional `value=N` selects a 1-based option in the new list; without
+it, the first option is selected. The node keeps its ID, keyboard focus,
+viewport dimensions and creation-time `visible` setting. Replacement resets
+prefix search and scrolls the new selection into view.
+
+```sh
+plainmouth action=update id=probe node-id=choices option=Alpha option=Beta value=2
+plainmouth action=update id=probe node-id=choices clear=true
+```
+
+Without `option=`, updates only change the specified states. Use `clear=true`
+to remove every option; an empty select stays focusable and returns `0` from
+`get-value` and in results. `clear=true` cannot accompany `option=` or `value=`;
+`value=` requires a replacement list. `clear=false` alone is not an update.
+List updates may include `disabled` and `readonly`. All parameters and new
+options are checked before any change: at most 256 options, at most 4096
+characters per option, and each option must fit the existing list viewport.
+Errors preserve the old list, selection and states. Replacement and clearing
+do not emit change events; pending events still identify the node and
+`get-value` reads its current state. Option numbers refer to the new list;
+the client maintains any mapping to its own data.
+
+Try `MODE=view tests/e2e-compose-options.sh` for live filtering by a text field.
 
 `set-value` addresses the declaration-order ID with `node=N`:
 

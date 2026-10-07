@@ -376,6 +376,8 @@ struct widget *make_list_vbox(int view_rows);
 
 struct widget *make_select(int max_selected, int view_rows);
 struct widget *make_menu(int view_rows);
+/* On success, move replacement's options into menu; both menus remain owned by the caller. */
+bool widget_menu_replace_options(struct widget *menu, struct widget *replacement);
 int widget_select_search_timeout(struct widget *w);
 int widget_dispatch_input(struct widget *w, wchar_t key, bool keycode);
 size_t widget_keybindings(const struct widget *w, struct widget_keybinding *bindings, size_t capacity);

@@ -269,6 +269,8 @@ bool list_vbox_setter(struct widget *w, enum widget_property prop, const void *v
 	target_y = CLAMP(target_y, 0, max_scroll);
 
 	struct widget *anchor = list_vbox_find_anchor_by_scroll_y(w, target_y);
+	st->scroll_y = target_y;
+
 	if (anchor)
 		shift_window_anchor_first(w, anchor);
 
