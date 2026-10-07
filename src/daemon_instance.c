@@ -493,11 +493,53 @@ void daemon_instance_delete(struct instance *instance)
 	pthread_mutex_unlock(&instances_mutex);
 }
 
-bool daemon_instance_focus(struct instance *instance)
+bool daemon_instance_focus(struct instance *instance, struct request *req)
 {
+	const char *name = req_get_val(req, "node-id");
+	const char *number = req_get_val(req, "node");
+	int node = 0;
+	struct ipc_pair *data = req_data(req);
+
+	for (size_t i = 0; i < data->num_kv; i++) {
+		const char *key = data->kv[i].key;
+
+		if (!streq(key, "action") && !streq(key, "id") &&
+		    !streq(key, "node") && !streq(key, "node-id"))
+			return req_error(req, "unsupported focus parameter: %s", key);
+
+		for (size_t j = 0; j < i; j++) {
+			if (streq(key, data->kv[j].key))
+				return req_error(req, "duplicate focus parameter: %s", key);
+		}
+	}
+
+	if (name && number)
+		return req_error(req, "provide exactly one of node or node-id");
+
+	if (number && !req_read_int(req, "node", &node))
+		return false;
+
+	if ((number && node <= 0) || (name && !*name))
+		return req_error(req, "invalid focus selector");
+
 	struct widget *w;
+
 	TAILQ_FOREACH(w, &focusable, focuses)
 	{
+		if ((name && (!w->node_id || !streq(w->node_id, name))) ||
+		    (number && w->w_id != node))
+			continue;
+
+		bool visible = true;
+
+		for (struct widget *parent = w; parent; parent = parent->parent) {
+			if (!(parent->flags & FLAG_VISIBLE))
+				visible = false;
+		}
+
+		if ((name || number) && !visible)
+			continue;
+
 		if (streq(w->instance_id, instance->id) && widget_is_interactive(w)) {
 			ui_focused(false);
 			focused = w;
@@ -505,7 +547,11 @@ bool daemon_instance_focus(struct instance *instance)
 			return true;
 		}
 	}
-	return false;
+
+	if (name || number)
+		return req_error(req, "node not found or not focusable");
+
+	return true;
 }
 
 bool daemon_instance_wait(struct request *req)

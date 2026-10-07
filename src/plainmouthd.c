@@ -311,8 +311,10 @@ static int ui_process_task_focus(struct ui_task *t)
 	if (!instance)
 		return -1;
 
-	if (daemon_instance_focus(instance))
-		ui_update();
+	if (!daemon_instance_focus(instance, &t->req))
+		return -1;
+
+	ui_update();
 
 	return 0;
 }

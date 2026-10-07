@@ -469,6 +469,18 @@ static void expect_screen_character(int fd, VTerm *terminal, int row, int col, u
 	require(false);
 }
 
+static void focus_node(struct ipc_ctx *ctx, const char *id, const char *key,
+		       const char *value, bool success)
+{
+	struct ipc_pair request = { 0 };
+
+	require(ipc_pair_add(&request, "action", "focus"));
+	require(ipc_pair_add(&request, "id", id));
+	require(ipc_pair_add(&request, key, value));
+	require(ipc_send_message2(ctx, &request, NULL) == success);
+	ipc_pair_free(&request);
+}
+
 static void check_compose_scroll(struct ipc_ctx *ctx, int master, VTerm *terminal)
 {
 	struct ipc_pair request = { 0 };
@@ -506,6 +518,7 @@ static void check_compose_scroll(struct ipc_ctx *ctx, int master, VTerm *termina
 		require(ipc_pair_sprintf(&request, "text", "Field %d: ", i));
 		require(ipc_pair_add(&request, "node", "end"));
 		require(ipc_pair_add(&request, "node", "input"));
+		require(ipc_pair_sprintf(&request, "node-id", "field%d", i));
 		require(ipc_pair_add(&request, "value", ""));
 		require(ipc_pair_add(&request, "flex-w", "1"));
 		require(ipc_pair_add(&request, "node", "end"));
@@ -534,7 +547,8 @@ static void check_compose_scroll(struct ipc_ctx *ctx, int master, VTerm *termina
 	press(master, terminal, "\033OA\033OA");
 	expect_screen_text(master, terminal, "Field 1:", true);
 	expect_screen_character(master, terminal, 1, 28, '^');
-	press(master, terminal, "\t\t\t\t\t\t\t\t\tz");
+	focus_node(ctx, "scroll", "node-id", "field10", true);
+	press(master, terminal, "z");
 	expect_screen_text(master, terminal, "Field 10: z", true);
 	expect_screen_text(master, terminal, "Field 1:", false);
 	expect_screen_text(master, terminal, "[OK]", true);
@@ -1079,6 +1093,41 @@ static void check_compose_options(struct ipc_ctx *ctx, int master, VTerm *termin
 	expect_node_value(ctx, "mode", "6");
 	expect_screen_text(master, terminal, "Old", false);
 	expect_screen_text(master, terminal, "Foxtrot", true);
+	focus_node(ctx, "changes", "node", "3", true);
+	focus_node(ctx, "changes", "node-id", "query", true);
+	focus_node(ctx, "changes", "node-id", "missing", false);
+	focus_node(ctx, "changes", "node", "1", false);
+	focus_node(ctx, "changes", "node", "0", false);
+	focus_node(ctx, "changes", "node", "invalid", false);
+	const char *attributes[] = { "disabled", "readonly" };
+
+	for (size_t i = 0; i < 2; i++) {
+		for (int enabled = 1; enabled >= 0; enabled--) {
+			request = (struct ipc_pair) { 0 };
+			require(ipc_pair_add(&request, "action", "update"));
+			require(ipc_pair_add(&request, "id", "changes"));
+			require(ipc_pair_add(&request, "node-id", "mode"));
+			require(ipc_pair_add(&request, attributes[i], enabled ? "true" : "false"));
+			require(ipc_send_message2(ctx, &request, NULL));
+			ipc_pair_free(&request);
+
+			if (enabled)
+				focus_node(ctx, "changes", "node-id", "mode", false);
+		}
+	}
+
+	const char *invalid_keys[] = { "node", "node-id", "unexpected" };
+
+	for (size_t i = 0; i < 3; i++) {
+		request = (struct ipc_pair) { 0 };
+		require(ipc_pair_add(&request, "action", "focus"));
+		require(ipc_pair_add(&request, "id", "changes"));
+		require(ipc_pair_add(&request, "node-id", "mode"));
+		require(ipc_pair_add(&request, invalid_keys[i], "3"));
+		require(!ipc_send_message2(ctx, &request, NULL));
+		ipc_pair_free(&request);
+	}
+
 	press(master, terminal, "x");
 	expect_node_value(ctx, "query", "x");
 	press(master, terminal, "\t");

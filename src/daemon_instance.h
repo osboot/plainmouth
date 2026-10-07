@@ -55,7 +55,7 @@ void daemon_instances_resize(void);
 void daemon_instance_check_finished(struct instance *instance);
 void daemon_instance_input(struct instance *instance, struct widget *node,
 			   wchar_t key, bool keycode);
-bool daemon_instance_focus(struct instance *instance);
+bool daemon_instance_focus(struct instance *instance, struct request *req);
 struct widget *daemon_focus_get(void);
 void daemon_focus_next(void);
 void daemon_focus_prev(void);

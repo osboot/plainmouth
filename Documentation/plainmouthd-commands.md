@@ -207,6 +207,13 @@ widgets owned by the dialog. Releases associated resources.
 Requests keyboard focus for the plugin instance dialog. Focus change is subject
 to daemon policy. Does not guarantee immediate focus acquisition.
 
+For compose dialogs, `node-id=ID` or `node=N` targets a specific interactive
+node. N is the declaration-order node number, not its visual position. Provide
+at most one selector. The containing scroll areas are adjusted to reveal the
+target. Unknown, disabled, read-only, hidden, or non-focusable nodes fail without
+changing focus. Without a selector, the first interactive widget is selected.
+Focus requests do not emit change events.
+
 ### result
 
 Sends a result event from the plugin to the daemon. Used to signal completion or
