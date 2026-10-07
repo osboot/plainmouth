@@ -443,37 +443,173 @@ static bool validate_pad_size(struct widget *w, void *data)
 	return true;
 }
 
+static bool compose_validate_node(struct request *req, enum compose_type type)
+{
+	struct ipc_pair *pairs = req_data(req);
+
+	for (size_t i = 0; i < pairs->num_kv; i++) {
+		const char *key = pairs->kv[i].key;
+
+		if (!property_allowed(type, key))
+			return req_error(req, "unknown node parameter: %s", key);
+
+		if (streq(key, "option"))
+			continue;
+
+		for (size_t j = 0; j < i; j++) {
+			if (streq(key, pairs->kv[j].key))
+				return req_error(req, "duplicate node parameter: %s", key);
+		}
+	}
+
+	return true;
+}
+
+/* Attached nodes remain owned by root, including when construction fails. */
+static bool compose_build_tree(struct request *req, struct widget *root,
+			       struct widget *content, size_t first)
+{
+	struct ipc_pair *pairs = req_data(req);
+	struct compose_state *st = root->data;
+	struct widget *stack[COMPOSE_MAX_DEPTH];
+	int depth = 0;
+	int count = 0;
+	bool button = false;
+
+	for (size_t i = first; i < pairs->num_kv;) {
+		if (!streq(pairs->kv[i].key, "node"))
+			return req_error(req, "node properties must precede children");
+
+		const char *name = pairs->kv[i++].val;
+
+		if (streq(name, "end")) {
+			if (!depth)
+				return req_error(req, "unexpected node=end");
+
+			depth--;
+			continue;
+		}
+
+		if (count == COMPOSE_MAX_NODES || depth == COMPOSE_MAX_DEPTH)
+			return req_error(req, "compose allows at most 256 nodes and 32 levels");
+
+		size_t begin = i;
+
+		while (i < pairs->num_kv && !streq(pairs->kv[i].key, "node"))
+			i++;
+
+		struct ipc_message message = *req->r_msg;
+		message.data.kv = pairs->kv + begin;
+		message.data.num_kv = i - begin;
+		struct request node = *req;
+		node.r_msg = &message;
+		enum compose_type type;
+
+		for (type = 0; type < COMPOSE_COUNT; type++) {
+			if (name && streq(name, types[type].name))
+				break;
+		}
+
+		if (type == COMPOSE_COUNT)
+			return req_error(req, "unknown node type");
+
+		if (!compose_validate_node(&node, type))
+			return false;
+
+		int flex_w, flex_h;
+		bool disabled, readonly, notify;
+
+		if (!read_number(&node, "flex-w", 0, 0, 256, &flex_w) ||
+		    !read_number(&node, "flex-h", count ? 0 : 1, 0, 256, &flex_h) ||
+		    !req_read_bool(&node, "disabled", false, &disabled) ||
+		    !req_read_bool(&node, "readonly", false, &readonly) ||
+		    !req_read_bool(&node, "notify", false, &notify))
+			return false;
+
+		if ((!depth && count) ||
+		    (!count && type != COMPOSE_VBOX && type != COMPOSE_HBOX) ||
+		    (depth && stack[depth - 1]->type != WIDGET_VBOX &&
+		     stack[depth - 1]->type != WIDGET_HBOX &&
+		     stack[depth - 1]->type != WIDGET_SCROLL_VBOX))
+			return req_error(req, "compose requires one container root; leaves cannot have children");
+
+		const char *node_id = req_get_val(&node, "node-id");
+
+		if (node_id && (!widget_node_id_valid(node_id) || find_widget_by_node_id(root, node_id)))
+			return req_error(req, "invalid or duplicate node-id: %s", node_id);
+
+		struct widget *w = create_node(&node, type);
+
+		if (!w)
+			return false;
+
+		if (node_id && !widget_set_node_id(w, node_id)) {
+			widget_free(w);
+			return req_error(req, "no memory");
+		}
+
+		w->w_id = ++count;
+		st->notify[count] = notify;
+		w->flex_w = flex_w;
+		w->flex_h = flex_h;
+
+		if (disabled)
+			w->attrs |= ATTR_DISABLED;
+
+		if (readonly)
+			w->attrs |= ATTR_READONLY;
+
+		struct widget *parent = content;
+
+		if (depth)
+			parent = stack[depth - 1];
+
+		widget_add(parent, w);
+		stack[depth++] = w;
+
+		if (type == COMPOSE_BUTTON)
+			button = true;
+	}
+
+	if (depth)
+		return req_error(req, "missing node=end");
+
+	if (!button)
+		return req_error(req, "compose requires a button");
+
+	return true;
+}
+
 static struct widget *compose_create(struct request *req)
 {
+	static const struct req_parameter parameters[] = {
+		{ "action", false },
+		{ "plugin", false },
+		{ "id",     false },
+		{ "style",  false },
+		{ "width",  false },
+		{ "height", false },
+		{ "x",      false },
+		{ "y",      false },
+		{ "border", false },
+		{ NULL,     false },
+	};
 	struct ipc_pair *pairs = req_data(req);
 	size_t first = 0;
 
 	while (first < pairs->num_kv && !streq(pairs->kv[first].key, "node"))
 		first++;
 
-	for (size_t i = 0; i < first; i++) {
-		const char *key = pairs->kv[i].key;
-
-		if (!streq(key, "action") && !streq(key, "plugin") && !streq(key, "id") &&
-		    !streq(key, "style") && !streq(key, "width") && !streq(key, "height") &&
-		    !streq(key, "x") && !streq(key, "y") && !streq(key, "border")) {
-			req_error(req, "unknown compose parameter: %s", key);
-			return NULL;
-		}
-
-		for (size_t j = 0; j < i; j++) {
-			if (streq(key, pairs->kv[j].key)) {
-				req_error(req, "duplicate compose parameter: %s", key);
-				return NULL;
-			}
-		}
-	}
-
 	/* Window readers must not see node-local properties. */
 	struct ipc_message global_message = *req->r_msg;
 	global_message.data.num_kv = first;
 	struct request global = *req;
 	global.r_msg = &global_message;
+
+	if (!req_validate_parameters(&global, parameters, "unknown compose parameter",
+				     "duplicate compose parameter"))
+		return NULL;
+
 	int width, height, x, y;
 	bool border;
 
@@ -506,144 +642,8 @@ static struct widget *compose_create(struct request *req)
 	st->timer.events = POLLIN;
 	root->data = st;
 
-	struct widget *stack[COMPOSE_MAX_DEPTH];
-	int depth = 0;
-	int count = 0;
-	bool button = false;
-
-	for (size_t i = first; i < pairs->num_kv;) {
-		if (!streq(pairs->kv[i].key, "node")) {
-			req_error(req, "node properties must precede children");
-			goto fail;
-		}
-
-		const char *name = pairs->kv[i++].val;
-
-		if (streq(name, "end")) {
-			if (!depth) {
-				req_error(req, "unexpected node=end");
-				goto fail;
-			}
-
-			depth--;
-			continue;
-		}
-
-		if (count == COMPOSE_MAX_NODES || depth == COMPOSE_MAX_DEPTH) {
-			req_error(req, "compose allows at most 256 nodes and 32 levels");
-			goto fail;
-		}
-
-		size_t begin = i;
-
-		while (i < pairs->num_kv && !streq(pairs->kv[i].key, "node"))
-			i++;
-
-		struct ipc_message message = *req->r_msg;
-		message.data.kv = pairs->kv + begin;
-		message.data.num_kv = i - begin;
-		struct request node = *req;
-		node.r_msg = &message;
-		enum compose_type type;
-
-		for (type = 0; type < COMPOSE_COUNT; type++) {
-			if (name && streq(name, types[type].name))
-				break;
-		}
-
-		if (type == COMPOSE_COUNT) {
-			req_error(req, "unknown node type");
-			goto fail;
-		}
-
-		for (size_t j = begin; j < i; j++) {
-			const char *key = pairs->kv[j].key;
-
-			if (!property_allowed(type, key)) {
-				req_error(req, "unknown node parameter: %s", key);
-				goto fail;
-			}
-
-			if (streq(key, "option"))
-				continue;
-
-			for (size_t k = begin; k < j; k++) {
-				if (streq(key, pairs->kv[k].key)) {
-					req_error(req, "duplicate node parameter: %s", key);
-					goto fail;
-				}
-			}
-		}
-
-		int flex_w, flex_h;
-		bool disabled, readonly, notify;
-
-		if (!read_number(&node, "flex-w", 0, 0, 256, &flex_w) ||
-		    !read_number(&node, "flex-h", count ? 0 : 1, 0, 256, &flex_h) ||
-		    !req_read_bool(&node, "disabled", false, &disabled) ||
-		    !req_read_bool(&node, "readonly", false, &readonly) ||
-		    !req_read_bool(&node, "notify", false, &notify))
-			goto fail;
-
-		if ((!depth && count) ||
-		    (!count && type != COMPOSE_VBOX && type != COMPOSE_HBOX) ||
-		    (depth && stack[depth - 1]->type != WIDGET_VBOX &&
-		     stack[depth - 1]->type != WIDGET_HBOX &&
-		     stack[depth - 1]->type != WIDGET_SCROLL_VBOX)) {
-			req_error(req, "compose requires one container root; leaves cannot have children");
-			goto fail;
-		}
-
-		const char *node_id = req_get_val(&node, "node-id");
-
-		if (node_id && (!widget_node_id_valid(node_id) || find_widget_by_node_id(root, node_id))) {
-			req_error(req, "invalid or duplicate node-id: %s", node_id);
-			goto fail;
-		}
-
-		struct widget *w = create_node(&node, type);
-
-		if (!w)
-			goto fail;
-
-		if (node_id && !widget_set_node_id(w, node_id)) {
-			widget_free(w);
-			req_error(req, "no memory");
-			goto fail;
-		}
-
-		w->w_id = ++count;
-		st->notify[count] = notify;
-		w->flex_w = flex_w;
-		w->flex_h = flex_h;
-
-		if (disabled)
-			w->attrs |= ATTR_DISABLED;
-
-		if (readonly)
-			w->attrs |= ATTR_READONLY;
-
-		struct widget *parent = content;
-
-		if (depth)
-			parent = stack[depth - 1];
-
-		widget_add(parent, w);
-		stack[depth++] = w;
-
-		if (type == COMPOSE_BUTTON)
-			button = true;
-	}
-
-	if (depth) {
-		req_error(req, "missing node=end");
+	if (!compose_build_tree(req, root, content, first))
 		goto fail;
-	}
-
-	if (!button) {
-		req_error(req, "compose requires a button");
-		goto fail;
-	}
 
 	widget_measure_tree(root);
 
