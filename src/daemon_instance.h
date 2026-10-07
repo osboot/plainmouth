@@ -18,7 +18,6 @@ struct instance_event {
 	int node;
 	char node_id[WIDGET_NODE_ID_MAX + 1];
 	bool change;
-	int value;
 };
 
 struct instance {

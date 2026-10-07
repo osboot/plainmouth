@@ -30,10 +30,20 @@ testcase()
 		node=end
 
 	if [ "$MODE" = view ]; then
-		local event
+		local event line node value
 
 		while event=$("$topdir"/plainmouth action=wait-event id=changes); do
-			"$topdir"/plainmouth action=set-value id=changes node-id=status "value=$event"
+			node=
+
+			while IFS= read -r line; do
+				case "$line" in
+					NODE_ID=*) node=${line#NODE_ID=} ;;
+				esac
+			done <<< "$event"
+
+			value=$("$topdir"/plainmouth action=get-value id=changes "node-id=$node")
+			"$topdir"/plainmouth action=set-value id=changes node-id=status "value=$event
+$value"
 		done
 
 		"$topdir"/plainmouth action=wait-result id=changes

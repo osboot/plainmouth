@@ -94,13 +94,13 @@ static void check_changes(void)
 	struct widget *select = find_widget_by_id(ins->root, 4);
 	assert(check && spin && select);
 	daemon_instance_input(ins, check, L' ', false);
-	assert(ins->event_count == 1 && ins->events[0].value == 1);
+	assert(ins->event_count == 1);
 	assert(ins->events[0].change && ins->events[0].node == 2);
 	assert(strcmp(ins->events[0].node_id, "check") == 0);
 	daemon_instance_input(ins, spin, KEY_UP, true);
 	assert(ins->event_count == 1);
 	daemon_instance_input(ins, spin, KEY_DOWN, true);
-	assert(ins->event_count == 2 && ins->events[1].value == 9);
+	assert(ins->event_count == 2 && ins->events[1].node == 3);
 	daemon_instance_input(ins, spin, L'2', false);
 	assert(ins->event_count == 2);
 	daemon_instance_input(ins, spin, KEY_BACKSPACE, true);
@@ -109,36 +109,68 @@ static void check_changes(void)
 	daemon_instance_input(ins, spin, L'2', false);
 	assert(ins->event_count == 2);
 	daemon_instance_input(ins, spin, L'\n', false);
-	assert(ins->event_count == 3 && ins->events[2].value == -2);
+	assert(ins->event_count == 2 && ins->events[1].node == 3);
 	daemon_instance_input(ins, select, KEY_DOWN, true);
-	assert(ins->event_count == 3);
+	assert(ins->event_count == 2);
 	daemon_instance_input(ins, select, KEY_UP, true);
-	assert(ins->event_count == 4 && ins->events[3].value == 1);
+	assert(ins->event_count == 3 && ins->events[2].node == 4);
 	check->attrs |= ATTR_READONLY;
 	daemon_instance_input(ins, check, L' ', false);
-	assert(ins->event_count == 4);
+	assert(ins->event_count == 3);
 	check->attrs &= ~ATTR_READONLY;
 	struct widget *container = find_widget_by_id(ins->root, 1);
 	container->attrs |= ATTR_DISABLED;
 	daemon_instance_input(ins, spin, KEY_UP, true);
-	assert(ins->event_count == 4);
+	assert(ins->event_count == 3);
 	container->attrs &= ~ATTR_DISABLED;
 	daemon_instance_input(ins, find_widget_by_id(ins->root, 5), L' ', false);
-	assert(ins->event_count == 4);
+	assert(ins->event_count == 3);
 	struct ipc_message update = { .id = id };
 	struct request setter = { .r_ctx = &ctx, .r_msg = &update };
 	assert(ipc_pair_add(&update.data, "node-id", "check"));
 	assert(ipc_pair_add(&update.data, "checked", "false"));
 	assert(plugin.p_set_value_instance(&setter, ins->root) == P_RET_OK);
 	daemon_instance_check_finished(ins);
-	assert(ins->event_count == 4 && ins->events[0].value == 1);
+	assert(ins->event_count == 3 && ins->events[0].node == 2);
 	ipc_pair_free(&update.data);
+	/* Exercise compaction across the end of the circular buffer. */
+	struct instance_event pending[3];
+	memcpy(pending, ins->events, sizeof(pending));
+	ins->event_head = INSTANCE_MAX_EVENTS - 1;
+
+	for (size_t i = 0; i < 3; i++)
+		ins->events[(ins->event_head + i) % INSTANCE_MAX_EVENTS] = pending[i];
+
+	daemon_instance_input(ins, check, L' ', false);
+	assert(ins->event_count == 3);
+	assert(ins->events[INSTANCE_MAX_EVENTS - 1].node == 3);
+	assert(ins->events[0].node == 4 && ins->events[1].node == 2);
+	assert(strcmp(ins->events[1].node_id, "check") == 0);
 	daemon_instance_input(ins, find_widget_by_id(ins->root, 6), L'\n', false);
-	assert(ins->event_count == 5 && !ins->events[4].change && ins->events[4].node == 6);
+	daemon_instance_input(ins, find_widget_by_id(ins->root, 6), L'\n', false);
+	assert(ins->event_count == 5 && !ins->events[2].change && !ins->events[3].change);
+	assert(ins->events[2].node == 6 && ins->events[3].node == 6);
 
 	for (int i = 0; i < INSTANCE_MAX_EVENTS; i++)
 		daemon_instance_input(ins, check, L' ', false);
 
+	assert(ins->event_count == 6 && !ins->event_overflow);
+	assert(ins->events[1].change && ins->events[4].change);
+	assert(ins->events[1].node == 2 && ins->events[4].node == 2);
+	/* A duplicate can be replaced even when the queue is full. */
+	ins->event_count = INSTANCE_MAX_EVENTS;
+
+	for (size_t i = 0; i < INSTANCE_MAX_EVENTS; i++)
+		ins->events[i] = (struct instance_event) { .node = 6 };
+
+	size_t penultimate = (ins->event_head + INSTANCE_MAX_EVENTS - 2) % INSTANCE_MAX_EVENTS;
+	size_t last = (ins->event_head + INSTANCE_MAX_EVENTS - 1) % INSTANCE_MAX_EVENTS;
+	ins->events[penultimate] = (struct instance_event) { .node = 2, .change = true };
+	ins->events[last] = (struct instance_event) { .node = 3, .change = true };
+	daemon_instance_input(ins, check, L' ', false);
+	assert(ins->event_count == INSTANCE_MAX_EVENTS && !ins->event_overflow);
+	assert(ins->events[penultimate].node == 3 && ins->events[last].node == 2);
+	daemon_instance_input(ins, select, KEY_DOWN, true);
 	assert(ins->event_count == INSTANCE_MAX_EVENTS && ins->event_overflow);
 	daemon_instance_delete(ins);
 	ipc_pair_free(&msg.data);

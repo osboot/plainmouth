@@ -932,13 +932,22 @@ static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *termin
 	press(master, terminal, " ");
 	press(master, terminal, "\t");
 	press(master, terminal, "\n");
+
+	for (int i = 0; i < 4; i++)
+		press(master, terminal, "\033[Z");
+
+	press(master, terminal, " ");
+
+	for (int i = 0; i < 4; i++)
+		press(master, terminal, "\t");
+
+	press(master, terminal, "\n");
 	press(master, terminal, "\t");
 	press(master, terminal, "\n");
-	const char *nodes[] = { "2", "2", "3", "4", "4", "4", "6" };
-	const char *values[] = { "1", "0", "2", "1", "2", "6", NULL };
-	const char *names[] = { "tls", "tls", NULL, "count", "count", "count", NULL };
+	const char *nodes[] = { "2", "3", "4", "6", "2", "6" };
+	const char *names[] = { "tls", NULL, "count", NULL, "tls", NULL };
 	expect_node_value(ctx, "count", "6");
-	expect_node_value(ctx, "tls", "0");
+	expect_node_value(ctx, "tls", "1");
 
 	for (size_t i = 0; i < sizeof(nodes) / sizeof(*nodes); i++) {
 		request = (struct ipc_pair) { 0 };
@@ -948,18 +957,13 @@ static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *termin
 		require(ipc_send_message2(ctx, &request, &response));
 		size_t count = 2;
 		require(strcmp(response.kv[0].key, "EVENT") == 0);
-		require(strcmp(response.kv[0].val, values[i] ? "change" : "button") == 0);
+		require(strcmp(response.kv[0].val, i == 3 || i == 5 ? "button" : "change") == 0);
 		require(strcmp(response.kv[1].key, "NODE") == 0);
 		require(strcmp(response.kv[1].val, nodes[i]) == 0);
 
 		if (names[i]) {
 			require(strcmp(response.kv[count].key, "NODE_ID") == 0);
 			require(strcmp(response.kv[count++].val, names[i]) == 0);
-		}
-
-		if (values[i]) {
-			require(strcmp(response.kv[count].key, "VALUE") == 0);
-			require(strcmp(response.kv[count++].val, values[i]) == 0);
 		}
 
 		require(response.num_kv == count);

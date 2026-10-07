@@ -114,16 +114,43 @@ static void widget_ensure_visible(struct widget *w)
 	}
 }
 
-static void queue_event(struct instance *instance, int node, bool change, int value)
+static void coalesce_change(struct instance *instance, int node)
+{
+	/* Buttons separate independent sequences of pending changes. */
+	for (size_t i = instance->event_count; i > 0; i--) {
+		size_t pos = (instance->event_head + i - 1) % INSTANCE_MAX_EVENTS;
+		struct instance_event *event = &instance->events[pos];
+
+		if (!event->change)
+			break;
+
+		if (event->node != node)
+			continue;
+
+		for (size_t j = i; j < instance->event_count; j++) {
+			size_t from = (instance->event_head + j) % INSTANCE_MAX_EVENTS;
+			size_t to = (instance->event_head + j - 1) % INSTANCE_MAX_EVENTS;
+			instance->events[to] = instance->events[from];
+		}
+
+		instance->event_count--;
+		break;
+	}
+}
+
+static void queue_event(struct instance *instance, int node, bool change)
 {
 	pthread_mutex_lock(&instances_mutex);
+
+	if (change)
+		coalesce_change(instance, node);
 
 	if (instance->event_count == INSTANCE_MAX_EVENTS) {
 		instance->event_overflow = true;
 	} else {
 		size_t pos = (instance->event_head + instance->event_count++) % INSTANCE_MAX_EVENTS;
 		struct instance_event *event = &instance->events[pos];
-		*event = (struct instance_event) { .node = node, .change = change, .value = value };
+		*event = (struct instance_event) { .node = node, .change = change };
 		struct widget *w = find_widget_by_id(instance->root, node);
 
 		if (w && w->node_id)
@@ -144,7 +171,7 @@ void daemon_instance_input(struct instance *instance, struct widget *node,
 
 	if (notify && instance->plugin->p_change_value(instance->root, node, &after) &&
 	    before != after)
-		queue_event(instance, node->w_id, true, after);
+		queue_event(instance, node->w_id, true);
 
 	daemon_instance_check_finished(instance);
 }
@@ -158,7 +185,7 @@ void daemon_instance_check_finished(struct instance *instance)
 		int node;
 
 		while ((node = instance->plugin->p_take_button_event(instance->root)) > 0) {
-			queue_event(instance, node, false, 0);
+			queue_event(instance, node, false);
 		}
 	}
 
@@ -544,9 +571,7 @@ bool daemon_instance_wait_event(struct request *req)
 	return ipc_send_string(req_fd(req), "RESPDATA %s EVENT=%s", req_id(req), type) > 0 &&
 	       ipc_send_string(req_fd(req), "RESPDATA %s NODE=%d", req_id(req), event.node) > 0 &&
 	       (!event.node_id[0] ||
-		ipc_send_string(req_fd(req), "RESPDATA %s NODE_ID=%s", req_id(req), event.node_id) > 0) &&
-	       (!event.change ||
-		ipc_send_string(req_fd(req), "RESPDATA %s VALUE=%d", req_id(req), event.value) > 0);
+		ipc_send_string(req_fd(req), "RESPDATA %s NODE_ID=%s", req_id(req), event.node_id) > 0);
 }
 
 void daemon_instances_stop(void)
