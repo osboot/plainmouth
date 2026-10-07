@@ -282,6 +282,24 @@ Supported node types and their properties:
   Reaching `total` does not finish the composed dialog. Change its value with
   `action=set-value id=dialog node-id=progress value=42`; out-of-range values
   are rejected without changing the indicator. `total` is fixed at creation.
+- `spinner`: a non-focusable activity indicator occupying one column and row,
+  with optional `active` (default false) and `frames=auto|ascii|braille|wave`
+  (default auto). An inactive spinner displays a blank without changing its
+  minimum size. It produces no result pairs. Start or stop it with
+  `action=set-value id=dialog node-id=busy active=true|false`.
+  Starting again resets the sequence to its first frame; repeated starts
+  leave the current frame unchanged. Frames are fixed at creation.
+
+Spinner `auto` chooses Braille when the server's locale uses UTF-8, all frames
+have a width of one column, and `TERM` is not `linux`; otherwise it uses
+ASCII `|/-\`. Explicit `braille` and `wave` require one-column characters
+in the server's locale. Font coverage cannot be detected automatically.
+All active spinners in a composed dialog share a 100 ms timer. The timer
+stops when no spinners are active, the dialog becomes hidden because the
+terminal is too small, or the dialog finishes. Visibility restoration
+resumes active spinners. `--animation` does not control activity indicators.
+Try `MODE=view tests/e2e-compose-spinner.sh` to compare all three sequences
+alongside a progress meter.
 
 All nodes accept `flex-w` and `flex-h` (0..256); defaults are zero except
 `flex-h=1` for the root container. Sizing uses the normal measure/layout

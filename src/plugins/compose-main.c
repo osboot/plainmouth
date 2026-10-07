@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "config.h"
 
+#include <sys/timerfd.h>
+#include <errno.h>
+#include <err.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <wchar.h>
 
 #include "macros.h"
@@ -26,6 +31,7 @@ enum compose_type {
 	COMPOSE_BUTTON,
 	COMPOSE_SPACER,
 	COMPOSE_METER,
+	COMPOSE_SPINNER,
 	COMPOSE_COUNT,
 };
 
@@ -44,7 +50,80 @@ static const struct {
 	[COMPOSE_BUTTON]   = { "button",   { "text", "close", NULL }              },
 	[COMPOSE_SPACER]   = { "spacer",   { "width", "height", NULL }            },
 	[COMPOSE_METER]    = { "meter",    { "total", "value", NULL }             },
+	[COMPOSE_SPINNER]  = { "spinner",  { "active", "frames", NULL }           },
 };
+
+struct compose_state {
+	struct pollfd timer;
+	bool running, finished, failed;
+};
+
+static bool find_active_spinner(struct widget *w, void *data)
+{
+	if (w->type != WIDGET_SPINNER)
+		return true;
+
+	bool active;
+	widget_get(w, PROP_SPINNER_ACTIVE, &active);
+
+	if (active) {
+		*(bool *) data = true;
+		return false;
+	}
+
+	return true;
+}
+
+static bool compose_sync_timer(struct widget *root)
+{
+	struct compose_state *st = root->data;
+	bool active = false;
+
+	if (!st->finished && (root->flags & FLAG_VISIBLE))
+		walk_widget_tree(root, find_active_spinner, &active);
+
+	if (active == st->running)
+		return true;
+
+	if (active && st->timer.fd < 0) {
+		st->timer.fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+
+		if (st->timer.fd < 0) {
+			warn("compose: timerfd_create");
+			return false;
+		}
+	}
+
+	struct itimerspec interval = { 0 };
+
+	if (active) {
+		interval.it_value.tv_nsec = 100000000;
+		interval.it_interval.tv_nsec = 100000000;
+	}
+
+	if (timerfd_settime(st->timer.fd, 0, &interval, NULL) < 0) {
+		warn("compose: timerfd_settime");
+		return false;
+	}
+
+	st->running = active;
+	return true;
+}
+
+static enum p_retcode compose_delete(struct widget *root)
+{
+	struct compose_state *st = root->data;
+
+	if (st) {
+		if (st->timer.fd >= 0)
+			close(st->timer.fd);
+
+		free(st);
+		root->data = NULL;
+	}
+
+	return P_RET_OK;
+}
 
 static bool property_allowed(enum compose_type type, const char *key)
 {
@@ -217,6 +296,34 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 
 			break;
 		}
+		case COMPOSE_SPINNER: {
+			bool active;
+			const char *name = req_get_val(req, "frames");
+			static const char *const names[] = { "auto", "ascii", "braille", "wave" };
+			enum widget_spinner_frames frames = SPINNER_AUTO;
+
+			if (!req_read_bool(req, "active", false, &active))
+				return NULL;
+
+			if (name) {
+				for (frames = SPINNER_AUTO; frames <= SPINNER_WAVE; frames++) {
+					if (streq(name, names[frames]))
+						break;
+				}
+
+				if (frames > SPINNER_WAVE) {
+					req_error(req, "invalid value: frames");
+					return NULL;
+				}
+			}
+
+			w = make_spinner(frames, active);
+
+			if (w)
+				return w;
+
+			break;
+		}
 		case COMPOSE_SCROLL:
 			return make_scroll_vbox();
 		case COMPOSE_LABEL:
@@ -381,6 +488,17 @@ static struct widget *compose_create(struct request *req)
 	if (!root)
 		return NULL;
 
+	struct compose_state *st = calloc(1, sizeof(*st));
+
+	if (!st) {
+		widget_free(root);
+		return NULL;
+	}
+
+	st->timer.fd = -1;
+	st->timer.events = POLLIN;
+	root->data = st;
+
 	struct widget *stack[COMPOSE_MAX_DEPTH];
 	int depth = 0;
 	int count = 0;
@@ -535,10 +653,16 @@ static struct widget *compose_create(struct request *req)
 	if (!walk_widget_tree(root, validate_pad_size, req))
 		goto fail;
 
+	if (!compose_sync_timer(root)) {
+		req_error(req, "unable to start compose timer");
+		goto fail;
+	}
+
 	widget_render_tree(root);
 	return root;
 
 fail:
+	compose_delete(root);
 	widget_free(root);
 	return NULL;
 }
@@ -612,6 +736,8 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 		field = "clicked";
 	else if (w->type == WIDGET_LABEL)
 		field = "text";
+	else if (w->type == WIDGET_SPINNER)
+		field = "active";
 
 	struct ipc_pair *pairs = req_data(req);
 
@@ -678,6 +804,23 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 				return P_RET_ERR;
 
 			ok = widget_set(w, PROP_METER_VALUE, &value);
+			break;
+		}
+		case WIDGET_SPINNER: {
+			bool active, previous;
+
+			if (!req_read_bool(req, "active", false, &active))
+				return P_RET_ERR;
+
+			widget_get(w, PROP_SPINNER_ACTIVE, &previous);
+			ok = widget_set(w, PROP_SPINNER_ACTIVE, &active);
+
+			if (ok && !compose_sync_timer(root)) {
+				widget_set(w, PROP_SPINNER_ACTIVE, &previous);
+				req_error(req, "unable to start compose timer");
+				return P_RET_ERR;
+			}
+
 			break;
 		}
 		case WIDGET_CHECKBOX: {
@@ -790,8 +933,96 @@ static int compose_take_event(struct widget *root)
 	return scan.event;
 }
 
+static bool compose_finished(struct widget *root)
+{
+	struct compose_state *st = root->data;
+
+	if (!st->finished && (st->failed || plugin_buttons_finished(root))) {
+		st->finished = true;
+
+		if (!compose_sync_timer(root))
+			st->failed = true;
+	}
+
+	return st->finished;
+}
+
+static enum p_retcode compose_visibility_changed(struct widget *root, bool visible)
+{
+	(void) visible;
+
+	if (compose_sync_timer(root))
+		return P_RET_OK;
+
+	struct compose_state *st = root->data;
+	st->failed = true;
+	return P_RET_ERR;
+}
+
+static size_t compose_pollfds(struct widget *root, const struct pollfd **fds)
+{
+	struct compose_state *st = root->data;
+	*fds = NULL;
+
+	if (!st->running)
+		return 0;
+
+	*fds = &st->timer;
+	return 1;
+}
+
+struct spinner_tick {
+	uint64_t ticks;
+	bool changed;
+};
+
+static bool advance_spinner(struct widget *w, void *data)
+{
+	struct spinner_tick *tick = data;
+
+	if (widget_spinner_advance(w, tick->ticks))
+		tick->changed = true;
+
+	return true;
+}
+
+static enum p_event_result compose_event(struct widget *root, const struct pollfd *fd)
+{
+	struct compose_state *st = root->data;
+	struct spinner_tick tick = { 0 };
+
+	if (fd->revents & (POLLERR | POLLHUP | POLLNVAL))
+		goto fail;
+
+	ssize_t n;
+
+	do {
+		n = read(fd->fd, &tick.ticks, sizeof(tick.ticks));
+	} while (n < 0 && errno == EINTR);
+
+	if (n < 0 && errno == EAGAIN)
+		return P_EVENT_IDLE;
+
+	if (n != sizeof(tick.ticks))
+		goto fail;
+
+	walk_widget_tree(root, advance_spinner, &tick);
+	return tick.changed ? P_EVENT_REDRAW : P_EVENT_IDLE;
+
+fail:
+	st->failed = true;
+	return P_EVENT_ERROR;
+}
+
 static enum p_retcode compose_result(struct request *req, struct widget *root)
 {
+	struct compose_state *st = root->data;
+
+	if (st->failed) {
+		req_error(req, "compose timer failed");
+		return P_RET_ERR;
+	}
+
 	return walk_widget_tree(root, collect_result, req) ? P_RET_OK : P_RET_ERR;
 }
 
@@ -800,9 +1031,13 @@ struct plugin plugin = {
 	.name                 = "compose",
 	.desc                 = "Construct a dialog from a declarative widget tree.",
 	.p_create_instance    = compose_create,
+	.p_delete_instance    = compose_delete,
 	.p_update_instance    = compose_update,
 	.p_set_value_instance = compose_set_value,
-	.p_finished           = plugin_buttons_finished,
+	.p_finished           = compose_finished,
 	.p_take_button_event  = compose_take_event,
 	.p_result             = compose_result,
+	.p_pollfds            = compose_pollfds,
+	.p_handle_event       = compose_event,
+	.p_visibility_changed = compose_visibility_changed,
 };

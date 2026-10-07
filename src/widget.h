@@ -4,6 +4,7 @@
 
 #include <sys/queue.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <curses.h>
 #include <panel.h>
@@ -103,6 +104,7 @@ enum widget_type {
 	WIDGET_TERMINAL,
 	WIDGET_POSITIONED,
 	WIDGET_SPACER,
+	WIDGET_SPINNER,
 	WIDGET_COUNTS,
 };
 
@@ -136,6 +138,16 @@ enum widget_property {
 	PROP_INPUT_FINISH_ON_ENTER,
 	PROP_TEXT_PREFIX_LENGTH,
 	PROP_BOX_GAP,
+	PROP_SPINNER_ACTIVE,
+	PROP_SPINNER_FRAME,
+	PROP_SPINNER_FRAMES,
+};
+
+enum widget_spinner_frames {
+	SPINNER_AUTO,
+	SPINNER_ASCII,
+	SPINNER_BRAILLE,
+	SPINNER_WAVE,
 };
 
 enum widget_flags {
@@ -348,6 +360,8 @@ struct widget *make_textview(const wchar_t *text);
 struct widget *make_tailview(void);
 struct widget *make_button(const wchar_t *label);
 struct widget *make_spacer(int width, int height);
+struct widget *make_spinner(enum widget_spinner_frames frames, bool active);
+bool widget_spinner_advance(struct widget *w, uint64_t ticks);
 struct widget *make_checkbox(bool checked, bool is_radio);
 struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder);
 struct widget *make_input_password(const wchar_t *initdata, const wchar_t *placeholder);

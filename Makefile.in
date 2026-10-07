@@ -67,6 +67,7 @@ COMMON_SRC  = src/ipc.c src/request.c src/plugin.c src/dump.c \
 	      src/widget_select_opt.c \
 	      src/widget_spinbox.c \
 	      src/widget_spacer.c \
+	      src/widget_spinner.c \
 	      src/widget_textview.c \
 	      src/widget_tailview.c \
 	      src/widget_tooltip.c \
@@ -220,6 +221,13 @@ tests/daemon/daemon_resize_test.chk: VALGRIND += --suppressions=$(CURDIR)/tests/
 tests/daemon/daemon_resize_test.o: src/daemon_instance.h src/plugin.h src/widget.h
 GARBAGE += tests/daemon/daemon_resize_test.o
 
+tests/daemon/daemon_compose_test: tests/daemon/daemon_compose_test.o src/plugins/compose-main.o src/daemon_instance.o src/daemon_style.o $(COMMON_SO)
+	$(call cmd_LINK,$^) $(COMMON_LIBS) $(PTHREAD_LIBS) -Wl,-rpath,$(CURDIR)
+
+tests/daemon/daemon_compose_test.chk: VALGRIND += --suppressions=$(CURDIR)/tests/valgrind.supp
+tests/daemon/daemon_compose_test.o: src/daemon_instance.h src/plugin.h src/widget.h
+GARBAGE += tests/daemon/daemon_compose_test.o
+
 tests/daemon/daemon_help_test: tests/daemon/daemon_help_test.o src/daemon_help.o $(COMMON_SO)
 	$(call cmd_LINK,$^) $(COMMON_LIBS) -Wl,-rpath,$(CURDIR)
 
@@ -260,6 +268,12 @@ tests/widget/widget_box_test: tests/widget/widget_box_test.o $(COMMON_SO)
 
 tests/widget/widget_box_test.o: src/widget.h
 GARBAGE += tests/widget/widget_box_test.o
+
+tests/widget/widget_spinner_test: tests/widget/widget_spinner_test.o $(COMMON_SO)
+	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS) -Wl,-rpath,$(CURDIR)
+
+tests/widget/widget_spinner_test.o: src/widget.h
+GARBAGE += tests/widget/widget_spinner_test.o
 
 tests/widget/widget_menu_test: tests/widget/widget_menu_test.o $(COMMON_SO)
 	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS) -Wl,-rpath,$(CURDIR)
@@ -311,13 +325,15 @@ GARBAGE += tests/widget/widget_termbox_input_test.o
 
 CHECK_TIMEOUT ?= 5s
 
+tests/e2e-compose.chk.e2e: CHECK_TIMEOUT = 10s
+
 tests/%.chk: tests/%
 	@timeout -s KILL $(CHECK_TIMEOUT) $(VALGRIND) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \
 	flock -x $(CURDIR)/tests printf '%4s %s\n' "$$status" "$<"; \
 	echo $$status > $@
 
 tests/%.chk.e2e: tests/%.sh $(TARGETS)
-	@timeout -s KILL 5s "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \
+	@timeout -s KILL $(CHECK_TIMEOUT) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \
 	flock -x $(CURDIR)/tests printf '%4s %s\n' "$$status" "$<"; \
 	echo $$status > $@
 

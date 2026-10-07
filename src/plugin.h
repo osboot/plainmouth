@@ -43,6 +43,8 @@ struct plugin {
 	enum p_event_result (*p_handle_event)(struct widget *root, const struct pollfd *fd);
 	/* SIGCHLD can coalesce: check only this instance's child with WNOHANG. */
 	enum p_event_result (*p_handle_child_event)(struct widget *root);
+	/* UI-thread notification after the dialog becomes hidden or visible. */
+	enum p_retcode (*p_visibility_changed)(struct widget *root, bool visible);
 };
 
 bool load_plugins(const char *dirpath);

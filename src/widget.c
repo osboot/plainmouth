@@ -714,6 +714,7 @@ const char *widget_type(struct widget *w)
 		[WIDGET_TERMINAL]    = "terminal",
 		[WIDGET_POSITIONED]  = "positioned",
 		[WIDGET_SPACER]      = "spacer",
+		[WIDGET_SPINNER]     = "spinner",
 	};
 	if (!w)
 		return "NULL";

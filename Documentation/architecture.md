@@ -409,6 +409,17 @@ thread. The main loop dispatches plugin events before input and IPC tasks
 can delete their owners, and retains ownership of the SIGCHLD signalfd and
 the final screen update. Collection failure leaves an empty snapshot.
 
+Plugins may implement `p_visibility_changed(root, visible)` to suspend and
+resume event sources when terminal resizing hides or restores their dialog.
+The callback runs in the UI thread after `FLAG_VISIBLE` changes. A callback
+error disables event dispatch for the instance; the plugin should retain
+the error in its state to report it through completion and results.
+
+Compose shares one periodic `CLOCK_MONOTONIC` timerfd between its active
+spinner widgets. Widgets store their frames and active state; the plugin
+advances them on timer events. The timer is disarmed while the dialog is
+hidden or finished, or when no spinner is active, and closed on deletion.
+
 The tailbox plugin uses a periodic `CLOCK_MONOTONIC` timerfd as its source.
 Regular files are not polled directly because EOF still counts as read
 readiness. On each timer expiration, tailbox checks the open file and

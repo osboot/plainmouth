@@ -158,6 +158,25 @@ void daemon_instance_check_finished(struct instance *instance)
 	pthread_mutex_unlock(&instances_mutex);
 }
 
+static void instance_set_visible(struct instance *ins, bool visible)
+{
+	bool was_visible = (ins->root->flags & FLAG_VISIBLE) != 0;
+
+	if (visible)
+		ins->root->flags |= FLAG_VISIBLE;
+	else
+		ins->root->flags &= ~FLAG_VISIBLE;
+
+	if (was_visible == visible || !ins->plugin->p_visibility_changed)
+		return;
+
+	if (ins->plugin->p_visibility_changed(ins->root, visible) != P_RET_OK) {
+		warnx("visibility callback failed for instance '%s'", ins->id);
+		ins->events_disabled = true;
+		daemon_instance_check_finished(ins);
+	}
+}
+
 void daemon_instances_resize(void)
 {
 	struct instance *ins;
@@ -168,7 +187,7 @@ void daemon_instances_resize(void)
 		widget_measure_tree(root);
 
 		if (COLS < MAX(2, root->min_w) || LINES < MAX(2, root->min_h)) {
-			root->flags &= ~FLAG_VISIBLE;
+			instance_set_visible(ins, false);
 			if (hide_panel(ins->panel) == ERR)
 				warnx("unable to hide panel of instance '%s'", ins->id);
 			continue;
@@ -201,7 +220,8 @@ void daemon_instances_resize(void)
 		/* Destroy derived windows before releasing their backing window. */
 		widget_hide_tree(root);
 		root->win = win;
-		root->flags |= FLAG_VISIBLE | FLAG_CREATED;
+		root->flags |= FLAG_CREATED;
+		instance_set_visible(ins, true);
 		widget_layout_tree(root, x, y, width, height);
 
 		if (focused && streq(focused->instance_id, ins->id))
