@@ -229,6 +229,8 @@ static int ui_process_task_update(struct ui_task *t)
 	    instance->plugin->p_update_instance(&t->req, instance->root) != P_RET_OK) {
 		return -1;
 	}
+
+	daemon_focus_validate();
 	widget_render_tree(instance->root);
 
 	daemon_instance_check_finished(instance);

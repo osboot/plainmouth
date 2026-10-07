@@ -279,6 +279,12 @@ void daemon_focus_prev(void)
 	ui_focused(true);
 }
 
+void daemon_focus_validate(void)
+{
+	if (!focused || !widget_is_interactive(focused))
+		daemon_focus_next();
+}
+
 bool daemon_instance_create(struct request *req)
 {
 	const char *instance_id = req_get_val(req, "id");

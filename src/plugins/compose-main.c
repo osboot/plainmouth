@@ -43,7 +43,8 @@ static const struct {
 
 static bool property_allowed(enum compose_type type, const char *key)
 {
-	if (streq(key, "flex-w") || streq(key, "flex-h"))
+	if (streq(key, "flex-w") || streq(key, "flex-h") ||
+	    streq(key, "disabled") || streq(key, "readonly"))
 		return true;
 
 	for (size_t i = 0; types[type].properties[i]; i++) {
@@ -336,9 +337,12 @@ static struct widget *compose_create(struct request *req)
 		}
 
 		int flex_w, flex_h;
+		bool disabled, readonly;
 
 		if (!read_number(&node, "flex-w", 0, 0, 256, &flex_w) ||
-		    !read_number(&node, "flex-h", count ? 0 : 1, 0, 256, &flex_h))
+		    !read_number(&node, "flex-h", count ? 0 : 1, 0, 256, &flex_h) ||
+		    !req_read_bool(&node, "disabled", false, &disabled) ||
+		    !req_read_bool(&node, "readonly", false, &readonly))
 			goto fail;
 
 		if ((!depth && count) ||
@@ -358,6 +362,13 @@ static struct widget *compose_create(struct request *req)
 		w->w_id = ++count;
 		w->flex_w = flex_w;
 		w->flex_h = flex_h;
+
+		if (disabled)
+			w->attrs |= ATTR_DISABLED;
+
+		if (readonly)
+			w->attrs |= ATTR_READONLY;
+
 		struct widget *parent = content;
 
 		if (depth)
@@ -399,6 +410,64 @@ static struct widget *compose_create(struct request *req)
 fail:
 	widget_free(root);
 	return NULL;
+}
+
+static enum p_retcode compose_update(struct request *req, struct widget *root)
+{
+	struct ipc_pair *pairs = req_data(req);
+
+	for (size_t i = 0; i < pairs->num_kv; i++) {
+		const char *key = pairs->kv[i].key;
+
+		if (!streq(key, "action") && !streq(key, "id") && !streq(key, "node") &&
+		    !streq(key, "disabled") && !streq(key, "readonly")) {
+			req_error(req, "unknown update parameter: %s", key);
+			return P_RET_ERR;
+		}
+
+		for (size_t j = 0; j < i; j++) {
+			if (streq(key, pairs->kv[j].key)) {
+				req_error(req, "duplicate update parameter: %s", key);
+				return P_RET_ERR;
+			}
+		}
+	}
+
+	int id;
+	bool disabled, readonly;
+
+	if (!req_read_int(req, "node", &id) ||
+	    !req_read_bool(req, "disabled", false, &disabled) ||
+	    !req_read_bool(req, "readonly", false, &readonly))
+		return P_RET_ERR;
+
+	struct widget *w = find_widget_by_id(root, id);
+
+	if (id <= 0 || !w) {
+		req_error(req, "node not found: node=%d", id);
+		return P_RET_ERR;
+	}
+
+	if (!req_get_val(req, "disabled") && !req_get_val(req, "readonly")) {
+		req_error(req, "update requires disabled or readonly");
+		return P_RET_ERR;
+	}
+
+	if (req_get_val(req, "disabled")) {
+		w->attrs &= ~ATTR_DISABLED;
+
+		if (disabled)
+			w->attrs |= ATTR_DISABLED;
+	}
+
+	if (req_get_val(req, "readonly")) {
+		w->attrs &= ~ATTR_READONLY;
+
+		if (readonly)
+			w->attrs |= ATTR_READONLY;
+	}
+
+	return P_RET_OK;
 }
 
 static enum p_retcode compose_set_value(struct request *req, struct widget *root)
@@ -601,6 +670,7 @@ struct plugin plugin = {
 	.name                 = "compose",
 	.desc                 = "Construct a dialog from a declarative widget tree.",
 	.p_create_instance    = compose_create,
+	.p_update_instance    = compose_update,
 	.p_set_value_instance = compose_set_value,
 	.p_finished           = plugin_buttons_finished,
 	.p_take_button_event  = compose_take_event,

@@ -129,6 +129,7 @@ testcase_dump()
 	expect_error "${prefix[@]}" unknown=true node=vbox node=end
 	expect_error "${prefix[@]}" node=vbox node=input value=long max-length=1 node=end node=end
 	expect_error "${prefix[@]}" node=vbox node=button text=Test close=maybe node=end node=end
+	expect_error "${prefix[@]}" node=vbox disabled=maybe node=button text=OK node=end node=end
 
 	local nodes=(node=vbox) i
 
@@ -168,6 +169,14 @@ testcase_events()
 		  node=button text=Retry close=false node=end \
 		  node=button text=OK node=end \
 		node=end
+	expect_error action=update id=events node=3
+	expect_error action=update id=events node=999 disabled=true
+	expect_error action=update id=events node=3 disabled=true readonly=maybe
+	expect_error action=update id=events node=3 disabled=true disabled=false
+	expect_error action=update id=events node=3 disabled=true unknown=true
+	"$client" action=update id=events node=1 disabled=true readonly=true
+	"$client" action=update id=events node=1 disabled=false
+	"$client" action=update id=events node=1 readonly=false
 	expect_error action=set-value id=events node=2 text="This status is too long for the label"
 	"$client" action=set-value id=events node=2 text=Connected
 	"$client" action=dump id=events filename="$eventfile"

@@ -44,6 +44,7 @@ bool daemon_instance_focus(struct instance *instance);
 struct widget *daemon_focus_get(void);
 void daemon_focus_next(void);
 void daemon_focus_prev(void);
+void daemon_focus_validate(void);
 /* Worker-thread only; returns no instance pointer across the mutex boundary. */
 bool daemon_instance_wait(struct request *req);
 bool daemon_instance_wait_event(struct request *req);

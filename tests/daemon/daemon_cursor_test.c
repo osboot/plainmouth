@@ -268,6 +268,82 @@ static void check_compose_events(struct ipc_ctx *ctx, int master, VTerm *termina
 	ipc_pair_free(&response);
 }
 
+static void set_compose_state(struct ipc_ctx *ctx, int node, const char *key, const char *value)
+{
+	struct ipc_pair request = { 0 };
+	require(ipc_pair_add(&request, "action", "update"));
+	require(ipc_pair_add(&request, "id", "states"));
+	require(ipc_pair_sprintf(&request, "node", "%d", node));
+	require(ipc_pair_add(&request, key, value));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+}
+
+static void check_compose_states(struct ipc_ctx *ctx, int master, VTerm *terminal)
+{
+	const char *fields[][2] = {
+		{ "action",   "create"  },
+		{ "plugin",   "compose" },
+		{ "id",       "states"  },
+		{ "width",    "32"      },
+		{ "height",   "6"       },
+		{ "node",     "vbox"    },
+		{ "node",     "hbox"    },
+		{ "node",     "input"   },
+		{ "value",    ""        },
+		{ "disabled", "true"    },
+		{ "node",     "end"     },
+		{ "node",     "input"   },
+		{ "value",    ""        },
+		{ "readonly", "true"    },
+		{ "node",     "end"     },
+		{ "node",     "input"   },
+		{ "value",    ""        },
+		{ "node",     "end"     },
+		{ "node",     "end"     },
+		{ "node",     "button"  },
+		{ "text",     "OK"      },
+		{ "node",     "end"     },
+		{ "node",     "end"     },
+	};
+	struct ipc_pair request = { 0 };
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		require(ipc_pair_add(&request, fields[i][0], fields[i][1]));
+
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "focus"));
+	require(ipc_pair_add(&request, "id", "states"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	drain(master, terminal);
+	press(master, terminal, "a\t\033[Zb");
+	set_compose_state(ctx, 2, "disabled", "true");
+	press(master, terminal, "x");
+	set_compose_state(ctx, 2, "disabled", "false");
+	press(master, terminal, "\033[Zc");
+	set_compose_state(ctx, 3, "disabled", "false");
+	press(master, terminal, "\033[Zd");
+	set_compose_state(ctx, 3, "readonly", "true");
+	press(master, terminal, "e");
+	set_compose_state(ctx, 4, "readonly", "false");
+	press(master, terminal, "\033[Zf");
+	request = (struct ipc_pair) { 0 };
+	struct ipc_pair response = { 0 };
+	require(ipc_pair_add(&request, "action", "result"));
+	require(ipc_pair_add(&request, "id", "states"));
+	require(ipc_send_message2(ctx, &request, &response));
+	require(response.num_kv == 4);
+	require(strcmp(response.kv[0].val, "d") == 0);
+	require(strcmp(response.kv[1].val, "f") == 0);
+	require(strcmp(response.kv[2].val, "abce") == 0);
+	require(strcmp(response.kv[3].val, "0") == 0);
+	ipc_pair_free(&request);
+	ipc_pair_free(&response);
+}
+
 static bool screen_contains(VTerm *terminal, const char *text)
 {
 	VTermScreen *screen = vterm_obtain_screen(terminal);
@@ -501,6 +577,7 @@ int main(void)
 	check_compose(&ctx, master, terminal);
 	check_compose_scroll(&ctx, master, terminal);
 	check_compose_events(&ctx, master, terminal);
+	check_compose_states(&ctx, master, terminal);
 	require(ipc_pair_add(&request, "action", "quit"));
 	require(ipc_send_message2(&ctx, &request, NULL));
 	ipc_pair_free(&request);

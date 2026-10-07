@@ -271,6 +271,26 @@ flow. At least one button is required. Only clicking a button completes the
 dialog when `close=true`; Enter in an input or select does not complete it.
 Button meaning is assigned by the client.
 
+All nodes also accept `disabled` and `readonly` booleans (default false).
+Both prevent keyboard interaction and exclude the node's descendants from
+Tab navigation. Disabled nodes use the disabled style; read-only nodes use
+the readonly style. Values remain available in results and may still be
+changed by the client with `set-value`.
+
+Use `update` to change either state without recreating the tree:
+
+```sh
+plainmouth action=update id=probe node=3 disabled=true
+plainmouth action=update id=probe node=3 disabled=false readonly=false
+```
+
+Omitted states retain their previous values. Updates require at least one
+state and reject invalid, unknown or duplicate parameters before mutation.
+Blocking the focused node or its ancestor moves focus to the next available
+widget. If none are available, focus is cleared; enabling a node restores
+focus only when there is no current focus. Enabling a node does not override
+its ancestors' states or its descendants' own states.
+
 `set-value` addresses the declaration-order ID with `node=N`:
 
 ```sh
