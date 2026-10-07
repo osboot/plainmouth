@@ -13,6 +13,11 @@ struct request {
 	const struct widget *r_style_owner; /* Borrowed creation-time theme, set by the UI thread. */
 };
 
+struct req_parameter {
+	const char *name;
+	bool repeatable;
+};
+
 static inline int req_fd(struct request *req)
 {
 	return req->r_ctx->fd;
@@ -36,6 +41,9 @@ wchar_t *req_get_kv_wchars(struct ipc_kv *kv)                             __attr
 wchar_t *req_get_wchars(struct request *req, const char *key)             __attribute__((malloc, nonnull(1, 2)));
 
 bool req_error(struct request *req, const char *format, ...) __attribute__((format(printf, 2, 3)));
+/* Parameter tables end with a NULL name; validation does not change the request. */
+bool req_validate_parameters(struct request *req, const struct req_parameter *parameters,
+			     const char *unknown_error, const char *duplicate_error);
 bool req_read_int(struct request *req, const char *key, int *value);
 bool req_read_bool(struct request *req, const char *key, bool def, bool *value);
 bool req_read_kv_bool(struct request *req, const struct ipc_kv *kv, bool *value);

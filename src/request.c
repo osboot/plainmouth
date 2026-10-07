@@ -39,6 +39,33 @@ bool req_error(struct request *req, const char *format, ...)
 	return false;
 }
 
+bool req_validate_parameters(struct request *req, const struct req_parameter *parameters,
+			     const char *unknown_error, const char *duplicate_error)
+{
+	struct ipc_pair *pairs = req_data(req);
+
+	for (size_t i = 0; i < pairs->num_kv; i++) {
+		const char *key = pairs->kv[i].key;
+		const struct req_parameter *parameter = parameters;
+
+		while (parameter->name && !streq(parameter->name, key))
+			parameter++;
+
+		if (!parameter->name)
+			return req_error(req, "%s: %s", unknown_error, key);
+
+		if (parameter->repeatable)
+			continue;
+
+		for (size_t j = 0; j < i; j++) {
+			if (streq(key, pairs->kv[j].key))
+				return req_error(req, "%s: %s", duplicate_error, key);
+		}
+	}
+
+	return true;
+}
+
 bool req_read_int(struct request *req, const char *key, int *value)
 {
 	const char *text = req_get_val(req, key);

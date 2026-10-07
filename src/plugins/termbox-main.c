@@ -396,6 +396,9 @@ static struct widget *termbox_create(struct request *req)
 
 	widget_add(parent, st->view);
 
+	if (!widget_set_node_id(st->view, "terminal"))
+		goto fail;
+
 	st->button = plugin_create_close_button(req);
 	if (!st->button)
 		goto fail;

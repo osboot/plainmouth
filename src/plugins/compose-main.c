@@ -159,44 +159,6 @@ static bool read_number(struct request *req, const char *key, int def,
 	return true;
 }
 
-struct node_lookup {
-	const char *name;
-	struct widget *found;
-};
-
-static bool match_node_id(struct widget *w, void *data)
-{
-	struct node_lookup *lookup = data;
-
-	if (w->node_id && streq(w->node_id, lookup->name)) {
-		lookup->found = w;
-		return false;
-	}
-
-	return true;
-}
-
-static struct widget *find_node_id(struct widget *root, const char *name)
-{
-	struct node_lookup lookup = { .name = name };
-	walk_widget_tree(root, match_node_id, &lookup);
-	return lookup.found;
-}
-
-static bool valid_node_id(const char *name)
-{
-	if (!*name || strlen(name) > WIDGET_NODE_ID_MAX)
-		return false;
-
-	for (const char *p = name; *p; p++) {
-		if (!(*p >= 'a' && *p <= 'z') && !(*p >= 'A' && *p <= 'Z') &&
-		    !(*p >= '0' && *p <= '9') && *p != '_' && *p != '-' && *p != '.')
-			return false;
-	}
-
-	return true;
-}
-
 static struct widget *resolve_node(struct request *req, struct widget *root)
 {
 	const char *name = req_get_val(req, "node-id");
@@ -210,12 +172,12 @@ static struct widget *resolve_node(struct request *req, struct widget *root)
 	struct widget *w = NULL;
 
 	if (name) {
-		if (!valid_node_id(name)) {
+		if (!widget_node_id_valid(name)) {
 			req_error(req, "invalid node-id");
 			return NULL;
 		}
 
-		w = find_node_id(root, name);
+		w = find_widget_by_node_id(root, name);
 	} else {
 		int id;
 
@@ -230,6 +192,28 @@ static struct widget *resolve_node(struct request *req, struct widget *root)
 		req_error(req, "node not found");
 
 	return w;
+}
+
+static bool compose_resolve_focus(struct request *req, struct widget *root, struct widget **target)
+{
+	static const struct req_parameter parameters[] = {
+		{ "action",  false },
+		{ "id",      false },
+		{ "node",    false },
+		{ "node-id", false },
+		{ NULL,      false },
+	};
+	*target = NULL;
+
+	if (!req_validate_parameters(req, parameters, "unsupported focus parameter",
+				     "duplicate focus parameter"))
+		return false;
+
+	if (!req_get_val(req, "node") && !req_get_val(req, "node-id"))
+		return true;
+
+	*target = resolve_node(req, root);
+	return *target != NULL;
 }
 
 static struct widget *create_node(struct request *req, enum compose_type type)
@@ -612,7 +596,7 @@ static struct widget *compose_create(struct request *req)
 
 		const char *node_id = req_get_val(&node, "node-id");
 
-		if (node_id && (!valid_node_id(node_id) || find_node_id(root, node_id))) {
+		if (node_id && (!widget_node_id_valid(node_id) || find_widget_by_node_id(root, node_id))) {
 			req_error(req, "invalid or duplicate node-id: %s", node_id);
 			goto fail;
 		}
@@ -622,14 +606,10 @@ static struct widget *compose_create(struct request *req)
 		if (!w)
 			goto fail;
 
-		if (node_id) {
-			w->node_id = strdup(node_id);
-
-			if (!w->node_id) {
-				widget_free(w);
-				req_error(req, "no memory");
-				goto fail;
-			}
+		if (node_id && !widget_set_node_id(w, node_id)) {
+			widget_free(w);
+			req_error(req, "no memory");
+			goto fail;
 		}
 
 		w->w_id = ++count;
@@ -694,31 +674,24 @@ fail:
 
 static enum p_retcode compose_update(struct request *req, struct widget *root)
 {
-	struct ipc_pair *pairs = req_data(req);
-	bool options = false;
+	static const struct req_parameter parameters[] = {
+		{ "action",   false },
+		{ "id",       false },
+		{ "node",     false },
+		{ "node-id",  false },
+		{ "disabled", false },
+		{ "readonly", false },
+		{ "option",   true  },
+		{ "clear",    false },
+		{ "value",    false },
+		{ NULL,       false },
+	};
 
-	for (size_t i = 0; i < pairs->num_kv; i++) {
-		const char *key = pairs->kv[i].key;
+	if (!req_validate_parameters(req, parameters, "unknown update parameter",
+				     "duplicate update parameter"))
+		return P_RET_ERR;
 
-		if (!streq(key, "action") && !streq(key, "id") && !streq(key, "node") && !streq(key, "node-id") &&
-		    !streq(key, "disabled") && !streq(key, "readonly") &&
-		    !streq(key, "option") && !streq(key, "clear") && !streq(key, "value")) {
-			req_error(req, "unknown update parameter: %s", key);
-			return P_RET_ERR;
-		}
-
-		if (streq(key, "option")) {
-			options = true;
-			continue;
-		}
-
-		for (size_t j = 0; j < i; j++) {
-			if (streq(key, pairs->kv[j].key)) {
-				req_error(req, "duplicate update parameter: %s", key);
-				return P_RET_ERR;
-			}
-		}
-	}
+	bool options = req_get_val(req, "option") != NULL;
 
 	bool disabled, readonly, clear;
 
@@ -803,24 +776,18 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 	else if (w->type == WIDGET_SPINNER)
 		field = "active";
 
-	struct ipc_pair *pairs = req_data(req);
+	const struct req_parameter parameters[] = {
+		{ "action",  false },
+		{ "id",      false },
+		{ "node",    false },
+		{ "node-id", false },
+		{ field,     false },
+		{ NULL,      false },
+	};
 
-	for (size_t i = 0; i < pairs->num_kv; i++) {
-		const char *key = pairs->kv[i].key;
-
-		if (!streq(key, "action") && !streq(key, "id") &&
-		    !streq(key, "node") && !streq(key, "node-id") && !streq(key, field)) {
-			req_error(req, "unknown set-value parameter: %s", key);
-			return P_RET_ERR;
-		}
-
-		for (size_t j = 0; j < i; j++) {
-			if (streq(key, pairs->kv[j].key)) {
-				req_error(req, "duplicate set-value parameter: %s", key);
-				return P_RET_ERR;
-			}
-		}
-	}
+	if (!req_validate_parameters(req, parameters, "unknown set-value parameter",
+				     "duplicate set-value parameter"))
+		return P_RET_ERR;
 
 	if (w->type != WIDGET_BUTTON && !req_get_val(req, field)) {
 		req_error(req, "field is missing: %s", field);
@@ -976,24 +943,17 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 
 static enum p_retcode compose_get_value(struct request *req, struct widget *root)
 {
-	struct ipc_pair *pairs = req_data(req);
+	static const struct req_parameter parameters[] = {
+		{ "action",  false },
+		{ "id",      false },
+		{ "node",    false },
+		{ "node-id", false },
+		{ NULL,      false },
+	};
 
-	for (size_t i = 0; i < pairs->num_kv; i++) {
-		const char *key = pairs->kv[i].key;
-
-		if (!streq(key, "action") && !streq(key, "id") &&
-		    !streq(key, "node") && !streq(key, "node-id")) {
-			req_error(req, "unknown get-value parameter: %s", key);
-			return P_RET_ERR;
-		}
-
-		for (size_t j = 0; j < i; j++) {
-			if (streq(key, pairs->kv[j].key)) {
-				req_error(req, "duplicate get-value parameter: %s", key);
-				return P_RET_ERR;
-			}
-		}
-	}
+	if (!req_validate_parameters(req, parameters, "unknown get-value parameter",
+				     "duplicate get-value parameter"))
+		return P_RET_ERR;
 
 	struct widget *w = resolve_node(req, root);
 
@@ -1252,6 +1212,7 @@ struct plugin plugin = {
 	.p_update_instance    = compose_update,
 	.p_set_value_instance = compose_set_value,
 	.p_get_value_instance = compose_get_value,
+	.p_resolve_focus      = compose_resolve_focus,
 	.p_finished           = compose_finished,
 	.p_take_button_event  = compose_take_event,
 	.p_change_token       = compose_change_token,

@@ -125,7 +125,7 @@ static struct widget *textbox_create(struct request *req)
 
 	struct widget *parent;
 	struct widget *root = plugin_create_window(req, PLUGIN_WINDOW_VERTICAL, &parent);
-	struct widget *view = make_textview(text);
+	struct widget *view = plugin_create_textview(text);
 	free(text);
 
 	if (!root || !view) {

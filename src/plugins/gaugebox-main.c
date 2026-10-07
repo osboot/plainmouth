@@ -46,11 +46,19 @@ static struct widget *gauge_create(struct request *req)
 	label->flex_h = 1;
 	label->stretch_w = label->stretch_h = true;
 	widget_add(parent, label);
+
+	if (!widget_set_node_id(label, "text"))
+		goto fail;
+
 	struct widget *meter = make_meter(100);
 	if (!meter)
 		goto fail;
 	meter->w_id = 2;
 	widget_add(parent, meter);
+
+	if (!widget_set_node_id(meter, "meter"))
+		goto fail;
+
 	if (!widget_set(meter, PROP_METER_VALUE, &value))
 		goto fail;
 	int x = req_get_int(req, "x", -1), y = req_get_int(req, "y", -1);

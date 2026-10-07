@@ -41,7 +41,7 @@ static struct widget *p_checklist_create(struct request *req)
 
 	text = req_get_wchars(req, "text");
 	if (text) {
-		struct widget *txt = make_textview(text);
+		struct widget *txt = plugin_create_textview(text);
 		if (!txt) {
 			warnx("unable to create textview");
 			goto fail;
@@ -60,6 +60,9 @@ static struct widget *p_checklist_create(struct request *req)
 	}
 	widget_add(parent, select);
 	select->w_id = SELECT_ID;
+
+	if (!widget_set_node_id(select, "choices"))
+		goto fail;
 
 	int initially_selected = 0;
 	for (size_t i = 0; i < p->num_kv; i++) {
@@ -96,22 +99,8 @@ static struct widget *p_checklist_create(struct request *req)
 	}
 	widget_add(parent, hbox);
 
-	int button_id = 1;
-	for (size_t i = 0; i < p->num_kv; i++) {
-		if (streq(p->kv[i].key, "button")) {
-			wchar_t *label = req_get_kv_wchars(p->kv + i);
-
-			struct widget *btn = make_button(label);
-			free(label);
-
-			if (!btn) {
-				warnx("unable to create button");
-				goto fail;
-			}
-			widget_add(hbox, btn);
-			btn->w_id = button_id++;
-		}
-	}
+	if (!plugin_add_buttons(req, hbox))
+		goto fail;
 
 	widget_measure_tree(root);
 

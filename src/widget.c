@@ -1039,6 +1039,58 @@ bool walk_widget_tree(struct widget *w, walk_fn handler, void *data)
 	return true;
 }
 
+bool widget_node_id_valid(const char *name)
+{
+	if (!name || !*name || strlen(name) > WIDGET_NODE_ID_MAX)
+		return false;
+
+	for (const char *p = name; *p; p++) {
+		if (!(*p >= 'a' && *p <= 'z') && !(*p >= 'A' && *p <= 'Z') &&
+		    !(*p >= '0' && *p <= '9') && *p != '_' && *p != '-' && *p != '.')
+			return false;
+	}
+
+	return true;
+}
+
+bool widget_set_node_id(struct widget *w, const char *name)
+{
+	if (!w || !widget_node_id_valid(name))
+		return false;
+
+	char *copy = strdup(name);
+
+	if (!copy) {
+		warn("strdup");
+		return false;
+	}
+
+	free(w->node_id);
+	w->node_id = copy;
+	return true;
+}
+
+struct widget *find_widget_by_node_id(struct widget *w, const char *name)
+{
+	if (!w || !name)
+		return NULL;
+
+	if (w->node_id && streq(w->node_id, name))
+		return w;
+
+	struct widget *child;
+
+	TAILQ_FOREACH(child, &w->children, siblings)
+	{
+		struct widget *found = find_widget_by_node_id(child, name);
+
+		if (found)
+			return found;
+	}
+
+	return NULL;
+}
+
 struct widget *find_widget_by_id(struct widget *w, int id)
 {
 	if (!w)

@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <err.h>
 
 #include "macros.h"
@@ -38,6 +39,78 @@ struct widget *plugin_create_window(struct request *req, enum plugin_window_layo
 	return root;
 }
 
+bool plugin_set_indexed_node_id(struct widget *w, const char *prefix, int id)
+{
+	char name[WIDGET_NODE_ID_MAX + 1];
+	int length = snprintf(name, sizeof(name), "%s%d", prefix, id);
+
+	if (id <= 0 || length < 0 || (size_t) length >= sizeof(name))
+		return false;
+
+	return widget_set_node_id(w, name);
+}
+
+struct widget *plugin_create_button(const wchar_t *label, int id)
+{
+	struct widget *button = make_button(label);
+
+	if (!button)
+		return NULL;
+
+	if (!plugin_set_indexed_node_id(button, "button", id)) {
+		widget_free(button);
+		return NULL;
+	}
+
+	button->w_id = id;
+	return button;
+}
+
+struct widget *plugin_create_textview(const wchar_t *text)
+{
+	struct widget *view = make_textview(text);
+
+	if (!view)
+		return NULL;
+
+	if (!widget_set_node_id(TAILQ_FIRST(&view->children), "text")) {
+		widget_free(view);
+		return NULL;
+	}
+
+	return view;
+}
+
+bool plugin_resolve_focus(struct request *req, struct widget *root, struct widget **target)
+{
+	static const struct req_parameter parameters[] = {
+		{ "action",  false },
+		{ "id",      false },
+		{ "node-id", false },
+		{ NULL,      false },
+	};
+	*target = NULL;
+
+	if (!req_validate_parameters(req, parameters, "unsupported focus parameter",
+				     "duplicate focus parameter"))
+		return false;
+
+	const char *name = req_get_val(req, "node-id");
+
+	if (!name)
+		return true;
+
+	if (!widget_node_id_valid(name))
+		return req_error(req, "invalid node-id");
+
+	*target = find_widget_by_node_id(root, name);
+
+	if (!*target)
+		return req_error(req, "node not found");
+
+	return true;
+}
+
 struct widget *plugin_create_close_button(struct request *req)
 {
 	wchar_t *label __free(ptr) = NULL;
@@ -48,10 +121,7 @@ struct widget *plugin_create_close_button(struct request *req)
 			return NULL;
 		text = label;
 	}
-	struct widget *button = make_button(text);
-	if (button)
-		button->w_id = 1;
-	return button;
+	return plugin_create_button(text, 1);
 }
 
 bool plugin_add_buttons(struct request *req, struct widget *container)
@@ -68,14 +138,13 @@ bool plugin_add_buttons(struct request *req, struct widget *container)
 		if (!label)
 			return false;
 
-		struct widget *button = make_button(label);
+		struct widget *button = plugin_create_button(label, id++);
 
 		if (!button) {
 			warnx("unable to create button");
 			return false;
 		}
 
-		button->w_id = id++;
 		widget_add(container, button);
 	}
 

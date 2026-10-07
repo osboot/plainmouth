@@ -41,14 +41,27 @@ static struct widget *p_meter_create(struct request *req)
 	wchar_t *label_text __free(ptr) = req_get_wchars(req, "label");
 	if (label_text) {
 		struct widget *label = make_label(label_text);
+
+		if (!label)
+			goto fail;
+
 		widget_add(parent, label);
+
+		if (!widget_set_node_id(label, "text"))
+			goto fail;
 	}
 
 	struct widget *meter = make_meter(total);
 
+	if (!meter)
+		goto fail;
+
 	meter->w_id = METER_ID;
 
 	widget_add(parent, meter);
+
+	if (!widget_set_node_id(meter, "meter"))
+		goto fail;
 
 	widget_measure_tree(root);
 
@@ -58,6 +71,10 @@ static struct widget *p_meter_create(struct request *req)
 	widget_render_tree(root);
 
 	return root;
+
+fail:
+	widget_free(root);
+	return NULL;
 }
 
 static enum p_retcode p_meter_update(struct request *req, struct widget *root)

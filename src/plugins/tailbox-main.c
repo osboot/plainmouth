@@ -143,6 +143,10 @@ static struct widget *tailbox_create(struct request *req)
 	if (!st->view)
 		goto fail;
 	widget_add(parent, st->view);
+
+	if (!widget_set_node_id(st->view, "text"))
+		goto fail;
+
 	st->button = plugin_create_close_button(req);
 	if (!st->button)
 		goto fail;

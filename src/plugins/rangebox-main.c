@@ -28,7 +28,7 @@ static struct widget *rangebox_create(struct request *req)
 	if (!root)
 		return NULL;
 	if (text) {
-		struct widget *view = make_textview(text);
+		struct widget *view = plugin_create_textview(text);
 		if (!view)
 			goto fail;
 		widget_add(parent, view);
@@ -41,23 +41,19 @@ static struct widget *rangebox_create(struct request *req)
 		goto fail;
 	spin->w_id = 1;
 	widget_add(parent, spin);
+
+	if (!widget_set_node_id(spin, "value"))
+		goto fail;
+
 	struct widget *buttons = make_hbox();
 	if (!buttons)
 		goto fail;
 	buttons->flex_h = 0;
 	widget_add(parent, buttons);
-	struct ipc_pair *pairs = req_data(req);
-	int id = 1;
-	for (size_t i = 0; i < pairs->num_kv; i++) {
-		if (!streq(pairs->kv[i].key, "button"))
-			continue;
-		wchar_t *label __free(ptr) = req_get_kv_wchars(pairs->kv + i);
-		struct widget *button = label ? make_button(label) : NULL;
-		if (!button)
-			goto fail;
-		button->w_id = id++;
-		widget_add(buttons, button);
-	}
+
+	if (!plugin_add_buttons(req, buttons))
+		goto fail;
+
 	int x = req_get_int(req, "x", -1), y = req_get_int(req, "y", -1);
 	position_center(width, height, &y, &x);
 	widget_measure_tree(root);

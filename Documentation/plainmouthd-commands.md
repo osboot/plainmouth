@@ -207,12 +207,38 @@ widgets owned by the dialog. Releases associated resources.
 Requests keyboard focus for the plugin instance dialog. Focus change is subject
 to daemon policy. Does not guarantee immediate focus acquisition.
 
-For compose dialogs, `node-id=ID` or `node=N` targets a specific interactive
-node. N is the declaration-order node number, not its visual position. Provide
-at most one selector. The containing scroll areas are adjusted to reveal the
-target. Unknown, disabled, read-only, hidden, or non-focusable nodes fail without
-changing focus. Without a selector, the first interactive widget is selected.
+`node-id=ID` targets a public named widget within the specified dialog.
+Compose also accepts `node=N`, where N is the declaration-order node number,
+not its visual position. Numeric node selectors are rejected by ready-made
+dialog plugins. Provide at most one selector. The containing scroll areas are
+adjusted to reveal the target. Unknown, disabled, read-only, hidden, or
+non-focusable nodes fail without changing focus. Without a selector, the first
+interactive widget is selected.
 Focus requests do not emit change events.
+
+Ready-made dialogs publish the following node IDs:
+
+| Plugin | Public Node IDs |
+| --- | --- |
+| `msgbox` | `text`, `button1`, `button2`, ... |
+| `inputbox`, `passwordbox` | `input`, `text`, `button1`, `button2`, ... |
+| `menubox`, `checklistbox` | `choices`, `text`, `button1`, `button2`, ... |
+| `formbox` | `input1`, `input2`, ..., `text`, `button1`, `button2`, ... |
+| `timebox` | `hour`, `minute`, `second`, `text`, `button1`, `button2`, ... |
+| `rangebox` | `value`, `text`, `button1`, `button2`, ... |
+| `textbox`, `tailbox` | `text`, `button1` |
+| `termbox` | `terminal`, `button1` |
+| `meterbox`, `gaugebox` | `meter`, `text` |
+
+Optional elements have names only when created. Button names follow the order
+of `button` fields regardless of labels; single close buttons are `button1`.
+Form input names follow field creation order, including disabled and read-only
+fields and both plain and password inputs. Labels do not consume input numbers.
+Progress meters and static labels are named but are not focusable. For
+textviews, `text` names the focusable scrolling area. Other internal containers,
+scrollbars, and list options do not receive public names.
+These names currently address focus; value and update requests retain each
+plugin's existing parameter contract.
 
 ### result
 

@@ -14,6 +14,7 @@
 #include "daemon_style.h"
 #include "macros.h"
 #include "plugin.h"
+#include "plugin_helpers.h"
 #include "request.h"
 #include "widget.h"
 
@@ -495,39 +496,20 @@ void daemon_instance_delete(struct instance *instance)
 
 bool daemon_instance_focus(struct instance *instance, struct request *req)
 {
-	const char *name = req_get_val(req, "node-id");
-	const char *number = req_get_val(req, "node");
-	int node = 0;
-	struct ipc_pair *data = req_data(req);
+	struct widget *target = NULL;
 
-	for (size_t i = 0; i < data->num_kv; i++) {
-		const char *key = data->kv[i].key;
-
-		if (!streq(key, "action") && !streq(key, "id") &&
-		    !streq(key, "node") && !streq(key, "node-id"))
-			return req_error(req, "unsupported focus parameter: %s", key);
-
-		for (size_t j = 0; j < i; j++) {
-			if (streq(key, data->kv[j].key))
-				return req_error(req, "duplicate focus parameter: %s", key);
-		}
-	}
-
-	if (name && number)
-		return req_error(req, "provide exactly one of node or node-id");
-
-	if (number && !req_read_int(req, "node", &node))
+	if (instance->plugin->p_resolve_focus) {
+		if (!instance->plugin->p_resolve_focus(req, instance->root, &target))
+			return false;
+	} else if (!plugin_resolve_focus(req, instance->root, &target)) {
 		return false;
-
-	if ((number && node <= 0) || (name && !*name))
-		return req_error(req, "invalid focus selector");
+	}
 
 	struct widget *w;
 
 	TAILQ_FOREACH(w, &focusable, focuses)
 	{
-		if ((name && (!w->node_id || !streq(w->node_id, name))) ||
-		    (number && w->w_id != node))
+		if (!streq(w->instance_id, instance->id) || (target && w != target))
 			continue;
 
 		bool visible = true;
@@ -537,10 +519,10 @@ bool daemon_instance_focus(struct instance *instance, struct request *req)
 				visible = false;
 		}
 
-		if ((name || number) && !visible)
+		if (target && !visible)
 			continue;
 
-		if (streq(w->instance_id, instance->id) && widget_is_interactive(w)) {
+		if (widget_is_interactive(w)) {
 			ui_focused(false);
 			focused = w;
 			ui_focused(true);
@@ -548,7 +530,7 @@ bool daemon_instance_focus(struct instance *instance, struct request *req)
 		}
 	}
 
-	if (name || number)
+	if (target)
 		return req_error(req, "node not found or not focusable");
 
 	return true;

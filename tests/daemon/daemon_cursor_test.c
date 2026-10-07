@@ -1234,7 +1234,10 @@ int main(void)
 	ipc_pair_free(&request);
 	request = (struct ipc_pair) { 0 };
 	drain(master, terminal);
-	press(master, terminal, "\t");
+	focus_node(&ctx, "form", "node-id", "input1", true);
+	focus_node(&ctx, "form", "node", "1", false);
+	focus_node(&ctx, "form", "node-id", "missing", false);
+	focus_node(&ctx, "form", "node-id", "button3", false);
 	expect_cursor(master, terminal, 11, 61);
 	open_help(master, terminal);
 	expect_cursor(master, terminal, 11, 61);

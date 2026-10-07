@@ -36,7 +36,7 @@ static struct widget *p_pass_create(struct request *req)
 	wchar_t *top_text __free(ptr) = req_get_wchars(req, "text");
 
 	if (top_text) {
-		struct widget *txt = make_textview(top_text);
+		struct widget *txt = plugin_create_textview(top_text);
 		if (!txt)
 			goto fail;
 		widget_add(parent, txt);
@@ -76,6 +76,9 @@ static struct widget *p_pass_create(struct request *req)
 
 	widget_add(hbox, input);
 
+	if (!widget_set_node_id(input, "input"))
+		goto fail;
+
 	wchar_t *tooltip_text __free(ptr) = req_get_wchars(req, "tooltip");
 
 	if (tooltip_text) {
@@ -103,10 +106,11 @@ static struct widget *p_pass_create(struct request *req)
 		wchar_t *label __free(ptr) = req_get_kv_wchars(p->kv + i);
 		if (!label)
 			goto fail;
-		struct widget *button = make_button(label);
+		struct widget *button = plugin_create_button(label, button_id++);
+
 		if (!button)
 			goto fail;
-		button->w_id = button_id++;
+
 		widget_add(buttons, button);
 	}
 

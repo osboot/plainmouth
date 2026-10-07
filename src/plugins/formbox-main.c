@@ -124,6 +124,10 @@ static bool form_positioned_fields(struct request *req, struct widget *scroll)
 			if (disabled)
 				child->attrs |= ATTR_DISABLED;
 			int id = input_id++;
+
+			if (!plugin_set_indexed_node_id(child, "input", id))
+				return false;
+
 			if (readonly) {
 				child->attrs |= ATTR_READONLY;
 				bool finished = true;
@@ -203,7 +207,7 @@ static struct widget *p_form_create(struct request *req)
 
 	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
 	if (text) {
-		struct widget *txt = make_textview(text);
+		struct widget *txt = plugin_create_textview(text);
 		if (!txt) {
 			warnx("unable to create textview");
 			goto fail;
@@ -287,6 +291,10 @@ static struct widget *p_form_create(struct request *req)
 				goto fail;
 
 			input->w_id = input_id++;
+
+			if (!plugin_set_indexed_node_id(input, "input", input->w_id))
+				goto fail;
+
 			continue;
 		}
 		if (streq(p->kv[i].key, "password")) {
@@ -304,6 +312,10 @@ static struct widget *p_form_create(struct request *req)
 				goto fail;
 
 			input->w_id = input_id++;
+
+			if (!plugin_set_indexed_node_id(input, "input", input->w_id))
+				goto fail;
+
 			continue;
 		}
 	}
@@ -315,22 +327,8 @@ static struct widget *p_form_create(struct request *req)
 	}
 	widget_add(parent, hbox);
 
-	int button_id = 1;
-	for (size_t i = 0; i < p->num_kv; i++) {
-		if (streq(p->kv[i].key, "button")) {
-			wchar_t *label = req_get_kv_wchars(p->kv + i);
-
-			struct widget *btn = make_button(label);
-			free(label);
-
-			if (!btn) {
-				warnx("unable to create button");
-				goto fail;
-			}
-			widget_add(hbox, btn);
-			btn->w_id = button_id++;
-		}
-	}
+	if (!plugin_add_buttons(original, hbox))
+		goto fail;
 
 	widget_measure_tree(root);
 	if (positioned && visible > 0) {

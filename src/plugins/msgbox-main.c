@@ -35,7 +35,11 @@ static struct widget *p_msgbox_create(struct request *req)
 
 	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
 	if (text) {
-		struct widget *txt = make_textview(text);
+		struct widget *txt = plugin_create_textview(text);
+
+		if (!txt)
+			goto fail;
+
 		widget_add(parent, txt);
 		txt->flex_h = 1;
 	}

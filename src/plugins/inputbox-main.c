@@ -44,7 +44,7 @@ static struct widget *p_inputbox_create(struct request *req)
 		goto fail;
 
 	if (top_text) {
-		struct widget *txt = make_textview(top_text);
+		struct widget *txt = plugin_create_textview(top_text);
 		if (!txt)
 			goto fail;
 		txt->flex_h = 1;
@@ -90,6 +90,9 @@ static struct widget *p_inputbox_create(struct request *req)
 	input->w_id = INPUT_ID;
 
 	widget_add(hbox, input);
+
+	if (!widget_set_node_id(input, "input"))
+		goto fail;
 
 	tooltip_text = req_get_wchars(req, "tooltip");
 

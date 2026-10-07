@@ -192,6 +192,20 @@ the border.
 Focus is explicit and managed by the `plainmouthd`. Only the focused widget
 receives keyboard events. Plugins do not manage focus directly.
 
+Widgets may own a public `node_id` unique within their dialog. Widget helpers
+validate, copy and find these names inside a supplied tree; plugins decide
+which elements to name. Ready-made dialogs use stable role names and numbered
+button or form input names. Compose assigns client-provided names and retains
+its declaration-order numeric selectors.
+
+The daemon uses `plugin_resolve_focus` for the optional common `node-id`
+selector. Plugins can override request resolution with `p_resolve_focus`;
+compose uses this callback to handle its numeric `node` selector. The callback
+only validates the request and returns a borrowed target (NULL for default
+focus). The daemon checks instance ownership, focusability and visibility
+before changing focus and revealing the target. All plugins must be rebuilt
+after changes to `struct plugin`.
+
 Widgets can provide `input_event(widget, character, keycode)` when they need
 to distinguish Unicode characters from ncurses keycodes with the same numeric
 value. The server falls back to the existing `input` callback for other
@@ -365,8 +379,10 @@ content pointer; failure frees the partial tree and clears the content
 pointer. Dimension validation, widget composition, layout and rendering
 remain in the plugins. Plugins create and attach their own button containers;
 `plugin_add_buttons` fills a container from request fields and assigns IDs
-in field creation order. On failure, attached buttons remain owned by the
-container and are freed with the dialog root. The helpers also set button
+in field creation order, with public names `button1`, `button2`, and so on.
+`plugin_create_button` applies the same identity to individual buttons.
+On failure, attached buttons remain owned by the container and are freed with
+the dialog root. The helpers also set button
 state, emit individual button results and check completion by a numbered
 button. Plugins retain validation of conflicting targets, their other
 completion conditions, and result traversal order.

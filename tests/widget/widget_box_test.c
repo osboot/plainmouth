@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <assert.h>
+#include <string.h>
 
 #include "widget.h"
 
@@ -115,11 +116,51 @@ static void test_scroll_content(void)
 	widget_free(pad);
 }
 
+static void test_node_ids(void)
+{
+	struct widget *root = make_vbox();
+	struct widget *row = make_hbox();
+	struct widget *input = make_input(L"", NULL);
+	struct widget *other = make_input(L"", NULL);
+	assert(root && row && input && other);
+	widget_add(root, row);
+	widget_add(row, input);
+	char name[] = "host";
+	assert(widget_set_node_id(input, name));
+	name[0] = 'X';
+	assert(strcmp(input->node_id, "host") == 0);
+	assert(widget_set_node_id(other, "host"));
+	assert(find_widget_by_node_id(root, "host") == input);
+	assert(find_widget_by_node_id(other, "host") == other);
+	assert(!find_widget_by_node_id(row, "missing"));
+	assert(!find_widget_by_node_id(NULL, "host"));
+	assert(!find_widget_by_node_id(root, NULL));
+	assert(widget_set_node_id(input, input->node_id));
+	assert(!widget_set_node_id(input, "bad name"));
+	assert(!widget_set_node_id(input, ""));
+	assert(!widget_set_node_id(input, NULL));
+	assert(strcmp(input->node_id, "host") == 0);
+	char limit[WIDGET_NODE_ID_MAX + 2];
+	memset(limit, 'a', sizeof(limit));
+	limit[sizeof(limit) - 1] = '\0';
+	assert(!widget_set_node_id(input, limit));
+	assert(find_widget_by_node_id(root, "host") == input);
+	limit[WIDGET_NODE_ID_MAX] = '\0';
+	assert(widget_set_node_id(input, limit));
+	assert(!find_widget_by_node_id(root, "host"));
+	assert(find_widget_by_node_id(root, limit) == input);
+	assert(widget_set_node_id(input, "host-1.example_2"));
+	assert(find_widget_by_node_id(root, "host-1.example_2") == input);
+	widget_free(root);
+	widget_free(other);
+}
+
 int main(void)
 {
 	test_horizontal();
 	test_vertical();
 	test_empty_and_single();
 	test_scroll_content();
+	test_node_ids();
 	return 0;
 }

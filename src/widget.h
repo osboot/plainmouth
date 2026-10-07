@@ -221,7 +221,7 @@ struct widget {
 
 	/* Plugin block */
 	const char *instance_id;
-	char *node_id; /* Owned optional client name. */
+	char *node_id; /* Owned optional public name. */
 	struct widget_styles *styles; /* Owned overrides, normally on the dialog root. */
 	const struct widget *style_owner; /* Style inheritance for detached popups. */
 
@@ -390,6 +390,10 @@ struct widget *make_border_hbox(struct widget *parent);
 
 struct widget *find_widget_by_id(struct widget *w, int id);
 struct widget *find_widget_by_type_and_id(struct widget *w, enum widget_type type, int id);
+bool widget_node_id_valid(const char *name);
+/* Copies the name; the old name is preserved on failure. */
+bool widget_set_node_id(struct widget *w, const char *name);
+struct widget *find_widget_by_node_id(struct widget *w, const char *name);
 
 void vbox_measure(struct widget *w);
 void vbox_layout(struct widget *w);

@@ -43,7 +43,7 @@ static struct widget *p_menu_create(struct request *req)
 	if (req_get_val(req, "text") && !text)
 		goto fail;
 	if (text) {
-		struct widget *txt = make_textview(text);
+		struct widget *txt = plugin_create_textview(text);
 		if (!txt) {
 			warnx("unable to create textview");
 			goto fail;
@@ -61,6 +61,9 @@ static struct widget *p_menu_create(struct request *req)
 	}
 	widget_add(parent, select);
 	select->w_id = SELECT_ID;
+
+	if (!widget_set_node_id(select, "choices"))
+		goto fail;
 
 	for (size_t i = 0; i < p->num_kv; i++) {
 		if (streq(p->kv[i].key, "option")) {

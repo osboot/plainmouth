@@ -19,6 +19,14 @@ struct widget *plugin_create_window(struct request *req, enum plugin_window_layo
 /* The caller owns this unattached button with ID 1. The first button field
  * supplies its label; if absent, the label is OK. */
 struct widget *plugin_create_close_button(struct request *req);
+/* Positive result ID; public node ID is buttonN. Caller owns the button. */
+struct widget *plugin_create_button(const wchar_t *label, int id);
+/* Public node ID is prefixN; preserves the old name on failure. */
+bool plugin_set_indexed_node_id(struct widget *w, const char *prefix, int id);
+/* Caller owns the textview; its focusable scroll child is publicly named text. */
+struct widget *plugin_create_textview(const wchar_t *text);
+/* Resolves the common optional node-id selector; NULL means default focus. */
+bool plugin_resolve_focus(struct request *req, struct widget *root, struct widget **target);
 
 /* The caller owns the container, including partially added buttons on failure.
  * IDs start at 1 and follow the order of button fields in the request. */

@@ -21,8 +21,6 @@
 
 static struct widget *p_timebox_create(struct request *req)
 {
-	struct ipc_pair *p = req_data(req);
-
 	int begin_x = req_get_int(req, "x", -1);
 	int begin_y = req_get_int(req, "y", -1);
 	int height  = req_get_int(req, "height", -1);
@@ -50,7 +48,11 @@ static struct widget *p_timebox_create(struct request *req)
 
 	wchar_t *text __free(ptr) = req_get_wchars(req, "text");
 	if (text) {
-		struct widget *txt = make_textview(text);
+		struct widget *txt = plugin_create_textview(text);
+
+		if (!txt)
+			goto fail;
+
 		widget_add(parent, txt);
 		txt->flex_h = 1;
 	}
@@ -78,6 +80,10 @@ static struct widget *p_timebox_create(struct request *req)
 	widget_add(hbox1, sep2);
 	widget_add(hbox1, sec);
 
+	if (!widget_set_node_id(hour, "hour") || !widget_set_node_id(min, "minute") ||
+	    !widget_set_node_id(sec, "second"))
+		goto fail;
+
 	hbox1->flex_h = 0;
 
 	struct widget *hbox2 = make_hbox();
@@ -88,22 +94,8 @@ static struct widget *p_timebox_create(struct request *req)
 	}
 	widget_add(parent, hbox2);
 
-	int button_id = 1;
-	for (size_t i = 0; i < p->num_kv; i++) {
-		if (streq(p->kv[i].key, "button")) {
-			wchar_t *label = req_get_kv_wchars(p->kv + i);
-
-			struct widget *btn = make_button(label);
-			free(label);
-
-			if (!btn) {
-				warnx("unable to create button");
-				goto fail;
-			}
-			widget_add(hbox2, btn);
-			btn->w_id = button_id++;
-		}
-	}
+	if (!plugin_add_buttons(req, hbox2))
+		goto fail;
 
 	widget_measure_tree(root);
 
