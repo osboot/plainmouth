@@ -5,9 +5,11 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <locale.h>
 #include <poll.h>
 #include <stdio.h>
 #include <string.h>
+#include <wchar.h>
 
 #include "daemon_instance.h"
 #include "plugin.h"
@@ -41,6 +43,108 @@ static void expect_timer(int fd, bool armed)
 
 	if (!armed)
 		assert(interval.it_value.tv_sec == 0 && interval.it_value.tv_nsec == 0);
+}
+
+static void expect_input_key(struct instance *ins, struct widget *w, wchar_t key,
+			     bool keycode, const wchar_t *expected, bool changed)
+{
+	ins->event_count = 0;
+	ins->event_head = 0;
+	daemon_instance_input(ins, w, key, keycode);
+	wchar_t *text;
+	assert(widget_get(w, PROP_INPUT_VALUE, &text));
+	assert(wcscmp(text, expected) == 0);
+	assert(ins->event_count == (changed ? 1U : 0U));
+
+	if (changed) {
+		assert(ins->events[0].change && ins->events[0].node == w->w_id);
+		assert(strcmp(ins->events[0].node_id, w->node_id) == 0);
+	}
+}
+
+static void check_text_changes(void)
+{
+	const char *types[] = { "input", "password" };
+
+	for (size_t i = 0; i < sizeof(types) / sizeof(*types); i++) {
+		struct ipc_ctx ctx = { .fd = -1 };
+		char id[] = "text-changes";
+		struct ipc_message msg = { .id = id };
+		struct request req = { .r_ctx = &ctx, .r_msg = &msg };
+		const char *fields[][2] = {
+			{ "id",         id        },
+			{ "plugin",     "compose" },
+			{ "width",      "32"      },
+			{ "height",     "10"      },
+			{ "node",       "vbox"    },
+			{ "node",       types[i]  },
+			{ "node-id",    "text"    },
+			{ "notify",     "true"    },
+			{ "max-length", "3"       },
+			{ "value",      "ab"      },
+			{ "node",       "end"     },
+			{ "node",       types[i]  },
+			{ "node-id",    "silent"  },
+			{ "value",      ""        },
+			{ "node",       "end"     },
+			{ "node",       "button"  },
+			{ "text",       "OK"      },
+			{ "node",       "end"     },
+			{ "node",       "end"     },
+		};
+
+		for (size_t j = 0; j < sizeof(fields) / sizeof(*fields); j++)
+			assert(ipc_pair_add(&msg.data, fields[j][0], fields[j][1]));
+
+		assert(daemon_instance_create(&req));
+		struct instance *ins = daemon_instance_find(id);
+		assert(ins && ins->event_count == 0);
+		struct widget *w = find_widget_by_id(ins->root, 2);
+		assert(w);
+		expect_input_key(ins, w, KEY_LEFT, true, L"ab", false);
+		expect_input_key(ins, w, L'x', false, L"axb", true);
+		expect_input_key(ins, w, L'y', false, L"axb", false);
+		expect_input_key(ins, w, KEY_DC, true, L"ax", true);
+		expect_input_key(ins, w, KEY_DC, true, L"ax", false);
+		expect_input_key(ins, w, KEY_BACKSPACE, true, L"a", true);
+		expect_input_key(ins, w, KEY_HOME, true, L"a", false);
+		expect_input_key(ins, w, KEY_BACKSPACE, true, L"a", false);
+		expect_input_key(ins, w, KEY_RIGHT, true, L"a", false);
+		expect_input_key(ins, w, KEY_END, true, L"a", false);
+		expect_input_key(ins, w, KEY_ENTER, true, L"a", false);
+		expect_input_key(ins, w, L'\t', false, L"a", false);
+		expect_input_key(ins, w, KEY_F(1), true, L"a", false);
+		expect_input_key(ins, w, L'\u00e9', false, L"a\u00e9", true);
+		expect_input_key(ins, w, 127, false, L"a", true);
+		expect_input_key(ins, w, L'\b', false, L"", true);
+		expect_input_key(ins, w, L'\b', false, L"", false);
+		w->attrs |= ATTR_READONLY;
+		expect_input_key(ins, w, L'x', false, L"", false);
+		w->attrs &= ~ATTR_READONLY;
+		struct widget *container = find_widget_by_id(ins->root, 1);
+		container->attrs |= ATTR_DISABLED;
+		expect_input_key(ins, w, L'x', false, L"", false);
+		container->attrs &= ~ATTR_DISABLED;
+		expect_input_key(ins, find_widget_by_id(ins->root, 3), L'x', false, L"x", false);
+
+		struct ipc_message update = { .id = id };
+		struct request setter = { .r_ctx = &ctx, .r_msg = &update };
+		assert(ipc_pair_add(&update.data, "node-id", "text"));
+		assert(ipc_pair_add(&update.data, "value", "abc"));
+		assert(plugin.p_set_value_instance(&setter, ins->root) == P_RET_OK);
+		daemon_instance_check_finished(ins);
+		assert(ins->event_count == 0);
+		ipc_pair_free(&update.data);
+		expect_input_key(ins, w, L'd', false, L"abc", false);
+		expect_input_key(ins, w, KEY_BACKSPACE, true, L"ab", true);
+
+		/* Repeated edits remain one notification even if the text is restored. */
+		daemon_instance_input(ins, w, L'c', false);
+		daemon_instance_input(ins, w, KEY_BACKSPACE, true);
+		assert(ins->event_count == 1 && !ins->event_overflow);
+		daemon_instance_delete(ins);
+		ipc_pair_free(&msg.data);
+	}
 }
 
 static void check_changes(void)
@@ -178,6 +282,7 @@ static void check_changes(void)
 
 int main(void)
 {
+	assert(setlocale(LC_CTYPE, "C.UTF-8"));
 	FILE *input = tmpfile(), *output = tmpfile();
 	assert(input && output);
 	SCREEN *screen = newterm("xterm", output, input);
@@ -270,6 +375,7 @@ int main(void)
 	assert(fcntl(fd, F_GETFD) == -1 && errno == EBADF);
 	ipc_pair_free(&msg.data);
 	check_changes();
+	check_text_changes();
 	endwin();
 	delscreen(screen);
 	fclose(input);

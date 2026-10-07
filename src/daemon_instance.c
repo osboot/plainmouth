@@ -164,12 +164,13 @@ static void queue_event(struct instance *instance, int node, bool change)
 void daemon_instance_input(struct instance *instance, struct widget *node,
 			   wchar_t key, bool keycode)
 {
-	int before, after;
-	bool notify = instance && !instance->finished && instance->plugin->p_change_value &&
-		      instance->plugin->p_change_value(instance->root, node, &before);
+	uint64_t before, after;
+	bool notify = instance && !instance->finished && instance->plugin->p_change_token &&
+		      instance->plugin->p_change_token(instance->root, node, &before);
+
 	widget_dispatch_input(node, key, keycode);
 
-	if (notify && instance->plugin->p_change_value(instance->root, node, &after) &&
+	if (notify && instance->plugin->p_change_token(instance->root, node, &after) &&
 	    before != after)
 		queue_event(instance, node->w_id, true);
 
@@ -534,7 +535,7 @@ bool daemon_instance_wait_event(struct request *req)
 			error = "server stopping";
 		else if (!instance || instance->generation != generation)
 			error = "no instance";
-		else if (!instance->plugin->p_take_button_event && !instance->plugin->p_change_value)
+		else if (!instance->plugin->p_take_button_event && !instance->plugin->p_change_token)
 			error = "wait-event is unsupported by plugin";
 		else if (instance->event_overflow)
 			error = "event queue overflow";

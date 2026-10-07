@@ -46,8 +46,8 @@ static const struct {
 	[COMPOSE_HBOX]     = { "hbox",     { "gap", NULL }                        },
 	[COMPOSE_SCROLL]   = { "scroll",   { NULL }                               },
 	[COMPOSE_LABEL]    = { "label",    { "text", NULL }                       },
-	[COMPOSE_INPUT]    = { "input",    { "value", "max-length", NULL }        },
-	[COMPOSE_PASSWORD] = { "password", { "value", "max-length", NULL }        },
+	[COMPOSE_INPUT]    = { "input",    { "value", "max-length", "notify", NULL } },
+	[COMPOSE_PASSWORD] = { "password", { "value", "max-length", "notify", NULL } },
 	[COMPOSE_CHECKBOX] = { "checkbox", { "checked", "notify", NULL } },
 	[COMPOSE_SELECT]   = { "select",   { "option", "visible", "value", "notify", NULL } },
 	[COMPOSE_BUTTON]   = { "button",   { "text", "close", NULL }              },
@@ -1064,32 +1064,41 @@ static bool scan_buttons(struct widget *w, void *data)
 	return false;
 }
 
-static bool compose_change_value(struct widget *root, struct widget *node, int *value)
+static bool compose_change_token(struct widget *root, struct widget *node, uint64_t *token)
 {
 	struct compose_state *st = root->data;
 
 	if (node->w_id <= 0 || node->w_id > COMPOSE_MAX_NODES || !st->notify[node->w_id])
 		return false;
 
+	int value;
+
 	switch (node->type) {
+		case WIDGET_INPUT:
+			return widget_get(node, PROP_INPUT_REVISION, token);
 		case WIDGET_CHECKBOX: {
 			bool checked;
 
 			if (!widget_get(node, PROP_CHECKBOX_STATE, &checked))
 				return false;
 
-			*value = checked;
+			*token = checked;
 			return true;
 		}
 		case WIDGET_SELECT:
 
-			if (!widget_get(node, PROP_SELECT_CURSOR, value))
+			if (!widget_get(node, PROP_SELECT_CURSOR, &value))
 				return false;
 
-			(*value)++;
+			*token = (uint64_t) value + 1;
 			return true;
 		case WIDGET_SPINBOX:
-			return widget_get(node, PROP_SPINBOX_VALUE, value);
+
+			if (!widget_get(node, PROP_SPINBOX_VALUE, &value))
+				return false;
+
+			*token = (uint64_t) value;
+			return true;
 		default:
 			return false;
 	}
@@ -1206,7 +1215,7 @@ struct plugin plugin = {
 	.p_get_value_instance = compose_get_value,
 	.p_finished           = compose_finished,
 	.p_take_button_event  = compose_take_event,
-	.p_change_value       = compose_change_value,
+	.p_change_token       = compose_change_token,
 	.p_result             = compose_result,
 	.p_pollfds            = compose_pollfds,
 	.p_handle_event       = compose_event,

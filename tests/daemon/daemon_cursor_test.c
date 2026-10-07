@@ -861,41 +861,52 @@ static void expect_node_value(struct ipc_ctx *ctx, const char *node, const char 
 static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *terminal)
 {
 	const char *fields[][2] = {
-		{ "action",  "create"   },
-		{ "plugin",  "compose"  },
-		{ "id",      "changes"  },
-		{ "width",   "32"       },
-		{ "height",  "10"       },
-		{ "x",       "0"        },
-		{ "y",       "0"        },
-		{ "node",    "vbox"     },
-		{ "node",    "checkbox" },
-		{ "node-id", "tls"      },
-		{ "notify",  "true"     },
-		{ "node",    "end"      },
-		{ "node",    "select"   },
-		{ "notify",  "true"     },
-		{ "option",  "One"      },
-		{ "option",  "Two"      },
-		{ "node",    "end"      },
-		{ "node",    "spinbox"  },
-		{ "node-id", "count"    },
-		{ "notify",  "true"     },
-		{ "min",     "-10"      },
-		{ "max",     "10"       },
-		{ "value",   "0"        },
-		{ "node",    "end"      },
-		{ "node",    "checkbox" },
-		{ "notify",  "false"    },
-		{ "node",    "end"      },
-		{ "node",    "button"   },
-		{ "text",    "Test"     },
-		{ "close",   "false"    },
-		{ "node",    "end"      },
-		{ "node",    "button"   },
-		{ "text",    "OK"       },
-		{ "node",    "end"      },
-		{ "node",    "end"      },
+		{ "action",     "create"   },
+		{ "plugin",     "compose"  },
+		{ "id",         "changes"  },
+		{ "width",      "32"       },
+		{ "height",     "10"       },
+		{ "x",          "0"        },
+		{ "y",          "0"        },
+		{ "node",       "vbox"     },
+		{ "node",       "checkbox" },
+		{ "node-id",    "tls"      },
+		{ "notify",     "true"     },
+		{ "node",       "end"      },
+		{ "node",       "select"   },
+		{ "notify",     "true"     },
+		{ "option",     "One"      },
+		{ "option",     "Two"      },
+		{ "node",       "end"      },
+		{ "node",       "spinbox"  },
+		{ "node-id",    "count"    },
+		{ "notify",     "true"     },
+		{ "min",        "-10"      },
+		{ "max",        "10"       },
+		{ "value",      "0"        },
+		{ "node",       "end"      },
+		{ "node",       "checkbox" },
+		{ "notify",     "false"    },
+		{ "node",       "end"      },
+		{ "node",       "input"    },
+		{ "node-id",    "host"     },
+		{ "value",      "ab"       },
+		{ "max-length", "3"        },
+		{ "notify",     "true"     },
+		{ "node",       "end"      },
+		{ "node",       "password" },
+		{ "node-id",    "secret"   },
+		{ "value",      "pw"       },
+		{ "notify",     "true"     },
+		{ "node",       "end"      },
+		{ "node",       "button"   },
+		{ "text",       "Test"     },
+		{ "close",      "false"    },
+		{ "node",       "end"      },
+		{ "node",       "button"   },
+		{ "text",       "OK"       },
+		{ "node",       "end"      },
+		{ "node",       "end"      },
 	};
 	struct ipc_pair request = { 0 };
 
@@ -931,21 +942,38 @@ static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *termin
 	press(master, terminal, "\t");
 	press(master, terminal, " ");
 	press(master, terminal, "\t");
+	press(master, terminal, "c");
+	press(master, terminal, "d");
+	expect_node_value(ctx, "host", "abc");
+	press(master, terminal, "\033OH");
+	press(master, terminal, "\033[3~");
+	press(master, terminal, "x");
+	press(master, terminal, "\033OF");
+	press(master, terminal, "\177");
+	expect_node_value(ctx, "host", "xb");
+	press(master, terminal, "\t");
+	press(master, terminal, "\033OH");
+	press(master, terminal, "\033[3~");
+	press(master, terminal, "z");
+	press(master, terminal, "\033OF");
+	press(master, terminal, "\177");
+	expect_node_value(ctx, "secret", "z");
+	press(master, terminal, "\t");
 	press(master, terminal, "\n");
 
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < 6; i++)
 		press(master, terminal, "\033[Z");
 
 	press(master, terminal, " ");
 
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < 6; i++)
 		press(master, terminal, "\t");
 
 	press(master, terminal, "\n");
 	press(master, terminal, "\t");
 	press(master, terminal, "\n");
-	const char *nodes[] = { "2", "3", "4", "6", "2", "6" };
-	const char *names[] = { "tls", NULL, "count", NULL, "tls", NULL };
+	const char *nodes[] = { "2", "3", "4", "6", "7", "8", "2", "8" };
+	const char *names[] = { "tls", NULL, "count", "host", "secret", NULL, "tls", NULL };
 	expect_node_value(ctx, "count", "6");
 	expect_node_value(ctx, "tls", "1");
 
@@ -957,7 +985,7 @@ static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *termin
 		require(ipc_send_message2(ctx, &request, &response));
 		size_t count = 2;
 		require(strcmp(response.kv[0].key, "EVENT") == 0);
-		require(strcmp(response.kv[0].val, i == 3 || i == 5 ? "button" : "change") == 0);
+		require(strcmp(response.kv[0].val, i == 5 || i == 7 ? "button" : "change") == 0);
 		require(strcmp(response.kv[1].key, "NODE") == 0);
 		require(strcmp(response.kv[1].val, nodes[i]) == 0);
 

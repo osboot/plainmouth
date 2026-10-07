@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <wchar.h>
 #include <wctype.h>
 #include <err.h>
@@ -23,6 +24,7 @@ struct widget_input {
 	int cap;
 	int len;
 	int max_length;
+	uint64_t revision;
 
 	int cursor_x;
 	int cursor_y;
@@ -137,10 +139,13 @@ bool __input_unchr(struct widget_input *state)
 			wmemmove(&state->text[index - 1],
 				 &state->text[index],
 				 (size_t) (state->len - index + 1));
+
 		state->len--;
 		state->text[state->len] = L'\0';
+		state->revision++;
 		return true;
 	}
+
 	return false;
 }
 
@@ -148,6 +153,7 @@ bool __input_append(struct widget_input *state, wchar_t c)
 {
 	if (state->len >= state->max_length)
 		return false;
+
 	if (state->cap <= (state->len + 1)) {
 		size_t cap = (size_t) state->cap + 1;
 		wchar_t *text = realloc(state->text, cap * sizeof(wchar_t));
@@ -156,6 +162,7 @@ bool __input_append(struct widget_input *state, wchar_t c)
 			warn("realloc");
 			return false;
 		}
+
 		state->text = text;
 		state->cap = (int) cap;
 	}
@@ -170,6 +177,7 @@ bool __input_append(struct widget_input *state, wchar_t c)
 	state->text[index] = c;
 	state->len++;
 	state->text[state->len] = L'\0';
+	state->revision++;
 
 	return true;
 }
@@ -227,17 +235,20 @@ int input_input(const struct widget *w, wchar_t key)
 				 (size_t) (st->len - st->index));
 
 			st->len--;
+			st->revision++;
 			break;
 		case KEY_BACKSPACE:
 		case L'\b':
 		case 127:
 			if (!__input_unchr(st))
 				return 0;
+
 			dec_cursor(w);
 			break;
 		default:
 			if (!__input_append(st, key))
 				return 0;
+
 			inc_cursor(w);
 			break;
 	}
@@ -290,6 +301,10 @@ bool input_getter(struct widget *w, enum widget_property prop, void *value)
 		*(wchar_t **) value = st->text;
 		return true;
 
+	} else if (prop == PROP_INPUT_REVISION) {
+		*(uint64_t *) value = st->revision;
+		return true;
+
 	} else if (prop == PROP_INPUT_MAX_LENGTH) {
 		*(int *) value = st->max_length;
 		return true;
@@ -315,13 +330,19 @@ bool input_setter(struct widget *w, enum widget_property prop, const void *value
 	} else if (prop == PROP_INPUT_VALUE) {
 		const wchar_t *in = value;
 		size_t length = wcslen(in ?: L"");
+
 		if (length > (size_t) st->max_length)
 			return false;
+
 		wchar_t *text = wcsdup(in ?: L"");
+
 		if (!text) {
 			warn("wcsdup");
 			return false;
 		}
+
+		if (wcscmp(st->text, text) != 0)
+			st->revision++;
 
 		free(st->text);
 		st->text = text;

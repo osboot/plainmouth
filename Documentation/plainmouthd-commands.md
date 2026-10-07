@@ -427,14 +427,18 @@ supported. Inserting nodes requires no changes to parent references; clients
 still calculate result IDs from declaration order. Dynamic structural
 updates are not supported.
 
-Checkbox, select and spinbox nodes accept `notify=true` (default false).
+Input, password, checkbox, select and spinbox nodes accept `notify=true`
+(default false).
 After a user changes their value, `action=wait-event id=ID` returns
 `EVENT=change`, `NODE=N` and optional `NODE_ID=ID`. Read the current value
 with `action=get-value` using the node selector from the event.
-Pending digits, cancelled edits, and keys
+Text insertion (including pasted characters), Delete and Backspace produce
+events when they change the text. Cursor movement, rejected input at the
+length limit, pending spinbox digits, cancelled numeric edits, and keys
 that leave the value unchanged produce no event. `set-value` updates do not
 produce change events. `notify` is fixed at creation; disabled and read-only
-nodes do not react to input. Inputs and passwords do not support `notify`.
+nodes do not react to input. Passwords follow the same notification rules
+as inputs; masking affects rendering only. Event responses contain no text.
 
 `action=wait-event id=ID` also waits for a non-closing button activation and returns
 `EVENT=button` and `NODE=N` (the declaration-order ID). An event from

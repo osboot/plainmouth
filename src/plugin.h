@@ -4,6 +4,7 @@
 
 #include <sys/queue.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <poll.h>
 
 #include "request.h"
@@ -37,8 +38,8 @@ struct plugin {
 	bool (*p_finished)(struct widget *root);
 	/* UI-thread only; consume one pending button event, or return zero. */
 	int (*p_take_button_event)(struct widget *root);
-	/* UI-thread only; snapshot a node value opted into user change events. */
-	bool (*p_change_value)(struct widget *root, struct widget *node, int *value);
+	/* UI-thread only; compare tokens before/after input on opted-in nodes. */
+	bool (*p_change_token)(struct widget *root, struct widget *node, uint64_t *token);
 	enum p_retcode (*p_result)(struct request *req, struct widget *root);
 	enum p_retcode (*p_plugin_free)(void);
 	/* Borrowed descriptors; this accessor must not change instance state. */
