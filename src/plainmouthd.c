@@ -265,6 +265,27 @@ static int ui_process_task_set_value(struct ui_task *t)
 	return 0;
 }
 
+static int ui_process_task_get_value(struct ui_task *t)
+{
+	if (!pthread_equal(pthread_self(), ui_thread))
+		errx(EXIT_FAILURE, "ui_task_get_value called not from UI thread");
+
+	struct instance *instance = ui_get_instance_by_id(t);
+
+	if (!instance)
+		return -1;
+
+	if (!instance->plugin->p_get_value_instance) {
+		req_error(&t->req, "get-value is unsupported by plugin");
+		return -1;
+	}
+
+	if (instance->plugin->p_get_value_instance(&t->req, instance->root) != P_RET_OK)
+		return -1;
+
+	return 0;
+}
+
 static int ui_process_task_delete(struct ui_task *t)
 {
 	if (!pthread_equal(pthread_self(), ui_thread))
@@ -423,6 +444,7 @@ static const struct ui_command ui_commands[UI_TASK_COUNT] = {
 	[UI_TASK_CREATE]       = { "create",       ui_process_task_create,       true  },
 	[UI_TASK_UPDATE]       = { "update",       ui_process_task_update,       true  },
 	[UI_TASK_SET_VALUE]    = { "set-value",    ui_process_task_set_value,    true  },
+	[UI_TASK_GET_VALUE]    = { "get-value",    ui_process_task_get_value,    true  },
 	[UI_TASK_DELETE]       = { "delete",       ui_process_task_delete,       true  },
 	[UI_TASK_FOCUS]        = { "focus",        ui_process_task_focus,        true  },
 	[UI_TASK_RESULT]       = { "result",       ui_process_task_result,       true  },

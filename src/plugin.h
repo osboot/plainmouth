@@ -33,6 +33,7 @@ struct plugin {
 	enum p_retcode (*p_delete_instance)(struct widget *root);
 	enum p_retcode (*p_update_instance)(struct request *req, struct widget *root);
 	enum p_retcode (*p_set_value_instance)(struct request *req, struct widget *root);
+	enum p_retcode (*p_get_value_instance)(struct request *req, struct widget *root);
 	bool (*p_finished)(struct widget *root);
 	/* UI-thread only; consume one pending button event, or return zero. */
 	int (*p_take_button_event)(struct widget *root);

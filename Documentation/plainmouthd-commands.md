@@ -221,6 +221,22 @@ user input completion.
 
 ### compose
 
+`action=get-value id=ID node-id=NAME` reads one node in a composed dialog;
+`node=N` selects its declaration-order number instead. Exactly one selector
+is required. The response contains one `VALUE` pair: input/password text,
+checkbox/button/spinner state as 0/1, a 1-based select option, or the current
+spinbox/meter number. Password text is returned unmasked, as in `result`.
+Spinboxes return the committed value, excluding pending edits.
+Reading works before and after completion and for disabled/read-only nodes.
+It does not change focus, scroll offsets, button state, or queued events.
+Containers, labels, textviews and spacers have no readable value through this
+command. Other plugins currently reject `get-value`.
+
+```sh
+plainmouth action=get-value id=connection node-id=host
+# VALUE=localhost
+```
+
 `compose` constructs a fixed widget tree in one `create` request. Window
 parameters (`width`, `height`, optional `x`, `y`, `border`, `style`) precede
 all nodes. `node=TYPE` opens a node and `node=end` closes it. Nodes are nested:

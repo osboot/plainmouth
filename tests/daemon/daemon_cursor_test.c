@@ -844,6 +844,20 @@ static void check_compose_textview(struct ipc_ctx *ctx, int master, VTerm *termi
 	ipc_pair_free(&request);
 }
 
+static void expect_node_value(struct ipc_ctx *ctx, const char *node, const char *expected)
+{
+	struct ipc_pair request = { 0 }, response = { 0 };
+	require(ipc_pair_add(&request, "action", "get-value"));
+	require(ipc_pair_add(&request, "id", "changes"));
+	require(ipc_pair_add(&request, "node-id", node));
+	require(ipc_send_message2(ctx, &request, &response));
+	require(response.num_kv == 1);
+	require(strcmp(response.kv[0].key, "VALUE") == 0);
+	require(strcmp(response.kv[0].val, expected) == 0);
+	ipc_pair_free(&request);
+	ipc_pair_free(&response);
+}
+
 static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *terminal)
 {
 	const char *fields[][2] = {
@@ -903,7 +917,9 @@ static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *termin
 	press(master, terminal, "\t");
 	press(master, terminal, "\033OA");
 	press(master, terminal, "2");
+	expect_node_value(ctx, "count", "1");
 	press(master, terminal, "\n");
+	expect_node_value(ctx, "count", "2");
 	request = (struct ipc_pair) { 0 };
 	require(ipc_pair_add(&request, "action", "set-value"));
 	require(ipc_pair_add(&request, "id", "changes"));
@@ -921,6 +937,8 @@ static void check_compose_changes(struct ipc_ctx *ctx, int master, VTerm *termin
 	const char *nodes[] = { "2", "2", "3", "4", "4", "4", "6" };
 	const char *values[] = { "1", "0", "2", "1", "2", "6", NULL };
 	const char *names[] = { "tls", "tls", NULL, "count", "count", "count", NULL };
+	expect_node_value(ctx, "count", "6");
+	expect_node_value(ctx, "tls", "0");
 
 	for (size_t i = 0; i < sizeof(nodes) / sizeof(*nodes); i++) {
 		request = (struct ipc_pair) { 0 };

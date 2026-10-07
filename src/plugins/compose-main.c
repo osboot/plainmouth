@@ -935,6 +935,78 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 	return P_RET_OK;
 }
 
+static enum p_retcode compose_get_value(struct request *req, struct widget *root)
+{
+	struct ipc_pair *pairs = req_data(req);
+
+	for (size_t i = 0; i < pairs->num_kv; i++) {
+		const char *key = pairs->kv[i].key;
+
+		if (!streq(key, "action") && !streq(key, "id") &&
+		    !streq(key, "node") && !streq(key, "node-id")) {
+			req_error(req, "unknown get-value parameter: %s", key);
+			return P_RET_ERR;
+		}
+
+		for (size_t j = 0; j < i; j++) {
+			if (streq(key, pairs->kv[j].key)) {
+				req_error(req, "duplicate get-value parameter: %s", key);
+				return P_RET_ERR;
+			}
+		}
+	}
+
+	struct widget *w = resolve_node(req, root);
+
+	if (!w)
+		return P_RET_ERR;
+
+	int number = 0;
+	bool state = false, ok = false;
+
+	switch (w->type) {
+		case WIDGET_INPUT: {
+			wchar_t *text = NULL;
+
+			if (widget_get(w, PROP_INPUT_VALUE, &text) &&
+			    ipc_send_string(req_fd(req), "RESPDATA %s VALUE=%ls", req_id(req), text) > 0)
+				return P_RET_OK;
+
+			break;
+		}
+		case WIDGET_SPINBOX:
+			ok = widget_get(w, PROP_SPINBOX_VALUE, &number);
+			break;
+		case WIDGET_METER:
+			ok = widget_get(w, PROP_METER_VALUE, &number);
+			break;
+		case WIDGET_SELECT:
+			ok = widget_get(w, PROP_SELECT_CURSOR, &number);
+			number++;
+			break;
+		case WIDGET_CHECKBOX:
+			ok = widget_get(w, PROP_CHECKBOX_STATE, &state);
+			number = state;
+			break;
+		case WIDGET_BUTTON:
+			ok = widget_get(w, PROP_BUTTON_STATE, &state);
+			number = state;
+			break;
+		case WIDGET_SPINNER:
+			ok = widget_get(w, PROP_SPINNER_ACTIVE, &state);
+			number = state;
+			break;
+		default:
+			break;
+	}
+
+	if (ok && ipc_send_string(req_fd(req), "RESPDATA %s VALUE=%d", req_id(req), number) > 0)
+		return P_RET_OK;
+
+	req_error(req, "unable to get node value: node=%d", w->w_id);
+	return P_RET_ERR;
+}
+
 static bool collect_result(struct widget *w, void *data)
 {
 	struct request *req = data;
@@ -1131,6 +1203,7 @@ struct plugin plugin = {
 	.p_delete_instance    = compose_delete,
 	.p_update_instance    = compose_update,
 	.p_set_value_instance = compose_set_value,
+	.p_get_value_instance = compose_get_value,
 	.p_finished           = compose_finished,
 	.p_take_button_event  = compose_take_event,
 	.p_change_value       = compose_change_value,
