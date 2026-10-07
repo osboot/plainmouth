@@ -788,17 +788,21 @@ int main(void)
 	require(ioctl(slave, TIOCSWINSZ, &size) == 0);
 	server = fork();
 	require(server >= 0);
+
 	if (!server) {
 		close(master);
+
+		/* Keep diagnostics in the test log, outside the terminal stream. */
 		if (setsid() < 0 || ioctl(slave, TIOCSCTTY, 0) < 0 ||
-		    dup2(slave, STDIN_FILENO) < 0 || dup2(slave, STDOUT_FILENO) < 0 ||
-		    dup2(slave, STDERR_FILENO) < 0)
+		    dup2(slave, STDIN_FILENO) < 0 || dup2(slave, STDOUT_FILENO) < 0)
 			_exit(127);
+
 		close(slave);
 		execl("./plainmouthd", "plainmouthd", "-S", socket_path,
 		      "--tty=/dev/tty", "--animation-duration=400", (char *) NULL);
 		_exit(127);
 	}
+
 	close(slave);
 	for (int i = 0; access(socket_path, F_OK) != 0; i++) {
 		require(i < 200);
