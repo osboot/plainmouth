@@ -34,6 +34,7 @@ enum compose_type {
 	COMPOSE_METER,
 	COMPOSE_SPINNER,
 	COMPOSE_SPINBOX,
+	COMPOSE_TEXTVIEW,
 	COMPOSE_COUNT,
 };
 
@@ -54,6 +55,7 @@ static const struct {
 	[COMPOSE_METER]    = { "meter",    { "total", "value", NULL }             },
 	[COMPOSE_SPINNER]  = { "spinner",  { "active", "frames", NULL }           },
 	[COMPOSE_SPINBOX]  = { "spinbox",  { "min", "max", "step", "value", NULL } },
+	[COMPOSE_TEXTVIEW] = { "textview", { "text", NULL }                       },
 };
 
 struct compose_state {
@@ -236,6 +238,7 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 
 	switch (type) {
 		case COMPOSE_LABEL:
+		case COMPOSE_TEXTVIEW:
 		case COMPOSE_BUTTON:
 			key = "text";
 			break;
@@ -345,6 +348,8 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 			return make_scroll_vbox();
 		case COMPOSE_LABEL:
 			return make_label(text);
+		case COMPOSE_TEXTVIEW:
+			return make_textview(text);
 		case COMPOSE_BUTTON: {
 			bool close;
 
@@ -783,6 +788,33 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 	bool ok = false;
 
 	switch (w->type) {
+		case WIDGET_TEXTVIEW: {
+			wchar_t *text __free(ptr) = req_get_wchars(req, "value");
+
+			if (!text || wcslen(text) > COMPOSE_MAX_SIZE)
+				break;
+
+			struct widget *candidate = make_label(text);
+
+			if (!candidate)
+				break;
+
+			widget_measure_tree(candidate);
+			bool fits = candidate->min_w <= COMPOSE_MAX_SIZE &&
+				    candidate->min_h <= COMPOSE_MAX_SIZE &&
+				    (size_t) candidate->min_w * (size_t) candidate->min_h <= 1024 * 1024;
+			widget_free(candidate);
+
+			if (fits)
+				ok = widget_set(w, PROP_TEXT_VALUE, text);
+
+			if (ok) {
+				widget_measure_tree(w);
+				widget_layout_tree(w, w->lx, w->ly, w->w, w->h);
+			}
+
+			break;
+		}
 		case WIDGET_LABEL: {
 			wchar_t *text __free(ptr) = req_get_wchars(req, "text");
 

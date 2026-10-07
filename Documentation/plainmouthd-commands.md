@@ -269,6 +269,14 @@ Supported node types and their properties:
   not receive declaration-order result IDs.
 - `label`, `button`: required `text`. Buttons accept `close` (default true);
   `close=false` emits a client event without finishing the dialog.
+- `textview`: required `text` (may be empty), displayed without wrapping in a
+  scrollable, read-only area. Use `flex-h=1` to fill remaining vertical space.
+  The focused area supports arrows, PgUp/PgDown, Home/End and contextual help.
+  Replace the text with `action=set-value id=dialog node-id=output value="..."`;
+  successful replacement recalculates content dimensions and resets both
+  scroll offsets to zero. Text is limited to 4096 characters and the backing
+  pad to 1048576 cells. This leaf accepts no child nodes and emits no results.
+  Try `MODE=view tests/e2e-compose-textview.sh` for an interactive example.
 - `input`, `password`: required `value` (may be empty), optional `max-length`
   (0..65536 characters, default 65536). Passwords are masked on screen but
   returned as ordinary input values.

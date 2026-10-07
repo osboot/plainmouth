@@ -311,6 +311,12 @@ tests/widget/widget_tailview_test: tests/widget/widget_tailview_test.o $(COMMON_
 tests/widget/widget_tailview_test.o: src/widget.h
 GARBAGE += tests/widget/widget_tailview_test.o
 
+tests/widget/widget_textview_test: tests/widget/widget_textview_test.o $(COMMON_SO)
+	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS) -Wl,-rpath,$(CURDIR)
+
+tests/widget/widget_textview_test.o: src/widget.h
+GARBAGE += tests/widget/widget_textview_test.o
+
 tests/widget/widget_termbox_output_test: tests/widget/widget_termbox_output_test.o src/plugins/termbox-output.o $(COMMON_SO)
 	$(call cmd_LINK,$(filter %.o,$^)) $(COMMON_LIBS) $(VTERM_LIBS) -L$(CURDIR) -lplainmouth -Wl,-rpath,$(CURDIR)
 

@@ -43,5 +43,6 @@ tests/widget/widget_spinbox_test
 tests/widget/widget_spinner_test
 tests/widget/widget_style_test
 tests/widget/widget_tailview_test
+tests/widget/widget_textview_test
 tests/widget/widget_termbox_output_test
 tests/widget/widget_termbox_input_test

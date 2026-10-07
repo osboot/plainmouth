@@ -770,6 +770,80 @@ static void check_compose_spinbox(struct ipc_ctx *ctx, int master, VTerm *termin
 	ipc_pair_free(&response);
 }
 
+static void check_compose_textview(struct ipc_ctx *ctx, int master, VTerm *terminal)
+{
+	struct ipc_pair request = { 0 };
+	const char text[] = "First line\nSecond line\nThird line\nFourth line\nFifth line\nLast line";
+	const char *fields[][2] = {
+		{ "action",  "create"   },
+		{ "plugin",  "compose"  },
+		{ "id",      "text"     },
+		{ "width",   "32"       },
+		{ "height",  "7"        },
+		{ "x",       "0"        },
+		{ "y",       "0"        },
+		{ "border",  "true"     },
+		{ "node",    "vbox"     },
+		{ "node",    "textview" },
+		{ "node-id", "output"   },
+		{ "flex-h",  "1"        },
+		{ "text",    text       },
+		{ "node",    "end"      },
+		{ "node",    "button"   },
+		{ "text",    "OK"       },
+		{ "node",    "end"      },
+		{ "node",    "end"      },
+	};
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		require(ipc_pair_add(&request, fields[i][0], fields[i][1]));
+
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "focus"));
+	require(ipc_pair_add(&request, "id", "text"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	expect_screen_text(master, terminal, "First line", true);
+	expect_screen_text(master, terminal, "Last line", false);
+	press(master, terminal, "\033OP");
+	expect_screen_text(master, terminal, "Scroll one page down", true);
+	press(master, terminal, "\033OP");
+	expect_screen_text(master, terminal, "Scroll one page down", false);
+	press(master, terminal, "\033OF");
+	expect_screen_text(master, terminal, "Last line", true);
+	expect_screen_text(master, terminal, "First line", false);
+	press(master, terminal, "\033OH");
+	expect_screen_text(master, terminal, "First line", true);
+	press(master, terminal, "\033OB");
+	expect_screen_text(master, terminal, "First line", false);
+	press(master, terminal, "\033OA");
+	expect_screen_text(master, terminal, "First line", true);
+	press(master, terminal, "\033OF");
+	expect_screen_text(master, terminal, "Last line", true);
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "set-value"));
+	require(ipc_pair_add(&request, "id", "text"));
+	require(ipc_pair_add(&request, "node-id", "output"));
+	require(ipc_pair_add(&request, "value", "Replacement"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	expect_screen_text(master, terminal, "Replacement", true);
+	expect_screen_text(master, terminal, "Last line", false);
+	press(master, terminal, "\t");
+	press(master, terminal, "\n");
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "wait-result"));
+	require(ipc_pair_add(&request, "id", "text"));
+	struct ipc_pair response = { 0 };
+	require(ipc_send_message2(ctx, &request, &response));
+	require(response.num_kv == 1 && strcmp(response.kv[0].key, "BUTTON_3") == 0 &&
+		strcmp(response.kv[0].val, "1") == 0);
+	ipc_pair_free(&response);
+	ipc_pair_free(&request);
+}
+
 int main(void)
 {
 	require(mkdtemp(directory) != NULL);
@@ -869,6 +943,7 @@ int main(void)
 	check_compose_states(&ctx, master, terminal);
 	check_compose_layout(&ctx, master, terminal);
 	check_compose_spinbox(&ctx, master, terminal);
+	check_compose_textview(&ctx, master, terminal);
 	require(ipc_pair_add(&request, "action", "quit"));
 	require(ipc_send_message2(&ctx, &request, NULL));
 	ipc_pair_free(&request);

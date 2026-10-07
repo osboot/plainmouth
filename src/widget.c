@@ -707,6 +707,7 @@ const char *widget_type(struct widget *w)
 		[WIDGET_SELECT_OPT]  = "select_option",
 		[WIDGET_SPINBOX]     = "spinbox",
 		[WIDGET_SCROLL_VBOX] = "scroll_vbox",
+		[WIDGET_TEXTVIEW]    = "textview",
 		[WIDGET_VSCROLL]     = "vscroll",
 		[WIDGET_HSCROLL]     = "hscroll",
 		[WIDGET_PAD_BOX]     = "pad_box",
