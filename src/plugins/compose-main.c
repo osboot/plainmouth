@@ -208,6 +208,122 @@ static bool compose_resolve_focus(struct request *req, struct widget *root, stru
 	return *target != NULL;
 }
 
+static struct widget *compose_create_spinner(struct request *req)
+{
+	bool active;
+	const char *name = req_get_val(req, "frames");
+	static const char *const names[] = { "auto", "ascii", "braille", "wave" };
+	enum widget_spinner_frames frames = SPINNER_AUTO;
+
+	if (!req_read_bool(req, "active", false, &active))
+		return NULL;
+
+	if (name) {
+		for (frames = SPINNER_AUTO; frames <= SPINNER_WAVE; frames++) {
+			if (streq(name, names[frames]))
+				break;
+		}
+
+		if (frames > SPINNER_WAVE) {
+			req_error(req, "invalid value: frames");
+			return NULL;
+		}
+	}
+
+	struct widget *w = make_spinner(frames, active);
+
+	if (w)
+		return w;
+
+	widget_free(w);
+	req_error(req, "unable to create node: %s", types[COMPOSE_SPINNER].name);
+	return NULL;
+}
+
+static struct widget *compose_create_spinbox(struct request *req)
+{
+	int min, max, step, value;
+
+	if (!read_number(req, "min", 0, INT_MIN, INT_MAX, &min) ||
+	    !read_number(req, "max", 100, min, INT_MAX, &max) ||
+	    !read_number(req, "step", 1, 1, INT_MAX, &step) ||
+	    !read_number(req, "value", min, min, max, &value))
+		return NULL;
+
+	char buffer[sizeof(int) * CHAR_BIT + 2];
+	int width = snprintf(buffer, sizeof(buffer), "%d", min);
+	int max_width = snprintf(buffer, sizeof(buffer), "%d", max);
+	return make_spinbox(min, max, step, value, MAX(width, max_width));
+}
+
+static struct widget *compose_create_input(struct request *req, enum compose_type type, const wchar_t *text)
+{
+	int limit;
+	bool finish = false;
+	struct widget *w;
+
+	if (!read_number(req, "max-length", 65536, 0, 65536, &limit))
+		return NULL;
+
+	if (type == COMPOSE_PASSWORD)
+		w = make_input_password(text, NULL);
+	else
+		w = make_input(text, NULL);
+
+	if (w && widget_set(w, PROP_INPUT_MAX_LENGTH, &limit) &&
+	    widget_set(w, PROP_INPUT_FINISH_ON_ENTER, &finish))
+		return w;
+
+	widget_free(w);
+	req_error(req, "unable to create node: %s", types[type].name);
+	return NULL;
+}
+
+static struct widget *compose_create_select(struct request *req)
+{
+	int visible, selected;
+
+	if (!read_number(req, "visible", 3, 1, COMPOSE_MAX_NODES, &visible) ||
+	    !read_number(req, "value", 1, 1, COMPOSE_MAX_NODES, &selected))
+		return NULL;
+
+	struct widget *w = make_menu(visible);
+
+	if (!w)
+		return NULL;
+
+	struct ipc_pair *pairs = req_data(req);
+	int count = 0;
+
+	for (size_t i = 0; i < pairs->num_kv; i++) {
+		if (!streq(pairs->kv[i].key, "option"))
+			continue;
+
+		wchar_t *option __free(ptr) = req_get_kv_wchars(pairs->kv + i);
+
+		if (!option || wcslen(option) > COMPOSE_MAX_SIZE ||
+		    ++count > COMPOSE_MAX_NODES)
+			goto fail;
+
+		struct widget *child = make_menu_option(option);
+
+		if (!child)
+			goto fail;
+
+		widget_add(w, child);
+	}
+
+	int index = selected - 1;
+
+	if (count && widget_set(w, PROP_SELECT_CURSOR, &index))
+		return w;
+
+fail:
+	widget_free(w);
+	req_error(req, "unable to create node: %s", types[COMPOSE_SELECT].name);
+	return NULL;
+}
+
 static struct widget *create_node(struct request *req, enum compose_type type)
 {
 	wchar_t *text __free(ptr) = NULL;
@@ -279,48 +395,10 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 
 			break;
 		}
-		case COMPOSE_SPINNER: {
-			bool active;
-			const char *name = req_get_val(req, "frames");
-			static const char *const names[] = { "auto", "ascii", "braille", "wave" };
-			enum widget_spinner_frames frames = SPINNER_AUTO;
-
-			if (!req_read_bool(req, "active", false, &active))
-				return NULL;
-
-			if (name) {
-				for (frames = SPINNER_AUTO; frames <= SPINNER_WAVE; frames++) {
-					if (streq(name, names[frames]))
-						break;
-				}
-
-				if (frames > SPINNER_WAVE) {
-					req_error(req, "invalid value: frames");
-					return NULL;
-				}
-			}
-
-			w = make_spinner(frames, active);
-
-			if (w)
-				return w;
-
-			break;
-		}
-		case COMPOSE_SPINBOX: {
-			int min, max, step, value;
-
-			if (!read_number(req, "min", 0, INT_MIN, INT_MAX, &min) ||
-			    !read_number(req, "max", 100, min, INT_MAX, &max) ||
-			    !read_number(req, "step", 1, 1, INT_MAX, &step) ||
-			    !read_number(req, "value", min, min, max, &value))
-				return NULL;
-
-			char buffer[sizeof(int) * CHAR_BIT + 2];
-			int width = snprintf(buffer, sizeof(buffer), "%d", min);
-			int max_width = snprintf(buffer, sizeof(buffer), "%d", max);
-			return make_spinbox(min, max, step, value, MAX(width, max_width));
-		}
+		case COMPOSE_SPINNER:
+			return compose_create_spinner(req);
+		case COMPOSE_SPINBOX:
+			return compose_create_spinbox(req);
 		case COMPOSE_SCROLL:
 			return make_scroll_vbox();
 		case COMPOSE_LABEL:
@@ -341,24 +419,8 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 			break;
 		}
 		case COMPOSE_INPUT:
-		case COMPOSE_PASSWORD: {
-			int limit;
-			bool finish = false;
-
-			if (!read_number(req, "max-length", 65536, 0, 65536, &limit))
-				return NULL;
-
-			if (type == COMPOSE_PASSWORD)
-				w = make_input_password(text, NULL);
-			else
-				w = make_input(text, NULL);
-
-			if (w && widget_set(w, PROP_INPUT_MAX_LENGTH, &limit) &&
-			    widget_set(w, PROP_INPUT_FINISH_ON_ENTER, &finish))
-				return w;
-
-			break;
-		}
+		case COMPOSE_PASSWORD:
+			return compose_create_input(req, type, text);
 		case COMPOSE_CHECKBOX: {
 			bool checked;
 
@@ -367,51 +429,12 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 
 			return make_checkbox(checked, true);
 		}
-		case COMPOSE_SELECT: {
-			int visible, selected;
-
-			if (!read_number(req, "visible", 3, 1, COMPOSE_MAX_NODES, &visible) ||
-			    !read_number(req, "value", 1, 1, COMPOSE_MAX_NODES, &selected))
-				return NULL;
-
-			w = make_menu(visible);
-
-			if (!w)
-				return NULL;
-
-			struct ipc_pair *pairs = req_data(req);
-			int count = 0;
-
-			for (size_t i = 0; i < pairs->num_kv; i++) {
-				if (!streq(pairs->kv[i].key, "option"))
-					continue;
-
-				wchar_t *option __free(ptr) = req_get_kv_wchars(pairs->kv + i);
-
-				if (!option || wcslen(option) > COMPOSE_MAX_SIZE ||
-				    ++count > COMPOSE_MAX_NODES)
-					goto fail;
-
-				struct widget *child = make_menu_option(option);
-
-				if (!child)
-					goto fail;
-
-				widget_add(w, child);
-			}
-
-			int index = selected - 1;
-
-			if (count && widget_set(w, PROP_SELECT_CURSOR, &index))
-				return w;
-
-			break;
-		}
+		case COMPOSE_SELECT:
+			return compose_create_select(req);
 		default:
 			return NULL;
 	}
 
-fail:
 	widget_free(w);
 	req_error(req, "unable to create node: %s", types[type].name);
 	return NULL;
@@ -655,7 +678,7 @@ static bool compose_replace_options(struct request *req, struct widget *w, bool 
 	if (clear)
 		replacement = make_menu(3);
 	else
-		replacement = create_node(req, COMPOSE_SELECT);
+		replacement = compose_create_select(req);
 
 	if (!replacement)
 		return false;
