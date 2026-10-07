@@ -45,11 +45,90 @@ static void expect_timer(int fd, bool armed)
 		assert(interval.it_value.tv_sec == 0 && interval.it_value.tv_nsec == 0);
 }
 
+static struct instance_event *event_at(struct instance *ins, size_t index)
+{
+	struct instance_event *event = TAILQ_FIRST(&ins->pending_events);
+
+	while (event && index > 0) {
+		event = TAILQ_NEXT(event, entries);
+		index--;
+	}
+
+	assert(event);
+	return event;
+}
+
+static void check_event_pool(struct instance *ins)
+{
+	struct instance_event *event;
+	size_t pending = 0, available = 0, reverse = 0;
+
+	TAILQ_FOREACH(event, &ins->pending_events, entries)
+	{
+		pending++;
+	}
+
+	TAILQ_FOREACH(event, &ins->free_events, entries)
+	{
+		available++;
+	}
+
+	TAILQ_FOREACH_REVERSE(event, &ins->pending_events, instance_event_queue, entries)
+	{
+		reverse++;
+	}
+
+	assert(pending == ins->event_count && reverse == pending);
+	assert(pending + available == INSTANCE_MAX_EVENTS);
+}
+
+static void consume_event(struct instance *ins)
+{
+	struct instance_event *pending = event_at(ins, 0);
+	char node[32], node_id[WIDGET_NODE_ID_MAX + 9];
+	snprintf(node, sizeof(node), "NODE=%d", pending->node);
+	snprintf(node_id, sizeof(node_id), "NODE_ID=%s", pending->node_id);
+	const char *fields[] = { pending->change ? "EVENT=change" : "EVENT=button", node, node_id };
+	size_t count = pending->node_id[0] ? 3 : 2;
+	int fd[2];
+	assert(socketpair(AF_UNIX, SOCK_STREAM, 0, fd) == 0);
+	struct ipc_ctx ctx = { .fd = fd[0] }, receiver;
+	char id[] = "event";
+	struct ipc_message msg = { .id = id };
+	struct request req = { .r_ctx = &ctx, .r_msg = &msg };
+	assert(ipc_pair_add(&msg.data, "id", ins->id));
+	assert(daemon_instance_wait_event(&req));
+	assert(TAILQ_FIRST(&ins->free_events) == pending);
+	assert(close(fd[0]) == 0);
+	ipc_init(&receiver);
+	receiver.fd = fd[1];
+
+	for (size_t i = 0; i < count; i++) {
+		struct ipc_token tok = { 0 };
+		assert(ipc_recv_token(&receiver, &tok) > 0);
+		assert(strcmp(tok.cmd, "RESPDATA") == 0 && strcmp(tok.id, id) == 0);
+		assert(strcmp(tok.arg, fields[i]) == 0);
+		ipc_free_token(&tok);
+	}
+
+	assert(receiver.inbuf.len == 0);
+	char extra;
+	assert(ipc_recv_data(receiver.fd, &extra, sizeof(extra)) == 0);
+	ipc_free(&receiver);
+	ipc_pair_free(&msg.data);
+	check_event_pool(ins);
+}
+
+static void clear_events(struct instance *ins)
+{
+	while (ins->event_count)
+		consume_event(ins);
+}
+
 static void expect_input_key(struct instance *ins, struct widget *w, wchar_t key,
 			     bool keycode, const wchar_t *expected, bool changed)
 {
-	ins->event_count = 0;
-	ins->event_head = 0;
+	clear_events(ins);
 	daemon_instance_input(ins, w, key, keycode);
 	wchar_t *text;
 	assert(widget_get(w, PROP_INPUT_VALUE, &text));
@@ -57,9 +136,12 @@ static void expect_input_key(struct instance *ins, struct widget *w, wchar_t key
 	assert(ins->event_count == (changed ? 1U : 0U));
 
 	if (changed) {
-		assert(ins->events[0].change && ins->events[0].node == w->w_id);
-		assert(strcmp(ins->events[0].node_id, w->node_id) == 0);
+		struct instance_event *event = event_at(ins, 0);
+		assert(event->change && event->node == w->w_id);
+		assert(strcmp(event->node_id, w->node_id) == 0);
 	}
+
+	check_event_pool(ins);
 }
 
 static void check_text_changes(void)
@@ -199,12 +281,12 @@ static void check_changes(void)
 	assert(check && spin && select);
 	daemon_instance_input(ins, check, L' ', false);
 	assert(ins->event_count == 1);
-	assert(ins->events[0].change && ins->events[0].node == 2);
-	assert(strcmp(ins->events[0].node_id, "check") == 0);
+	assert(event_at(ins, 0)->change && event_at(ins, 0)->node == 2);
+	assert(strcmp(event_at(ins, 0)->node_id, "check") == 0);
 	daemon_instance_input(ins, spin, KEY_UP, true);
 	assert(ins->event_count == 1);
 	daemon_instance_input(ins, spin, KEY_DOWN, true);
-	assert(ins->event_count == 2 && ins->events[1].node == 3);
+	assert(ins->event_count == 2 && event_at(ins, 1)->node == 3);
 	daemon_instance_input(ins, spin, L'2', false);
 	assert(ins->event_count == 2);
 	daemon_instance_input(ins, spin, KEY_BACKSPACE, true);
@@ -213,11 +295,11 @@ static void check_changes(void)
 	daemon_instance_input(ins, spin, L'2', false);
 	assert(ins->event_count == 2);
 	daemon_instance_input(ins, spin, L'\n', false);
-	assert(ins->event_count == 2 && ins->events[1].node == 3);
+	assert(ins->event_count == 2 && event_at(ins, 1)->node == 3);
 	daemon_instance_input(ins, select, KEY_DOWN, true);
 	assert(ins->event_count == 2);
 	daemon_instance_input(ins, select, KEY_UP, true);
-	assert(ins->event_count == 3 && ins->events[2].node == 4);
+	assert(ins->event_count == 3 && event_at(ins, 2)->node == 4);
 	check->attrs |= ATTR_READONLY;
 	daemon_instance_input(ins, check, L' ', false);
 	assert(ins->event_count == 3);
@@ -235,47 +317,61 @@ static void check_changes(void)
 	assert(ipc_pair_add(&update.data, "checked", "false"));
 	assert(plugin.p_set_value_instance(&setter, ins->root) == P_RET_OK);
 	daemon_instance_check_finished(ins);
-	assert(ins->event_count == 3 && ins->events[0].node == 2);
+	assert(ins->event_count == 3 && event_at(ins, 0)->node == 2);
 	ipc_pair_free(&update.data);
-	/* Exercise compaction across the end of the circular buffer. */
-	struct instance_event pending[3];
-	memcpy(pending, ins->events, sizeof(pending));
-	ins->event_head = INSTANCE_MAX_EVENTS - 1;
-
-	for (size_t i = 0; i < 3; i++)
-		ins->events[(ins->event_head + i) % INSTANCE_MAX_EVENTS] = pending[i];
-
+	struct instance_event *check_event = event_at(ins, 0);
 	daemon_instance_input(ins, check, L' ', false);
 	assert(ins->event_count == 3);
-	assert(ins->events[INSTANCE_MAX_EVENTS - 1].node == 3);
-	assert(ins->events[0].node == 4 && ins->events[1].node == 2);
-	assert(strcmp(ins->events[1].node_id, "check") == 0);
+	assert(event_at(ins, 0)->node == 3);
+	assert(event_at(ins, 1)->node == 4 && event_at(ins, 2) == check_event);
+	assert(strcmp(check_event->node_id, "check") == 0);
+	check_event_pool(ins);
 	daemon_instance_input(ins, find_widget_by_id(ins->root, 6), L'\n', false);
 	daemon_instance_input(ins, find_widget_by_id(ins->root, 6), L'\n', false);
-	assert(ins->event_count == 5 && !ins->events[2].change && !ins->events[3].change);
-	assert(ins->events[2].node == 6 && ins->events[3].node == 6);
+	assert(ins->event_count == 5 && !event_at(ins, 3)->change && !event_at(ins, 4)->change);
+	assert(event_at(ins, 3)->node == 6 && event_at(ins, 4)->node == 6);
 
 	for (int i = 0; i < INSTANCE_MAX_EVENTS; i++)
 		daemon_instance_input(ins, check, L' ', false);
 
 	assert(ins->event_count == 6 && !ins->event_overflow);
-	assert(ins->events[1].change && ins->events[4].change);
-	assert(ins->events[1].node == 2 && ins->events[4].node == 2);
+	assert(event_at(ins, 2)->change && event_at(ins, 5)->change);
+	assert(event_at(ins, 2)->node == 2 && event_at(ins, 5)->node == 2);
+	check_event_pool(ins);
+	clear_events(ins);
+	assert(TAILQ_EMPTY(&ins->pending_events));
+
+	/* Reuse a named event's slot for an unnamed button without leaking its ID. */
+	daemon_instance_input(ins, check, L' ', false);
+	check_event = event_at(ins, 0);
+	consume_event(ins);
+	daemon_instance_input(ins, find_widget_by_id(ins->root, 6), L'\n', false);
+	assert(event_at(ins, 0) == check_event && !check_event->node_id[0]);
+	consume_event(ins);
+
 	/* A duplicate can be replaced even when the queue is full. */
-	ins->event_count = INSTANCE_MAX_EVENTS;
 
-	for (size_t i = 0; i < INSTANCE_MAX_EVENTS; i++)
-		ins->events[i] = (struct instance_event) { .node = 6 };
+	for (size_t i = 0; i < INSTANCE_MAX_EVENTS - 2; i++)
+		daemon_instance_input(ins, find_widget_by_id(ins->root, 6), L'\n', false);
 
-	size_t penultimate = (ins->event_head + INSTANCE_MAX_EVENTS - 2) % INSTANCE_MAX_EVENTS;
-	size_t last = (ins->event_head + INSTANCE_MAX_EVENTS - 1) % INSTANCE_MAX_EVENTS;
-	ins->events[penultimate] = (struct instance_event) { .node = 2, .change = true };
-	ins->events[last] = (struct instance_event) { .node = 3, .change = true };
+	daemon_instance_input(ins, check, L' ', false);
+	daemon_instance_input(ins, spin, KEY_DOWN, true);
+	assert(ins->event_count == INSTANCE_MAX_EVENTS && !ins->event_overflow);
+	assert(TAILQ_EMPTY(&ins->free_events));
+	check_event = event_at(ins, INSTANCE_MAX_EVENTS - 2);
 	daemon_instance_input(ins, check, L' ', false);
 	assert(ins->event_count == INSTANCE_MAX_EVENTS && !ins->event_overflow);
-	assert(ins->events[penultimate].node == 3 && ins->events[last].node == 2);
+	assert(event_at(ins, INSTANCE_MAX_EVENTS - 2)->node == 3);
+	assert(event_at(ins, INSTANCE_MAX_EVENTS - 1) == check_event);
+	check_event_pool(ins);
+	consume_event(ins);
+	assert(ins->event_count == INSTANCE_MAX_EVENTS - 1);
 	daemon_instance_input(ins, select, KEY_DOWN, true);
+	assert(ins->event_count == INSTANCE_MAX_EVENTS && !ins->event_overflow);
+	assert(event_at(ins, INSTANCE_MAX_EVENTS - 1)->node == 4);
+	daemon_instance_input(ins, find_widget_by_id(ins->root, 6), L'\n', false);
 	assert(ins->event_count == INSTANCE_MAX_EVENTS && ins->event_overflow);
+	check_event_pool(ins);
 	daemon_instance_delete(ins);
 	ipc_pair_free(&msg.data);
 }

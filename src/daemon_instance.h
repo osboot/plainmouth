@@ -15,10 +15,14 @@ struct request;
 #define INSTANCE_MAX_EVENTS 256
 
 struct instance_event {
+	TAILQ_ENTRY(instance_event)
+	entries;
 	int node;
 	char node_id[WIDGET_NODE_ID_MAX + 1];
 	bool change;
 };
+
+TAILQ_HEAD(instance_event_queue, instance_event);
 
 struct instance {
 	TAILQ_ENTRY(instance)
@@ -32,8 +36,9 @@ struct instance {
 	bool finished; /* Written by the module; UI-thread readers only. */
 	bool events_disabled;
 	bool redraw_pending;
-	struct instance_event events[INSTANCE_MAX_EVENTS];
-	size_t event_head, event_count;
+	struct instance_event event_pool[INSTANCE_MAX_EVENTS];
+	struct instance_event_queue pending_events, free_events;
+	size_t event_count;
 	bool event_overflow;
 	size_t generation;
 };

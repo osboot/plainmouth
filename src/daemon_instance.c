@@ -114,47 +114,55 @@ static void widget_ensure_visible(struct widget *w)
 	}
 }
 
-static void coalesce_change(struct instance *instance, int node)
+static struct instance_event *coalesce_change(struct instance *instance, int node)
 {
-	/* Buttons separate independent sequences of pending changes. */
-	for (size_t i = instance->event_count; i > 0; i--) {
-		size_t pos = (instance->event_head + i - 1) % INSTANCE_MAX_EVENTS;
-		struct instance_event *event = &instance->events[pos];
+	struct instance_event *event;
 
+	/* Buttons separate independent sequences of pending changes. */
+	TAILQ_FOREACH_REVERSE(event, &instance->pending_events, instance_event_queue, entries)
+	{
 		if (!event->change)
 			break;
 
 		if (event->node != node)
 			continue;
 
-		for (size_t j = i; j < instance->event_count; j++) {
-			size_t from = (instance->event_head + j) % INSTANCE_MAX_EVENTS;
-			size_t to = (instance->event_head + j - 1) % INSTANCE_MAX_EVENTS;
-			instance->events[to] = instance->events[from];
-		}
-
-		instance->event_count--;
-		break;
+		TAILQ_REMOVE(&instance->pending_events, event, entries);
+		return event;
 	}
+
+	return NULL;
 }
 
 static void queue_event(struct instance *instance, int node, bool change)
 {
 	pthread_mutex_lock(&instances_mutex);
+	struct instance_event *event = NULL;
 
 	if (change)
-		coalesce_change(instance, node);
+		event = coalesce_change(instance, node);
 
-	if (instance->event_count == INSTANCE_MAX_EVENTS) {
+	if (!event) {
+		event = TAILQ_FIRST(&instance->free_events);
+
+		if (event) {
+			TAILQ_REMOVE(&instance->free_events, event, entries);
+			instance->event_count++;
+		}
+	}
+
+	if (!event) {
 		instance->event_overflow = true;
 	} else {
-		size_t pos = (instance->event_head + instance->event_count++) % INSTANCE_MAX_EVENTS;
-		struct instance_event *event = &instance->events[pos];
-		*event = (struct instance_event) { .node = node, .change = change };
+		event->node = node;
+		event->change = change;
+		event->node_id[0] = '\0';
 		struct widget *w = find_widget_by_id(instance->root, node);
 
 		if (w && w->node_id)
 			snprintf(event->node_id, sizeof(event->node_id), "%s", w->node_id);
+
+		TAILQ_INSERT_TAIL(&instance->pending_events, event, entries);
 	}
 
 	pthread_cond_broadcast(&instance_cond);
@@ -406,6 +414,11 @@ bool daemon_instance_create(struct request *req)
 		return false;
 	}
 	wnew->plugin = plugin;
+	TAILQ_INIT(&wnew->pending_events);
+	TAILQ_INIT(&wnew->free_events);
+
+	for (size_t i = 0; i < INSTANCE_MAX_EVENTS; i++)
+		TAILQ_INSERT_TAIL(&wnew->free_events, &wnew->event_pool[i], entries);
 
 	if (plugin->p_create_instance) {
 		wnew->root = plugin->p_create_instance(req);
@@ -544,9 +557,12 @@ bool daemon_instance_wait_event(struct request *req)
 			break;
 
 		if (instance->event_count) {
-			event = instance->events[instance->event_head];
-			instance->event_head = (instance->event_head + 1) %
-					       INSTANCE_MAX_EVENTS;
+			struct instance_event *pending = TAILQ_FIRST(&instance->pending_events);
+			event.node = pending->node;
+			event.change = pending->change;
+			memcpy(event.node_id, pending->node_id, sizeof(event.node_id));
+			TAILQ_REMOVE(&instance->pending_events, pending, entries);
+			TAILQ_INSERT_HEAD(&instance->free_events, pending, entries);
 			instance->event_count--;
 			break;
 		}
