@@ -4,6 +4,7 @@
 #include <sys/queue.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <err.h>
 
 #include <curses.h>
@@ -52,12 +53,14 @@ void meter_render(struct widget *w)
 	wmove(w->win, 0, 0);
 	wclrtoeol(w->win);
 
-	int filled = (w->w * st->value) / st->total;
+	int filled = (int) (((int64_t) w->w * st->value) / st->total);
 
 	/* filled area */
 	wattron(w->win, A_REVERSE);
+
 	for (int i = 0; i < filled; i++)
 		mvwaddch(w->win, 0, i, ACS_CKBOARD);
+
 	wattroff(w->win, A_REVERSE);
 
 	show_percent(w->win, st);

@@ -276,6 +276,12 @@ Supported node types and their properties:
   label in an `hbox` to describe it.
 - `select`: repeated `option` labels, optional `visible` (1..256, default 3)
   and `value` (the initial 1-based option number, default 1).
+- `meter`: a non-focusable progress indicator. Optional `total`
+  (1..2147483647, default 100) and `value` (0..total, default 0).
+  It stretches horizontally, occupies one row, and produces no result pairs.
+  Reaching `total` does not finish the composed dialog. Change its value with
+  `action=set-value id=dialog node-id=progress value=42`; out-of-range values
+  are rejected without changing the indicator. `total` is fixed at creation.
 
 All nodes accept `flex-w` and `flex-h` (0..256); defaults are zero except
 `flex-h=1` for the root container. Sizing uses the normal measure/layout

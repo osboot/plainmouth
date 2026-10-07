@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "config.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
@@ -24,6 +25,7 @@ enum compose_type {
 	COMPOSE_SELECT,
 	COMPOSE_BUTTON,
 	COMPOSE_SPACER,
+	COMPOSE_METER,
 	COMPOSE_COUNT,
 };
 
@@ -41,6 +43,7 @@ static const struct {
 	[COMPOSE_SELECT]   = { "select",   { "option", "visible", "value", NULL } },
 	[COMPOSE_BUTTON]   = { "button",   { "text", "close", NULL }              },
 	[COMPOSE_SPACER]   = { "spacer",   { "width", "height", NULL }            },
+	[COMPOSE_METER]    = { "meter",    { "total", "value", NULL }             },
 };
 
 static bool property_allowed(enum compose_type type, const char *key)
@@ -199,6 +202,20 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 				return NULL;
 
 			return make_spacer(width, height);
+		}
+		case COMPOSE_METER: {
+			int total, value;
+
+			if (!read_number(req, "total", 100, 1, INT_MAX, &total) ||
+			    !read_number(req, "value", 0, 0, total, &value))
+				return NULL;
+
+			w = make_meter(total);
+
+			if (w && widget_set(w, PROP_METER_VALUE, &value))
+				return w;
+
+			break;
 		}
 		case COMPOSE_SCROLL:
 			return make_scroll_vbox();
@@ -651,6 +668,16 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 				break;
 
 			ok = widget_set(w, PROP_INPUT_VALUE, value);
+			break;
+		}
+		case WIDGET_METER: {
+			int total, value;
+
+			if (!widget_get(w, PROP_METER_TOTAL, &total) ||
+			    !read_number(req, "value", 0, 0, total, &value))
+				return P_RET_ERR;
+
+			ok = widget_set(w, PROP_METER_VALUE, &value);
 			break;
 		}
 		case WIDGET_CHECKBOX: {
