@@ -488,6 +488,103 @@ static void check_compose_scroll(struct ipc_ctx *ctx, int master, VTerm *termina
 	require(!screen_contains(terminal, "Field 10:"));
 }
 
+static void check_compose_layout(struct ipc_ctx *ctx, int master, VTerm *terminal)
+{
+	const char *fields[][2] = {
+		{ "action", "create"  },
+		{ "plugin", "compose" },
+		{ "id",     "layout"  },
+		{ "width",  "32"      },
+		{ "height", "12"      },
+		{ "border", "true"    },
+		{ "x",      "0"       },
+		{ "y",      "0"       },
+		{ "node",   "vbox"    },
+		{ "gap",    "1"       },
+		{ "node",   "label"   },
+		{ "text",   "Layout"  },
+		{ "node",   "end"     },
+		{ "node",   "hbox"    },
+		{ "gap",    "2"       },
+		{ "node",   "label"   },
+		{ "text",   "Host:"   },
+		{ "node",   "end"     },
+		{ "node",   "input"   },
+		{ "value",  ""        },
+		{ "flex-w", "1"       },
+		{ "node",   "end"     },
+		{ "node",   "end"     },
+		{ "node",   "spacer"  },
+		{ "height", "1"       },
+		{ "flex-h", "1"       },
+		{ "node",   "end"     },
+		{ "node",   "hbox"    },
+		{ "gap",    "2"       },
+		{ "node",   "spacer"  },
+		{ "flex-w", "1"       },
+		{ "node",   "end"     },
+		{ "node",   "button"  },
+		{ "text",   "OK"      },
+		{ "node",   "end"     },
+		{ "node",   "button"  },
+		{ "text",   "Cancel"  },
+		{ "node",   "end"     },
+		{ "node",   "end"     },
+		{ "node",   "end"     },
+	};
+	struct ipc_pair request = { 0 };
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		require(ipc_pair_add(&request, fields[i][0], fields[i][1]));
+
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "focus"));
+	require(ipc_pair_add(&request, "id", "layout"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	drain(master, terminal);
+	press(master, terminal, "x");
+	expect_cursor(terminal, 3, 9);
+	expect_screen_character(terminal, 10, 17, '[');
+	expect_screen_character(terminal, 10, 21, ' ');
+	expect_screen_character(terminal, 10, 22, ' ');
+	expect_screen_character(terminal, 10, 23, '[');
+	expect_screen_character(terminal, 10, 30, ']');
+	struct winsize size = { .ws_row = 10, .ws_col = 24 };
+	vterm_set_size(terminal, 10, 24);
+	require(ioctl(master, TIOCSWINSZ, &size) == 0);
+	drain(master, terminal);
+	expect_cursor(terminal, 3, 9);
+	expect_screen_character(terminal, 8, 9, '[');
+	expect_screen_character(terminal, 8, 13, ' ');
+	expect_screen_character(terminal, 8, 14, ' ');
+	expect_screen_character(terminal, 8, 15, '[');
+	expect_screen_character(terminal, 8, 22, ']');
+	size = (struct winsize) { .ws_row = 24, .ws_col = 120 };
+	vterm_set_size(terminal, 24, 120);
+	require(ioctl(master, TIOCSWINSZ, &size) == 0);
+	drain(master, terminal);
+	expect_screen_character(terminal, 10, 17, '[');
+	expect_screen_character(terminal, 10, 30, ']');
+	press(master, terminal, "\t\n");
+	request = (struct ipc_pair) { 0 };
+	struct ipc_pair response = { 0 };
+	require(ipc_pair_add(&request, "action", "wait-result"));
+	require(ipc_pair_add(&request, "id", "layout"));
+	require(ipc_send_message2(ctx, &request, &response));
+	require(response.num_kv == 3);
+	require(strcmp(response.kv[0].key, "INPUT_5") == 0);
+	require(strcmp(response.kv[0].val, "x") == 0);
+	require(strcmp(response.kv[1].key, "BUTTON_9") == 0);
+	require(strcmp(response.kv[1].val, "1") == 0);
+	require(strcmp(response.kv[2].key, "BUTTON_10") == 0);
+	require(strcmp(response.kv[2].val, "0") == 0);
+	ipc_pair_free(&request);
+	ipc_pair_free(&response);
+}
+
 int main(void)
 {
 	require(mkdtemp(directory) != NULL);
@@ -581,6 +678,7 @@ int main(void)
 	check_compose_scroll(&ctx, master, terminal);
 	check_compose_events(&ctx, master, terminal);
 	check_compose_states(&ctx, master, terminal);
+	check_compose_layout(&ctx, master, terminal);
 	require(ipc_pair_add(&request, "action", "quit"));
 	require(ipc_send_message2(&ctx, &request, NULL));
 	ipc_pair_free(&request);

@@ -66,6 +66,7 @@ COMMON_SRC  = src/ipc.c src/request.c src/plugin.c src/dump.c \
 	      src/widget_select.c \
 	      src/widget_select_opt.c \
 	      src/widget_spinbox.c \
+	      src/widget_spacer.c \
 	      src/widget_textview.c \
 	      src/widget_tailview.c \
 	      src/widget_tooltip.c \
@@ -239,6 +240,7 @@ tests/daemon/daemon_cursor_test: tests/daemon/daemon_cursor_test.o $(COMMON_SO) 
 	$(call cmd_LINK,$(filter %.o,$^)) $(VTERM_LIBS) -L$(CURDIR) -lplainmouth -Wl,-rpath,$(CURDIR)
 
 tests/daemon/daemon_cursor_test.chk: VALGRIND += --suppressions=$(CURDIR)/tests/valgrind.supp
+tests/daemon/daemon_cursor_test.chk: CHECK_TIMEOUT = 15s
 
 tests/daemon/daemon_cursor_test.o: src/ipc.h
 tests/daemon/daemon_cursor_test.o: CFLAGS += $(VTERM_CFLAGS)
@@ -252,6 +254,12 @@ tests/warray/%: tests/warray/%.o src/warray.o
 
 tests/widget/%: tests/widget/%.o src/widget.o
 	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS)
+
+tests/widget/widget_box_test: tests/widget/widget_box_test.o $(COMMON_SO)
+	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS) -Wl,-rpath,$(CURDIR)
+
+tests/widget/widget_box_test.o: src/widget.h
+GARBAGE += tests/widget/widget_box_test.o
 
 tests/widget/widget_menu_test: tests/widget/widget_menu_test.o $(COMMON_SO)
 	$(call cmd_LINK,$^) $(NCURSES_LIBS) $(PANEL_LIBS) -Wl,-rpath,$(CURDIR)
@@ -301,8 +309,10 @@ tests/widget/widget_termbox_input_test: tests/widget/widget_termbox_input_test.o
 tests/widget/widget_termbox_input_test.o: src/plugins/termbox-input.h
 GARBAGE += tests/widget/widget_termbox_input_test.o
 
+CHECK_TIMEOUT ?= 5s
+
 tests/%.chk: tests/%
-	@timeout -s KILL 5s $(VALGRIND) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \
+	@timeout -s KILL $(CHECK_TIMEOUT) $(VALGRIND) "$<" >"$<.log" 2>&1 && status='ok' || status='fail'; \
 	flock -x $(CURDIR)/tests printf '%4s %s\n' "$$status" "$<"; \
 	echo $$status > $@
 

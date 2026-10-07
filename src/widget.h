@@ -102,6 +102,7 @@ enum widget_type {
 	WIDGET_TAILVIEW,
 	WIDGET_TERMINAL,
 	WIDGET_POSITIONED,
+	WIDGET_SPACER,
 	WIDGET_COUNTS,
 };
 
@@ -134,6 +135,7 @@ enum widget_property {
 	PROP_INPUT_MAX_LENGTH,
 	PROP_INPUT_FINISH_ON_ENTER,
 	PROP_TEXT_PREFIX_LENGTH,
+	PROP_BOX_GAP,
 };
 
 enum widget_flags {
@@ -216,6 +218,7 @@ struct widget {
 
 	/* Measured minimum size computed by measure() */
 	int min_w, min_h;
+	int gap; /* Main-axis spacing for hbox and vbox. */
 
 	/* Flexbox-like behaviour: per-axis */
 	int flex_h;   // participates in distributing free height inside VBOX
@@ -328,6 +331,8 @@ bool widget_scrollbar_getter(const struct widget_scrollbar_state *st,
 		enum widget_property prop, void *out,
 		enum widget_property offset_prop);
 void widget_scrollbar_state_free(struct widget *w);
+bool widget_box_setter(struct widget *w, enum widget_property prop, const void *value);
+bool widget_box_getter(struct widget *w, enum widget_property prop, void *value);
 
 struct widget *make_window(void);
 struct widget *make_vbox(void);
@@ -342,6 +347,7 @@ struct widget *make_label(const wchar_t *text);
 struct widget *make_textview(const wchar_t *text);
 struct widget *make_tailview(void);
 struct widget *make_button(const wchar_t *label);
+struct widget *make_spacer(int width, int height);
 struct widget *make_checkbox(bool checked, bool is_radio);
 struct widget *make_input(const wchar_t *initdata, const wchar_t *placeholder);
 struct widget *make_input_password(const wchar_t *initdata, const wchar_t *placeholder);

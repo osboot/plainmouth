@@ -13,7 +13,7 @@ static void hbox_layout(struct widget *w) __attribute__((nonnull(1)));
 
 /*
  * Compute horizontal container minimum size:
- *   min_w = sum of child min_w
+ *   min_w = sum of child min_w plus gaps
  *   min_h = max child min_h
  */
 void hbox_measure(struct widget *w)
@@ -26,6 +26,9 @@ void hbox_measure(struct widget *w)
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		sum_min_w += c->min_w;
 		max_h = MAX(max_h, c->min_h);
+
+		if (c != TAILQ_FIRST(&w->children))
+			sum_min_w += w->gap;
 	}
 
 	w->min_w = sum_min_w;
@@ -38,6 +41,7 @@ void hbox_layout(struct widget *w)
 	int x;
 
 	int count = 0;
+
 	TAILQ_FOREACH(c, &w->children, siblings)
 		count++;
 
@@ -55,6 +59,7 @@ void hbox_layout(struct widget *w)
 		errx(EXIT_FAILURE, "hbox_layout: calloc failed");
 
 	int i = 0;
+
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		pref[i]   = (c->pref_w > 0) ? c->pref_w : c->min_w;
 		min[i]    = c->min_w;
@@ -64,16 +69,18 @@ void hbox_layout(struct widget *w)
 		i++;
 	}
 
-	distribute_flex_axis(count, pref, min, max, grow, shrink, w->w, out);
+	int available = MAX(0, w->w - (count - 1) * w->gap);
+	distribute_flex_axis(count, pref, min, max, grow, shrink, available, out);
 
 	/* apply results */
 	x = 0;
 	i = 0;
+
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		int cw = out[i];
 		int ch = c->stretch_h ? w->h : c->min_h;
 		widget_layout_tree(c, x, 0, cw, ch);
-		x += cw;
+		x += cw + w->gap;
 		i++;
 	}
 }
@@ -88,14 +95,17 @@ static const struct widget_ops hbox_ops = {
 	.input            = NULL,
 	.add_child        = NULL,
 	.ensure_visible   = NULL,
-	.setter           = NULL,
-	.getter           = NULL,
+	.setter           = widget_box_setter,
+	.getter           = widget_box_getter,
 	.getter_index     = NULL,
 };
 
 struct widget *make_hbox(void)
 {
 	struct widget *w = widget_create(WIDGET_HBOX);
+
+	if (!w)
+		return NULL;
 
 	w->ops = &hbox_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;

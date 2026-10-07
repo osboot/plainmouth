@@ -34,6 +34,7 @@ tests/ipc/ipc_send_key_value_pairs
 tests/ncurses-leaks/panel
 tests/warray/warray_test
 tests/widget/widget_flex_axis_test
+tests/widget/widget_box_test
 tests/widget/widget_input_test
 tests/widget/widget_positioned_test
 tests/widget/widget_menu_test

@@ -256,6 +256,13 @@ plainmouth action=create plugin=compose id=connection width=40 height=7 border=t
 Supported node types and their properties:
 
 - `vbox`, `hbox`: containers arranging children vertically or horizontally.
+  Optional `gap` (0..4096, default 0) reserves rows or columns between each
+  pair of consecutive children, including zero-sized spacers. Empty and
+  single-child containers have no gap; there is no extra outer padding.
+- `spacer`: an empty, non-focusable leaf. Optional `width` and `height`
+  (0..4096, default 0) reserve that minimum size. With `flex-w` or `flex-h`,
+  the spacer can also consume remaining space along its parent's main axis.
+  It stretches across the other axis and produces no result pairs.
 - `scroll`: a container with automatic vertical and horizontal scrollbars.
   Its direct children are arranged vertically; use an `hbox` child for a row.
   Nested scroll containers are supported. Internal pads and scrollbars do
@@ -275,6 +282,24 @@ All nodes accept `flex-w` and `flex-h` (0..256); defaults are zero except
 flow. At least one button is required. Only clicking a button completes the
 dialog when `close=true`; Enter in an input or select does not complete it.
 Button meaning is assigned by the client.
+
+Gaps and spacers contribute to minimum geometry and scroll content size.
+For example, place a growing spacer before buttons to align them to the
+right, with two columns between buttons:
+
+```sh
+node=hbox gap=2
+  node=spacer flex-w=1 node=end
+  node=button node-id=ok text=OK node=end
+  node=button node-id=cancel text=Cancel node=end
+node=end
+```
+
+Spacers receive declaration-order IDs like other nodes. Inserting a spacer
+shifts subsequent numeric IDs; use `node-id` for stable update targets.
+Gap and spacer dimensions are creation-time properties. Try
+`MODE=view tests/e2e-compose-layout.sh` for a scrollable form with spaced,
+right-aligned buttons.
 
 All nodes also accept `disabled` and `readonly` booleans (default false).
 Both prevent keyboard interaction and exclude the node's descendants from

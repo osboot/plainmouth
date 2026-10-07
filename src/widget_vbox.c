@@ -17,6 +17,9 @@ void vbox_measure(struct widget *w)
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		sum_min_h += c->min_h;
 		max_w = MAX(max_w, c->min_w);
+
+		if (c != TAILQ_FIRST(&w->children))
+			sum_min_h += w->gap;
 	}
 
 	w->min_h = sum_min_h;
@@ -29,6 +32,7 @@ void vbox_layout(struct widget *w)
 	int y;
 
 	int count = 0;
+
 	TAILQ_FOREACH(c, &w->children, siblings)
 		count++;
 
@@ -46,6 +50,7 @@ void vbox_layout(struct widget *w)
 		errx(EXIT_FAILURE, "vbox_layout: calloc failed");
 
 	int i = 0;
+
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		pref[i]   = (c->pref_h > 0) ? c->pref_h : c->min_h;
 		min[i]    = c->min_h;
@@ -55,16 +60,18 @@ void vbox_layout(struct widget *w)
 		i++;
 	}
 
-	distribute_flex_axis(count, pref, min, max, grow, shrink, w->h, out);
+	int available = MAX(0, w->h - (count - 1) * w->gap);
+	distribute_flex_axis(count, pref, min, max, grow, shrink, available, out);
 
 	/* apply */
 	y = 0;
 	i = 0;
+
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		int ch = out[i];
 		int cw = c->stretch_w ? w->w : c->min_w;
 		widget_layout_tree(c, 0, y, cw, ch);
-		y += ch;
+		y += ch + w->gap;
 		i++;
 	}
 }
@@ -79,14 +86,17 @@ static const struct widget_ops vbox_ops = {
 	.input            = NULL,
 	.add_child        = NULL,
 	.ensure_visible   = NULL,
-	.setter           = NULL,
-	.getter           = NULL,
+	.setter           = widget_box_setter,
+	.getter           = widget_box_getter,
 	.getter_index     = NULL,
 };
 
 struct widget *make_vbox(void)
 {
 	struct widget *w = widget_create(WIDGET_VBOX);
+
+	if (!w)
+		return NULL;
 
 	w->ops = &vbox_ops;
 	w->color_pair = COLOR_PAIR_WINDOW;

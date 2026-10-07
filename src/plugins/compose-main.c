@@ -23,6 +23,7 @@ enum compose_type {
 	COMPOSE_CHECKBOX,
 	COMPOSE_SELECT,
 	COMPOSE_BUTTON,
+	COMPOSE_SPACER,
 	COMPOSE_COUNT,
 };
 
@@ -30,8 +31,8 @@ static const struct {
 	const char *name;
 	const char *properties[5];
 } types[COMPOSE_COUNT] = {
-	[COMPOSE_VBOX]     = { "vbox",     { NULL }                               },
-	[COMPOSE_HBOX]     = { "hbox",     { NULL }                               },
+	[COMPOSE_VBOX]     = { "vbox",     { "gap", NULL }                        },
+	[COMPOSE_HBOX]     = { "hbox",     { "gap", NULL }                        },
 	[COMPOSE_SCROLL]   = { "scroll",   { NULL }                               },
 	[COMPOSE_LABEL]    = { "label",    { "text", NULL }                       },
 	[COMPOSE_INPUT]    = { "input",    { "value", "max-length", NULL }        },
@@ -39,6 +40,7 @@ static const struct {
 	[COMPOSE_CHECKBOX] = { "checkbox", { "checked", NULL }                    },
 	[COMPOSE_SELECT]   = { "select",   { "option", "visible", "value", NULL } },
 	[COMPOSE_BUTTON]   = { "button",   { "text", "close", NULL }              },
+	[COMPOSE_SPACER]   = { "spacer",   { "width", "height", NULL }            },
 };
 
 static bool property_allowed(enum compose_type type, const char *key)
@@ -173,9 +175,31 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 
 	switch (type) {
 		case COMPOSE_VBOX:
-			return make_vbox();
-		case COMPOSE_HBOX:
-			return make_hbox();
+		case COMPOSE_HBOX: {
+			int gap;
+
+			if (!read_number(req, "gap", 0, 0, COMPOSE_MAX_SIZE, &gap))
+				return NULL;
+
+			if (type == COMPOSE_VBOX)
+				w = make_vbox();
+			else
+				w = make_hbox();
+
+			if (w && widget_set(w, PROP_BOX_GAP, &gap))
+				return w;
+
+			break;
+		}
+		case COMPOSE_SPACER: {
+			int width, height;
+
+			if (!read_number(req, "width", 0, 0, COMPOSE_MAX_SIZE, &width) ||
+			    !read_number(req, "height", 0, 0, COMPOSE_MAX_SIZE, &height))
+				return NULL;
+
+			return make_spacer(width, height);
+		}
 		case COMPOSE_SCROLL:
 			return make_scroll_vbox();
 		case COMPOSE_LABEL:
