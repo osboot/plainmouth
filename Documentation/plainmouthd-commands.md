@@ -255,7 +255,8 @@ Supported node types and their properties:
   Its direct children are arranged vertically; use an `hbox` child for a row.
   Nested scroll containers are supported. Internal pads and scrollbars do
   not receive declaration-order result IDs.
-- `label`, `button`: required `text`.
+- `label`, `button`: required `text`. Buttons accept `close` (default true);
+  `close=false` emits a client event without finishing the dialog.
 - `input`, `password`: required `value` (may be empty), optional `max-length`
   (0..65536 characters, default 65536). Passwords are masked on screen but
   returned as ordinary input values.
@@ -267,8 +268,8 @@ Supported node types and their properties:
 All nodes accept `flex-w` and `flex-h` (0..256); defaults are zero except
 `flex-h=1` for the root container. Sizing uses the normal measure/layout
 flow. At least one button is required. Only clicking a button completes the
-dialog; Enter in an input or select does not complete it. All buttons are
-ordinary closing buttons; their meaning is assigned by the client.
+dialog when `close=true`; Enter in an input or select does not complete it.
+Button meaning is assigned by the client.
 
 `set-value` addresses the declaration-order ID with `node=N`:
 
@@ -280,6 +281,9 @@ plainmouth action=set-value id=connection node=9 clicked=true
 
 Inputs/passwords accept `value`, checkboxes require `checked`, selects require
 `value` (a 1-based option number), and buttons accept `clicked` (default true).
+Labels accept `text` up to 4096 characters; replacement text must fit the
+label's current width and height. Reserve sufficient space in the initial
+label for subsequent status updates. Rejected updates leave the label unchanged.
 Changing a node with `set-value` brings it into view through its enclosing
 scroll containers. Selecting an off-screen option also scrolls the select's
 own list into view. Results use `INPUT_N`,
@@ -297,7 +301,29 @@ unknown or duplicate properties, and invalid values reject the entire tree
 before rendering. The old `node=start type=TYPE parent=N` syntax is not
 supported. Inserting nodes requires no changes to parent references; clients
 still calculate result IDs from declaration order. Dynamic structural
-updates and non-closing button events are not supported.
+updates are not supported.
+
+`action=wait-event id=ID` waits for a non-closing button activation and returns
+`EVENT=button` and `NODE=N` (the declaration-order ID). Keyboard activation
+and `set-value node=N clicked=true` both enqueue events and reset the button
+state, allowing repeated clicks. Events are consumed once, in FIFO order;
+multiple waiting clients compete for events rather than receiving broadcasts.
+Clicks before a waiter connects are retained. Each dialog queues at most 256
+events; overflow makes subsequent waits fail explicitly until deletion.
+When the queue is empty, finishing/deleting the dialog or stopping the server
+wakes waiters with an error. Closing buttons continue to use `wait-result`.
+
+```sh
+plainmouth action=create plugin=compose id=probe width=32 height=6 \
+  node=vbox \
+    node=label text="Waiting for connection..." node=end \
+    node=button text=Test close=false node=end \
+    node=button text=OK node=end \
+  node=end
+plainmouth action=wait-event id=probe
+# The client performs its operation, then updates the status label.
+plainmouth action=set-value id=probe node=2 text=Connected
+```
 
 Try `MODE=view tests/e2e-compose.sh` for an interactive connection dialog.
 For a long form with fixed buttons, try

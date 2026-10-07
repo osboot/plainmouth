@@ -482,6 +482,13 @@ static int handle_message(struct ipc_ctx *ctx, struct ipc_message *m, void *data
 
 		ipc_send_string(req_fd(&req), "RESPDATA %s ISTTY=%d", req_id(&req), res);
 		return 0;
+	} else if (streq(action, "wait-event")) {
+		if (!req_get_val(&req, "id")) {
+			req_error(&req, "field is missing: id");
+			return -1;
+		}
+
+		return daemon_instance_wait_event(&req) ? 0 : -1;
 	} else if (streq(action, "wait-result")) {
 		const char *instance_id = req_get_val(&req, "id");
 		if (!instance_id) {

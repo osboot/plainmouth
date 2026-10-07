@@ -56,6 +56,26 @@ testcase_view()
 {
 	draw_testcase
 	"$topdir"/plainmouth action=wait-result id=connection
+	"$topdir"/plainmouth action=delete id=connection
+	"$topdir"/plainmouth action=create plugin=compose id=probe width=36 height=7 border=true \
+		node=vbox \
+		  node=label text="Waiting for connection..." node=end \
+		  node=button text="Test connection" close=false node=end \
+		  node=hbox \
+		    node=button text=OK node=end \
+		    node=button text=Cancel node=end \
+		  node=end \
+		node=end
+	local event count=0
+
+	while event=$("$topdir"/plainmouth action=wait-event id=probe); do
+		test "$event" = "$(printf 'EVENT=button\nNODE=3')"
+		count=$((count + 1))
+		"$topdir"/plainmouth action=set-value id=probe node=2 text="Connected ($count)"
+	done
+
+	test "$event" = 'ERR=instance finished'
+	"$topdir"/plainmouth action=wait-result id=probe
 	"$topdir"/plainmouth --quit
 }
 
@@ -108,6 +128,7 @@ testcase_dump()
 	expect_error "${prefix[@]}" width=bad node=vbox node=end
 	expect_error "${prefix[@]}" unknown=true node=vbox node=end
 	expect_error "${prefix[@]}" node=vbox node=input value=long max-length=1 node=end node=end
+	expect_error "${prefix[@]}" node=vbox node=button text=Test close=maybe node=end node=end
 
 	local nodes=(node=vbox) i
 
@@ -132,7 +153,76 @@ testcase_dump()
 	# A rejected partial tree must not reserve the instance ID.
 	"$topdir"/plainmouth "${prefix[@]}" node=vbox node=button text=OK node=end node=end
 	"$topdir"/plainmouth action=delete id=bad
+	testcase_events
 	"$topdir"/plainmouth --quit
+}
+
+testcase_events()
+{
+	local client="$topdir/plainmouth" actual waiter status i
+	local eventfile="$current_result.event"
+	"$client" action=create plugin=compose id=events width=32 height=6 \
+		node=vbox \
+		  node=label text="Waiting for connection..." node=end \
+		  node=button text=Test close=false node=end \
+		  node=button text=Retry close=false node=end \
+		  node=button text=OK node=end \
+		node=end
+	expect_error action=set-value id=events node=2 text="This status is too long for the label"
+	"$client" action=set-value id=events node=2 text=Connected
+	"$client" action=dump id=events filename="$eventfile"
+	grep -q Connected "$eventfile"
+	! grep -q Waiting "$eventfile"
+	expect_error action=wait-event
+
+	# Clicks made before waiting remain queued, in order, including repeats.
+	for i in 3 4 3; do
+		"$client" action=set-value id=events node="$i" clicked=true
+	done
+
+	for i in 3 4 3; do
+		actual=$("$client" action=wait-event id=events)
+		test "$actual" = "$(printf 'EVENT=button\nNODE=%s' "$i")"
+	done
+
+	# An empty queue blocks; a new click wakes the client.
+	"$client" action=wait-event id=events > "$eventfile" &
+	waiter=$!
+	sleep 0.1
+	kill -0 "$waiter"
+	"$client" action=set-value id=events node=4
+	wait "$waiter"
+	test "$(cat "$eventfile")" = "$(printf 'EVENT=button\nNODE=4')"
+	actual=$("$client" action=result id=events)
+	test "$actual" = "$(printf 'BUTTON_3=0\nBUTTON_4=0\nBUTTON_5=0')"
+	"$client" action=set-value id=events node=5
+	"$client" action=wait-result id=events > /dev/null
+	expect_error action=wait-event id=events
+	"$client" action=delete id=events
+
+	"$client" action=create plugin=compose id=events width=32 height=6 \
+		node=vbox node=button text=Test close=false node=end node=end
+	"$client" action=wait-event id=events > "$eventfile" &
+	waiter=$!
+	sleep 0.1
+	kill -0 "$waiter"
+	"$client" action=delete id=events
+	status=0
+	wait "$waiter" || status=$?
+	test "$status" -eq 1
+	test "$(cat "$eventfile")" = 'ERR=no instance'
+
+	"$client" action=create plugin=compose id=events width=32 height=6 \
+		node=vbox node=button text=Test close=false node=end node=end
+
+	for ((i = 0; i < 257; i++)); do
+		"$client" action=set-value id=events node=2
+	done
+
+	actual=$("$client" action=wait-event id=events) && return 1
+	test "$actual" = 'ERR=event queue overflow'
+	"$client" action=delete id=events
+	rm -f -- "$eventfile"
 }
 
 testcase()

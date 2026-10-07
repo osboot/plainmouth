@@ -38,7 +38,7 @@ static const struct {
 	[COMPOSE_PASSWORD] = { "password", { "value", "max-length", NULL }        },
 	[COMPOSE_CHECKBOX] = { "checkbox", { "checked", NULL }                    },
 	[COMPOSE_SELECT]   = { "select",   { "option", "visible", "value", NULL } },
-	[COMPOSE_BUTTON]   = { "button",   { "text", NULL }                       },
+	[COMPOSE_BUTTON]   = { "button",   { "text", "close", NULL }              },
 };
 
 static bool property_allowed(enum compose_type type, const char *key)
@@ -106,8 +106,19 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 			return make_scroll_vbox();
 		case COMPOSE_LABEL:
 			return make_label(text);
-		case COMPOSE_BUTTON:
-			return make_button(text);
+		case COMPOSE_BUTTON: {
+			bool close;
+
+			if (!req_read_bool(req, "close", true, &close))
+				return NULL;
+
+			w = make_button(text);
+
+			if (w && widget_set(w, PROP_BUTTON_CLOSE, &close))
+				return w;
+
+			break;
+		}
 		case COMPOSE_INPUT:
 		case COMPOSE_PASSWORD: {
 			int limit;
@@ -410,6 +421,8 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 		field = "checked";
 	else if (w->type == WIDGET_BUTTON)
 		field = "clicked";
+	else if (w->type == WIDGET_LABEL)
+		field = "text";
 
 	struct ipc_pair *pairs = req_data(req);
 
@@ -438,6 +451,27 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 	bool ok = false;
 
 	switch (w->type) {
+		case WIDGET_LABEL: {
+			wchar_t *text __free(ptr) = req_get_wchars(req, "text");
+
+			if (!text || wcslen(text) > COMPOSE_MAX_SIZE)
+				break;
+
+			/* Keep the existing geometry: status updates must fit the label. */
+			struct widget *candidate = make_label(text);
+
+			if (!candidate)
+				break;
+
+			widget_measure_tree(candidate);
+			bool fits = candidate->min_w <= w->w && candidate->min_h <= w->h;
+			widget_free(candidate);
+
+			if (fits)
+				ok = widget_set(w, PROP_TEXT_VALUE, text);
+
+			break;
+		}
 		case WIDGET_INPUT: {
 			wchar_t *value __free(ptr) = req_get_wchars(req, "value");
 
@@ -523,6 +557,40 @@ static bool collect_result(struct widget *w, void *data)
 	}
 }
 
+struct button_scan {
+	int event;
+};
+
+static bool scan_buttons(struct widget *w, void *data)
+{
+	struct button_scan *scan = data;
+
+	if (w->type != WIDGET_BUTTON)
+		return true;
+
+	bool clicked, close;
+	widget_get(w, PROP_BUTTON_STATE, &clicked);
+	widget_get(w, PROP_BUTTON_CLOSE, &close);
+
+	if (!clicked)
+		return true;
+
+	if (close)
+		return true;
+
+	scan->event = w->w_id;
+	clicked = false;
+	widget_set(w, PROP_BUTTON_STATE, &clicked);
+	return false;
+}
+
+static int compose_take_event(struct widget *root)
+{
+	struct button_scan scan = { 0 };
+	walk_widget_tree(root, scan_buttons, &scan);
+	return scan.event;
+}
+
 static enum p_retcode compose_result(struct request *req, struct widget *root)
 {
 	return walk_widget_tree(root, collect_result, req) ? P_RET_OK : P_RET_ERR;
@@ -535,5 +603,6 @@ struct plugin plugin = {
 	.p_create_instance    = compose_create,
 	.p_set_value_instance = compose_set_value,
 	.p_finished           = plugin_buttons_finished,
+	.p_take_button_event  = compose_take_event,
 	.p_result             = compose_result,
 };

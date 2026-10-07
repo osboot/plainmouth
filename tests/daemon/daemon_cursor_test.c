@@ -207,6 +207,67 @@ static void check_compose(struct ipc_ctx *ctx, int master, VTerm *terminal)
 	ipc_pair_free(&response);
 }
 
+static void check_compose_events(struct ipc_ctx *ctx, int master, VTerm *terminal)
+{
+	const char *fields[][2] = {
+		{ "action", "create" },
+		{ "plugin", "compose" },
+		{ "id", "events" },
+		{ "width", "32" },
+		{ "height", "6" },
+		{ "node", "vbox" },
+		{ "node", "button" },
+		{ "text", "Test" },
+		{ "close", "false" },
+		{ "node", "end" },
+		{ "node", "button" },
+		{ "text", "OK" },
+		{ "node", "end" },
+		{ "node", "end" },
+	};
+	struct ipc_pair request = { 0 };
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		require(ipc_pair_add(&request, fields[i][0], fields[i][1]));
+
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "focus"));
+	require(ipc_pair_add(&request, "id", "events"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	drain(master, terminal);
+
+	for (int i = 0; i < 2; i++) {
+		press(master, terminal, "\n");
+		request = (struct ipc_pair) { 0 };
+		struct ipc_pair response = { 0 };
+		require(ipc_pair_add(&request, "action", "wait-event"));
+		require(ipc_pair_add(&request, "id", "events"));
+		require(ipc_send_message2(ctx, &request, &response));
+		require(response.num_kv == 2);
+		require(strcmp(response.kv[0].key, "EVENT") == 0);
+		require(strcmp(response.kv[0].val, "button") == 0);
+		require(strcmp(response.kv[1].key, "NODE") == 0);
+		require(strcmp(response.kv[1].val, "2") == 0);
+		ipc_pair_free(&request);
+		ipc_pair_free(&response);
+	}
+
+	press(master, terminal, "\t\n");
+	request = (struct ipc_pair) { 0 };
+	struct ipc_pair response = { 0 };
+	require(ipc_pair_add(&request, "action", "wait-result"));
+	require(ipc_pair_add(&request, "id", "events"));
+	require(ipc_send_message2(ctx, &request, &response));
+	require(response.num_kv == 2);
+	require(strcmp(response.kv[0].val, "0") == 0);
+	require(strcmp(response.kv[1].val, "1") == 0);
+	ipc_pair_free(&request);
+	ipc_pair_free(&response);
+}
+
 static bool screen_contains(VTerm *terminal, const char *text)
 {
 	VTermScreen *screen = vterm_obtain_screen(terminal);
@@ -439,6 +500,7 @@ int main(void)
 	expect_cursor(terminal, 11, 73);
 	check_compose(&ctx, master, terminal);
 	check_compose_scroll(&ctx, master, terminal);
+	check_compose_events(&ctx, master, terminal);
 	require(ipc_pair_add(&request, "action", "quit"));
 	require(ipc_send_message2(&ctx, &request, NULL));
 	ipc_pair_free(&request);

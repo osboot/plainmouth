@@ -23,6 +23,7 @@ static void button_free(struct widget *w);
 struct widget_button {
 	wchar_t *text;
 	bool pressed;
+	bool close;
 };
 
 void button_measure(struct widget *w)
@@ -73,6 +74,9 @@ bool button_getter(struct widget *w, enum widget_property prop, void *value)
 		bool *clicked = value;
 		*clicked = st->pressed;
 		return true;
+	} else if (prop == PROP_BUTTON_CLOSE) {
+		*(bool *) value = st->close;
+		return true;
 	} else {
 		errx(EXIT_FAILURE, "unknown property: %d", prop);
 	}
@@ -85,6 +89,9 @@ bool button_setter(struct widget *w, enum widget_property prop, const void *valu
 
 	if (prop == PROP_BUTTON_STATE) {
 		st->pressed = !!(*(const bool *) value);
+		return true;
+	} else if (prop == PROP_BUTTON_CLOSE) {
+		st->close = *(const bool *) value;
 		return true;
 	} else {
 		errx(EXIT_FAILURE, "unknown property: %d", prop);
@@ -133,6 +140,7 @@ struct widget *make_button(const wchar_t *text)
 
 	state->text = wcsdup(text ?: L"");
 	state->pressed = false;
+	state->close = true;
 
 	w->state      = state;
 	w->ops        = &button_ops;

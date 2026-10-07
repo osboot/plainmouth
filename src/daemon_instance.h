@@ -10,6 +10,8 @@ struct plugin;
 struct widget;
 struct request;
 
+#define INSTANCE_MAX_EVENTS 256
+
 struct instance {
 	TAILQ_ENTRY(instance)
 	entries;
@@ -22,6 +24,10 @@ struct instance {
 	bool finished; /* Written by the module; UI-thread readers only. */
 	bool events_disabled;
 	bool redraw_pending;
+	int button_events[INSTANCE_MAX_EVENTS];
+	size_t event_head, event_count;
+	bool event_overflow;
+	size_t generation;
 };
 /* All operations and borrowed pointers are UI-thread only, except wait.
  * The module synchronizes list publication, removal and completion with wait.
@@ -40,6 +46,7 @@ void daemon_focus_next(void);
 void daemon_focus_prev(void);
 /* Worker-thread only; returns no instance pointer across the mutex boundary. */
 bool daemon_instance_wait(struct request *req);
+bool daemon_instance_wait_event(struct request *req);
 /* UI-thread only; release current waiters and reject subsequent waits. */
 void daemon_instances_stop(void);
 

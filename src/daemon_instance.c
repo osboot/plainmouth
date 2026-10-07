@@ -24,6 +24,7 @@ static struct widget *focused;
 static pthread_mutex_t instances_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t instance_cond = PTHREAD_COND_INITIALIZER;
 static bool stopping;
+static size_t next_generation;
 
 struct instance *daemon_instance_find(const char *id)
 {
@@ -115,11 +116,36 @@ static void widget_ensure_visible(struct widget *w)
 
 void daemon_instance_check_finished(struct instance *instance)
 {
-	if (!instance || instance->finished || !instance->plugin->p_finished)
+	if (!instance || instance->finished)
 		return;
+
+	if (instance->plugin->p_take_button_event) {
+		int node;
+
+		while ((node = instance->plugin->p_take_button_event(instance->root)) > 0) {
+			pthread_mutex_lock(&instances_mutex);
+
+			if (instance->event_count == INSTANCE_MAX_EVENTS) {
+				instance->event_overflow = true;
+			} else {
+				size_t pos = (instance->event_head + instance->event_count++) %
+					     INSTANCE_MAX_EVENTS;
+				instance->button_events[pos] = node;
+			}
+
+			pthread_cond_broadcast(&instance_cond);
+			pthread_mutex_unlock(&instances_mutex);
+		}
+	}
+
+	if (!instance->plugin->p_finished)
+		return;
+
 	bool finished = instance->plugin->p_finished(instance->root);
+
 	if (!finished)
 		return;
+
 	pthread_mutex_lock(&instances_mutex);
 	instance->finished = true;
 	pthread_cond_broadcast(&instance_cond);
@@ -340,6 +366,7 @@ bool daemon_instance_create(struct request *req)
 	pthread_mutex_lock(&instances_mutex);
 
 	use_instance_widgets(wnew, wnew->root);
+	wnew->generation = ++next_generation;
 	TAILQ_INSERT_TAIL(&instances, wnew, entries);
 
 	pthread_mutex_unlock(&instances_mutex);
@@ -412,6 +439,55 @@ bool daemon_instance_wait(struct request *req)
 	}
 	pthread_mutex_unlock(&instances_mutex);
 	return true;
+}
+
+bool daemon_instance_wait_event(struct request *req)
+{
+	const char *id = req_get_val(req, "id");
+	const char *error = NULL;
+	int node = 0;
+	pthread_mutex_lock(&instances_mutex);
+	struct instance *initial = daemon_instance_find(id);
+	size_t generation = initial ? initial->generation : 0;
+
+	for (;;) {
+		struct instance *instance = daemon_instance_find(id);
+
+		if (stopping)
+			error = "server stopping";
+		else if (!instance || instance->generation != generation)
+			error = "no instance";
+		else if (!instance->plugin->p_take_button_event)
+			error = "wait-event is unsupported by plugin";
+		else if (instance->event_overflow)
+			error = "event queue overflow";
+
+		if (error)
+			break;
+
+		if (instance->event_count) {
+			node = instance->button_events[instance->event_head];
+			instance->event_head = (instance->event_head + 1) %
+					       INSTANCE_MAX_EVENTS;
+			instance->event_count--;
+			break;
+		}
+
+		if (instance->finished) {
+			error = "instance finished";
+			break;
+		}
+
+		pthread_cond_wait(&instance_cond, &instances_mutex);
+	}
+
+	pthread_mutex_unlock(&instances_mutex);
+
+	if (error)
+		return req_error(req, "%s", error);
+
+	return ipc_send_string(req_fd(req), "RESPDATA %s EVENT=button", req_id(req)) > 0 &&
+	       ipc_send_string(req_fd(req), "RESPDATA %s NODE=%d", req_id(req), node) > 0;
 }
 
 void daemon_instances_stop(void)
