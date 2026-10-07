@@ -308,6 +308,13 @@ Supported node types and their properties:
   Optional `gap` (0..4096, default 0) reserves rows or columns between each
   pair of consecutive children, including zero-sized spacers. Empty and
   single-child containers have no gap; there is no extra outer padding.
+  Optional `border=true` frames the group and reserves one cell on every
+  side. With a border, optional `label` displays a single-line caption on
+  the upper edge, clipped by terminal column width between the corners.
+  Captions do not increase the minimum width. `label` requires `border=true`.
+  Internal framing widgets do not consume declaration-order node numbers;
+  the group's ID and disabled/read-only state apply to the entire frame.
+  Try `MODE=view tests/e2e-compose-border.sh` for nested, captioned groups.
 - `spacer`: an empty, non-focusable leaf. Optional `width` and `height`
   (0..4096, default 0) reserve that minimum size. With `flex-w` or `flex-h`,
   the spacer can also consume remaining space along its parent's main axis.

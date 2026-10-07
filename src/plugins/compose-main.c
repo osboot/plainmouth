@@ -46,8 +46,8 @@ static const struct {
 	const char *name;
 	struct req_parameter properties[11];
 } types[COMPOSE_COUNT] = {
-	[COMPOSE_VBOX]     = { "vbox",     { COMPOSE_COMMON_PARAMETERS, { "gap", false } }                                                                               },
-	[COMPOSE_HBOX]     = { "hbox",     { COMPOSE_COMMON_PARAMETERS, { "gap", false } }                                                                               },
+	[COMPOSE_VBOX]     = { "vbox",     { COMPOSE_COMMON_PARAMETERS, { "gap", false }, { "border", false }, { "label", false } }                                      },
+	[COMPOSE_HBOX]     = { "hbox",     { COMPOSE_COMMON_PARAMETERS, { "gap", false }, { "border", false }, { "label", false } }                                      },
 	[COMPOSE_SCROLL]   = { "scroll",   { COMPOSE_COMMON_PARAMETERS, }                                                                                                },
 	[COMPOSE_LABEL]    = { "label",    { COMPOSE_COMMON_PARAMETERS, { "text", false } }                                                                              },
 	[COMPOSE_INPUT]    = { "input",    { COMPOSE_COMMON_PARAMETERS, { "value", false }, { "max-length", false }, { "notify", false } }                               },
@@ -358,19 +358,42 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 		case COMPOSE_VBOX:
 		case COMPOSE_HBOX: {
 			int gap;
+			bool border;
+			wchar_t *label __free(ptr) = NULL;
 
-			if (!read_number(req, "gap", 0, 0, COMPOSE_MAX_SIZE, &gap))
+			if (!read_number(req, "gap", 0, 0, COMPOSE_MAX_SIZE, &gap) ||
+			    !req_read_bool(req, "border", false, &border))
 				return NULL;
+
+			if (req_get_val(req, "label")) {
+				label = req_get_wchars(req, "label");
+
+				if (!border || !label || wcslen(label) > COMPOSE_MAX_SIZE) {
+					req_error(req, "label requires border=true and valid text of at most 4096 characters");
+					return NULL;
+				}
+			}
 
 			if (type == COMPOSE_VBOX)
 				w = make_vbox();
 			else
 				w = make_hbox();
 
-			if (w && widget_set(w, PROP_BOX_GAP, &gap))
+			if (!w || !widget_set(w, PROP_BOX_GAP, &gap))
+				break;
+
+			if (!border)
 				return w;
 
-			break;
+			struct widget *frame = make_border();
+
+			if (!frame || (label && !widget_set(frame, PROP_TEXT_VALUE, label))) {
+				widget_free(frame);
+				break;
+			}
+
+			widget_add(frame, w);
+			return frame;
 		}
 		case COMPOSE_SPACER: {
 			int width, height;
@@ -564,7 +587,11 @@ static bool compose_build_tree(struct request *req, struct widget *root,
 			parent = stack[depth - 1];
 
 		widget_add(parent, w);
-		stack[depth++] = w;
+		/* Framed groups own their identity; declared children go into the box. */
+		if (w->type == WIDGET_BORDER)
+			stack[depth++] = TAILQ_FIRST(&w->children);
+		else
+			stack[depth++] = w;
 
 		if (type == COMPOSE_BUTTON)
 			button = true;
