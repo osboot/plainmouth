@@ -38,25 +38,31 @@ enum compose_type {
 	COMPOSE_COUNT,
 };
 
+#define COMPOSE_COMMON_PARAMETERS                                        \
+	{ "flex-w", false }, { "flex-h", false }, { "disabled", false }, \
+		{ "readonly", false }, { "node-id", false }
+
 static const struct {
 	const char *name;
-	const char *properties[6];
+	struct req_parameter properties[11];
 } types[COMPOSE_COUNT] = {
-	[COMPOSE_VBOX]     = { "vbox",     { "gap", NULL }                        },
-	[COMPOSE_HBOX]     = { "hbox",     { "gap", NULL }                        },
-	[COMPOSE_SCROLL]   = { "scroll",   { NULL }                               },
-	[COMPOSE_LABEL]    = { "label",    { "text", NULL }                       },
-	[COMPOSE_INPUT]    = { "input",    { "value", "max-length", "notify", NULL } },
-	[COMPOSE_PASSWORD] = { "password", { "value", "max-length", "notify", NULL } },
-	[COMPOSE_CHECKBOX] = { "checkbox", { "checked", "notify", NULL } },
-	[COMPOSE_SELECT]   = { "select",   { "option", "visible", "value", "notify", NULL } },
-	[COMPOSE_BUTTON]   = { "button",   { "text", "close", NULL }              },
-	[COMPOSE_SPACER]   = { "spacer",   { "width", "height", NULL }            },
-	[COMPOSE_METER]    = { "meter",    { "total", "value", NULL }             },
-	[COMPOSE_SPINNER]  = { "spinner",  { "active", "frames", NULL }           },
-	[COMPOSE_SPINBOX]  = { "spinbox",  { "min", "max", "step", "value", "notify", NULL } },
-	[COMPOSE_TEXTVIEW] = { "textview", { "text", NULL }                       },
+	[COMPOSE_VBOX]     = { "vbox",     { COMPOSE_COMMON_PARAMETERS, { "gap", false } }                                                                               },
+	[COMPOSE_HBOX]     = { "hbox",     { COMPOSE_COMMON_PARAMETERS, { "gap", false } }                                                                               },
+	[COMPOSE_SCROLL]   = { "scroll",   { COMPOSE_COMMON_PARAMETERS, }                                                                                                },
+	[COMPOSE_LABEL]    = { "label",    { COMPOSE_COMMON_PARAMETERS, { "text", false } }                                                                              },
+	[COMPOSE_INPUT]    = { "input",    { COMPOSE_COMMON_PARAMETERS, { "value", false }, { "max-length", false }, { "notify", false } }                               },
+	[COMPOSE_PASSWORD] = { "password", { COMPOSE_COMMON_PARAMETERS, { "value", false }, { "max-length", false }, { "notify", false } }                               },
+	[COMPOSE_CHECKBOX] = { "checkbox", { COMPOSE_COMMON_PARAMETERS, { "checked", false }, { "notify", false } }                                                      },
+	[COMPOSE_SELECT]   = { "select",   { COMPOSE_COMMON_PARAMETERS, { "option", true }, { "visible", false }, { "value", false }, { "notify", false } }              },
+	[COMPOSE_BUTTON]   = { "button",   { COMPOSE_COMMON_PARAMETERS, { "text", false }, { "close", false } }                                                          },
+	[COMPOSE_SPACER]   = { "spacer",   { COMPOSE_COMMON_PARAMETERS, { "width", false }, { "height", false } }                                                        },
+	[COMPOSE_METER]    = { "meter",    { COMPOSE_COMMON_PARAMETERS, { "total", false }, { "value", false } }                                                         },
+	[COMPOSE_SPINNER]  = { "spinner",  { COMPOSE_COMMON_PARAMETERS, { "active", false }, { "frames", false } }                                                       },
+	[COMPOSE_SPINBOX]  = { "spinbox",  { COMPOSE_COMMON_PARAMETERS, { "min", false }, { "max", false }, { "step", false }, { "value", false }, { "notify", false } } },
+	[COMPOSE_TEXTVIEW] = { "textview", { COMPOSE_COMMON_PARAMETERS, { "text", false } }                                                                              },
 };
+
+#undef COMPOSE_COMMON_PARAMETERS
 
 struct compose_state {
 	struct pollfd timer;
@@ -129,20 +135,6 @@ static enum p_retcode compose_delete(struct widget *root)
 	}
 
 	return P_RET_OK;
-}
-
-static bool property_allowed(enum compose_type type, const char *key)
-{
-	if (streq(key, "flex-w") || streq(key, "flex-h") ||
-	    streq(key, "disabled") || streq(key, "readonly") || streq(key, "node-id"))
-		return true;
-
-	for (size_t i = 0; types[type].properties[i]; i++) {
-		if (streq(key, types[type].properties[i]))
-			return true;
-	}
-
-	return false;
 }
 
 static bool read_number(struct request *req, const char *key, int def,
@@ -445,24 +437,8 @@ static bool validate_pad_size(struct widget *w, void *data)
 
 static bool compose_validate_node(struct request *req, enum compose_type type)
 {
-	struct ipc_pair *pairs = req_data(req);
-
-	for (size_t i = 0; i < pairs->num_kv; i++) {
-		const char *key = pairs->kv[i].key;
-
-		if (!property_allowed(type, key))
-			return req_error(req, "unknown node parameter: %s", key);
-
-		if (streq(key, "option"))
-			continue;
-
-		for (size_t j = 0; j < i; j++) {
-			if (streq(key, pairs->kv[j].key))
-				return req_error(req, "duplicate node parameter: %s", key);
-		}
-	}
-
-	return true;
+	return req_validate_parameters(req, types[type].properties,
+				       "unknown node parameter", "duplicate node parameter");
 }
 
 /* Attached nodes remain owned by root, including when construction fails. */
