@@ -670,6 +670,106 @@ static void check_compose_layout(struct ipc_ctx *ctx, int master, VTerm *termina
 	ipc_pair_free(&response);
 }
 
+static void check_compose_spinbox(struct ipc_ctx *ctx, int master, VTerm *terminal)
+{
+	const char *fields[][2] = {
+		{ "action", "create"    },
+		{ "plugin", "compose"   },
+		{ "id",     "numbers"   },
+		{ "width",  "30"        },
+		{ "height", "8"         },
+		{ "border", "true"      },
+		{ "x",      "0"         },
+		{ "y",      "0"         },
+		{ "node",   "vbox"      },
+		{ "node",   "hbox"      },
+		{ "node",   "label"     },
+		{ "text",   "Retries: " },
+		{ "node",   "end"       },
+		{ "node",   "spinbox"   },
+		{ "min",    "0"         },
+		{ "max",    "10"        },
+		{ "step",   "2"         },
+		{ "value",  "3"         },
+		{ "node",   "end"       },
+		{ "node",   "end"       },
+		{ "node",   "scroll"    },
+		{ "flex-h", "1"         },
+		{ "node",   "vbox"      },
+		{ "node",   "label"     },
+		{ "text",   "Top"       },
+		{ "node",   "end"       },
+		{ "node",   "spacer"    },
+		{ "height", "5"         },
+		{ "node",   "end"       },
+		{ "node",   "hbox"      },
+		{ "node",   "label"     },
+		{ "text",   "Offset: "  },
+		{ "node",   "end"       },
+		{ "node",   "spinbox"   },
+		{ "min",    "-100"      },
+		{ "max",    "100"       },
+		{ "step",   "5"         },
+		{ "value",  "-10"       },
+		{ "node",   "end"       },
+		{ "node",   "end"       },
+		{ "node",   "end"       },
+		{ "node",   "end"       },
+		{ "node",   "button"    },
+		{ "text",   "OK"        },
+		{ "node",   "end"       },
+		{ "node",   "end"       },
+	};
+	struct ipc_pair request = { 0 };
+
+	for (size_t i = 0; i < sizeof(fields) / sizeof(*fields); i++)
+		require(ipc_pair_add(&request, fields[i][0], fields[i][1]));
+
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	request = (struct ipc_pair) { 0 };
+	require(ipc_pair_add(&request, "action", "focus"));
+	require(ipc_pair_add(&request, "id", "numbers"));
+	require(ipc_send_message2(ctx, &request, NULL));
+	ipc_pair_free(&request);
+	drain(master, terminal);
+	expect_screen_text(master, terminal, "Retries: [03]", true);
+	expect_screen_text(master, terminal, "Offset:", false);
+	press(master, terminal, "\033OA");
+	expect_screen_text(master, terminal, "Retries: [05]", true);
+	press(master, terminal, "\033OB");
+	expect_screen_text(master, terminal, "Retries: [03]", true);
+	press(master, terminal, "7");
+	press(master, terminal, "\n");
+	expect_screen_text(master, terminal, "Retries: [07]", true);
+	press(master, terminal, "\t");
+	press(master, terminal, "\t");
+	expect_screen_text(master, terminal, "Offset: [-010]", true);
+	press(master, terminal, "-");
+	press(master, terminal, "2");
+	press(master, terminal, "5");
+	press(master, terminal, "\n");
+	expect_screen_text(master, terminal, "Offset: [-025]", true);
+	press(master, terminal, "\033OA");
+	expect_screen_text(master, terminal, "Offset: [-020]", true);
+	press(master, terminal, "\t");
+	press(master, terminal, "\n");
+	request = (struct ipc_pair) { 0 };
+	struct ipc_pair response = { 0 };
+	require(ipc_pair_add(&request, "action", "wait-result"));
+	require(ipc_pair_add(&request, "id", "numbers"));
+	require(ipc_send_message2(ctx, &request, &response));
+	require(response.num_kv == 3);
+	require(strcmp(response.kv[0].key, "SPINBOX_4") == 0);
+	require(strcmp(response.kv[0].val, "7") == 0);
+	require(strcmp(response.kv[1].key, "SPINBOX_11") == 0);
+	require(strcmp(response.kv[1].val, "-20") == 0);
+	require(strcmp(response.kv[2].key, "BUTTON_12") == 0);
+	require(strcmp(response.kv[2].val, "1") == 0);
+	ipc_pair_free(&request);
+	ipc_pair_free(&response);
+}
+
 int main(void)
 {
 	require(mkdtemp(directory) != NULL);
@@ -764,6 +864,7 @@ int main(void)
 	check_compose_events(&ctx, master, terminal);
 	check_compose_states(&ctx, master, terminal);
 	check_compose_layout(&ctx, master, terminal);
+	check_compose_spinbox(&ctx, master, terminal);
 	require(ipc_pair_add(&request, "action", "quit"));
 	require(ipc_send_message2(&ctx, &request, NULL));
 	ipc_pair_free(&request);

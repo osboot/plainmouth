@@ -289,6 +289,20 @@ Supported node types and their properties:
   `action=set-value id=dialog node-id=busy active=true|false`.
   Starting again resets the sequence to its first frame; repeated starts
   leave the current frame unchanged. Frames are fixed at creation.
+- `spinbox`: a numeric field with optional `min` (default 0), `max` (default
+  100), `step` (default 1), and `value` (default min). Bounds and values must
+  fit a signed integer, `min <= max`, and `step` must be positive. The numeric
+  width is calculated from both bounds, including the minus sign; brackets
+  occupy two additional columns. Up and Down change the value by `step`,
+  clamping at the bounds. Digits start a new number, `-` starts a negative
+  number when the range permits it, Enter confirms pending digits, and
+  Backspace cancels pending input. Enter does not finish the composed dialog.
+  `set-value ... node-id=retries value=5` rejects out-of-range values and
+  clears pending digits on success. Results include `SPINBOX_N=value` using
+  declaration-order IDs. Range and step are fixed at creation.
+
+Try `MODE=view tests/e2e-compose-spinbox.sh` for numeric fields, including a
+signed field outside the scroll viewport.
 
 Spinner `auto` chooses Braille when the server's locale uses UTF-8, all frames
 have a width of one column, and `TERM` is not `linux`; otherwise it uses

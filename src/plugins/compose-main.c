@@ -6,6 +6,7 @@
 #include <err.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -32,6 +33,7 @@ enum compose_type {
 	COMPOSE_SPACER,
 	COMPOSE_METER,
 	COMPOSE_SPINNER,
+	COMPOSE_SPINBOX,
 	COMPOSE_COUNT,
 };
 
@@ -51,6 +53,7 @@ static const struct {
 	[COMPOSE_SPACER]   = { "spacer",   { "width", "height", NULL }            },
 	[COMPOSE_METER]    = { "meter",    { "total", "value", NULL }             },
 	[COMPOSE_SPINNER]  = { "spinner",  { "active", "frames", NULL }           },
+	[COMPOSE_SPINBOX]  = { "spinbox",  { "min", "max", "step", "value", NULL } },
 };
 
 struct compose_state {
@@ -323,6 +326,20 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 				return w;
 
 			break;
+		}
+		case COMPOSE_SPINBOX: {
+			int min, max, step, value;
+
+			if (!read_number(req, "min", 0, INT_MIN, INT_MAX, &min) ||
+			    !read_number(req, "max", 100, min, INT_MAX, &max) ||
+			    !read_number(req, "step", 1, 1, INT_MAX, &step) ||
+			    !read_number(req, "value", min, min, max, &value))
+				return NULL;
+
+			char buffer[sizeof(int) * CHAR_BIT + 2];
+			int width = snprintf(buffer, sizeof(buffer), "%d", min);
+			int max_width = snprintf(buffer, sizeof(buffer), "%d", max);
+			return make_spinbox(min, max, step, value, MAX(width, max_width));
 		}
 		case COMPOSE_SCROLL:
 			return make_scroll_vbox();
@@ -806,6 +823,17 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 			ok = widget_set(w, PROP_METER_VALUE, &value);
 			break;
 		}
+		case WIDGET_SPINBOX: {
+			int min, max, value;
+
+			if (!widget_get(w, PROP_SPINBOX_MIN, &min) ||
+			    !widget_get(w, PROP_SPINBOX_MAX, &max) ||
+			    !read_number(req, "value", min, min, max, &value))
+				return P_RET_ERR;
+
+			ok = widget_set(w, PROP_SPINBOX_VALUE, &value);
+			break;
+		}
 		case WIDGET_SPINNER: {
 			bool active, previous;
 
@@ -888,6 +916,9 @@ static bool collect_result(struct widget *w, void *data)
 			return widget_get(w, PROP_INPUT_VALUE, &text) &&
 			       ipc_send_string(req_fd(req), "RESPDATA %s INPUT_%d=%ls", req_id(req), w->w_id, text) > 0;
 		}
+		case WIDGET_SPINBOX:
+			return widget_get(w, PROP_SPINBOX_VALUE, &value) &&
+			       ipc_send_string(req_fd(req), "RESPDATA %s SPINBOX_%d=%d", req_id(req), w->w_id, value) > 0;
 		case WIDGET_CHECKBOX:
 			return widget_get(w, PROP_CHECKBOX_STATE, &checked) &&
 			       ipc_send_string(req_fd(req), "RESPDATA %s CHECKBOX_%d=%d", req_id(req), w->w_id, checked) > 0;

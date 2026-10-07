@@ -141,6 +141,8 @@ enum widget_property {
 	PROP_SPINNER_ACTIVE,
 	PROP_SPINNER_FRAME,
 	PROP_SPINNER_FRAMES,
+	PROP_SPINBOX_MIN,
+	PROP_SPINBOX_MAX,
 };
 
 enum widget_spinner_frames {

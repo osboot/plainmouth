@@ -23,6 +23,7 @@ struct widget_spinbox {
 	int width;
 	long long edit_buf;
 	int edit_len;
+	bool negative;
 };
 
 static int spinbox_clamp(long long v, int min, int max);
@@ -42,11 +43,22 @@ int spinbox_clamp(long long v, int min, int max)
 	return (int) v;
 }
 
-void spinbox_commit(struct widget_spinbox *s)
+static void spinbox_reset_edit(struct widget_spinbox *s)
 {
-	s->value = spinbox_clamp(s->edit_buf, s->min, s->max);
 	s->edit_buf = 0;
 	s->edit_len = 0;
+	s->negative = false;
+}
+
+void spinbox_commit(struct widget_spinbox *s)
+{
+	long long value = s->edit_buf;
+
+	if (s->negative)
+		value = -value;
+
+	s->value = spinbox_clamp(value, s->min, s->max);
+	spinbox_reset_edit(s);
 }
 
 void spinbox_measure(struct widget *w)
@@ -65,7 +77,12 @@ void spinbox_render(struct widget *w)
 	werase(w->win);
 	widget_style_apply_widget(w, color);
 
-	w_mvprintw(w->win, 0, 0, L"[%0*d]", st->width, st->value);
+	if (st->negative)
+		w_mvprintw(w->win, 0, 0, L"[-%0*lld]", MAX(1, st->width - 1), st->edit_buf);
+	else if (st->edit_len)
+		w_mvprintw(w->win, 0, 0, L"[%0*lld]", st->width, st->edit_buf);
+	else
+		w_mvprintw(w->win, 0, 0, L"[%0*d]", st->width, st->value);
 
 	widget_noutrefresh(w);
 }
@@ -83,28 +100,54 @@ int spinbox_input(const struct widget *w, wchar_t key)
 
 	switch (key) {
 		case KEY_UP:
+			spinbox_reset_edit(st);
 			st->value = spinbox_clamp((long long) st->value + st->step, st->min, st->max);
 			return 1;
 
 		case KEY_DOWN:
+			spinbox_reset_edit(st);
 			st->value = spinbox_clamp((long long) st->value - st->step, st->min, st->max);
 			return 1;
 
 		case KEY_BACKSPACE:
 		case 127:
-			st->edit_buf = 0;
-			st->edit_len = 0;
+			spinbox_reset_edit(st);
+			return 1;
+
+		case KEY_ENTER:
+		case L'\n':
+		case L'\r':
+
+			if (st->edit_len)
+				spinbox_commit(st);
+
 			return 1;
 
 		default:
 			break;
 	}
 
+	if (key == L'-' && st->min < 0) {
+		spinbox_reset_edit(st);
+		st->negative = true;
+		return 1;
+	}
+
 	if (key >= L'0' && key <= L'9') {
-		st->edit_buf = MIN((st->edit_buf * 10) + (key - L'0'), (long long) INT_MAX);
+		long long limit = INT_MAX;
+
+		if (st->negative)
+			limit++;
+
+		st->edit_buf = MIN((st->edit_buf * 10) + (key - L'0'), limit);
 		st->edit_len++;
 
-		if (st->edit_len >= st->width)
+		int digits = st->width;
+
+		if (st->negative)
+			digits--;
+
+		if (st->edit_len >= digits)
 			spinbox_commit(st);
 
 		return 1;
@@ -121,6 +164,17 @@ bool spinbox_getter(struct widget *w, enum widget_property prop, void *out)
 		*(int *) out = st->value;
 		return true;
 	}
+
+	if (prop == PROP_SPINBOX_MIN) {
+		*(int *) out = st->min;
+		return true;
+	}
+
+	if (prop == PROP_SPINBOX_MAX) {
+		*(int *) out = st->max;
+		return true;
+	}
+
 	return false;
 }
 
@@ -129,6 +183,7 @@ bool spinbox_setter(struct widget *w, enum widget_property prop, const void *in)
 	struct widget_spinbox *st = w->state;
 
 	if (prop == PROP_SPINBOX_VALUE) {
+		spinbox_reset_edit(st);
 		st->value = spinbox_clamp(*(const int *) in, st->min, st->max);
 		return true;
 	}
@@ -137,15 +192,22 @@ bool spinbox_setter(struct widget *w, enum widget_property prop, const void *in)
 
 static size_t spinbox_keybindings(const struct widget *w, const struct widget_keybinding **bindings)
 {
-	(void) w;
 	static const struct widget_keybinding keys[] = {
-		{ KEY_UP,        true,  "Up",        "Increase value"       },
-		{ KEY_DOWN,      true,  "Down",      "Decrease value"       },
-		{ KEY_BACKSPACE, true,  "Backspace", "Clear pending digits" },
-		{ 0,             false, "0-9",       "Enter numeric value"  },
+		{ KEY_UP,        true,  "Up",        "Increase value"        },
+		{ KEY_DOWN,      true,  "Down",      "Decrease value"        },
+		{ KEY_BACKSPACE, true,  "Backspace", "Clear pending digits"  },
+		{ 0,             false, "0-9",       "Enter numeric value"   },
+		{ L'\n',         false, "Enter",     "Confirm numeric value" },
+		{ L'-',          false, "-",         "Start negative value"  },
 	};
 	*bindings = keys;
-	return sizeof(keys) / sizeof(*keys);
+	size_t count = sizeof(keys) / sizeof(*keys);
+	const struct widget_spinbox *st = w->state;
+
+	if (st->min >= 0)
+		count--;
+
+	return count;
 }
 
 static const struct widget_ops spinbox_ops = {
