@@ -6,11 +6,18 @@
 #include <stdbool.h>
 #include <panel.h>
 
+#include "widget.h"
+
 struct plugin;
 struct widget;
 struct request;
 
 #define INSTANCE_MAX_EVENTS 256
+
+struct button_event {
+	int node;
+	char node_id[WIDGET_NODE_ID_MAX + 1];
+};
 
 struct instance {
 	TAILQ_ENTRY(instance)
@@ -24,7 +31,7 @@ struct instance {
 	bool finished; /* Written by the module; UI-thread readers only. */
 	bool events_disabled;
 	bool redraw_pending;
-	int button_events[INSTANCE_MAX_EVENTS];
+	struct button_event button_events[INSTANCE_MAX_EVENTS];
 	size_t event_head, event_count;
 	bool event_overflow;
 	size_t generation;

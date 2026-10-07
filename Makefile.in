@@ -153,6 +153,7 @@ src/plainmouthd.o src/daemon_worker.o: src/daemon_worker.h
 src/daemon_worker.o: src/daemon_task.h src/ipc.h
 src/plainmouthd.o src/daemon_event.o: src/daemon_event.h
 src/daemon_event.o: src/daemon_instance.h src/plugin.h src/widget.h
+src/daemon_help.o: src/daemon_help.h src/daemon_animation.h src/widget.h
 
 plugin_objs = $(filter src/plugins/$(1)-%.o,$(PLUGINS_OBJ))
 

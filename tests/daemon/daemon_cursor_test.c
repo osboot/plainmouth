@@ -218,6 +218,7 @@ static void check_compose_events(struct ipc_ctx *ctx, int master, VTerm *termina
 		{ "node", "vbox" },
 		{ "node", "button" },
 		{ "text", "Test" },
+		{ "node-id", "test" },
 		{ "close", "false" },
 		{ "node", "end" },
 		{ "node", "button" },
@@ -246,11 +247,13 @@ static void check_compose_events(struct ipc_ctx *ctx, int master, VTerm *termina
 		require(ipc_pair_add(&request, "action", "wait-event"));
 		require(ipc_pair_add(&request, "id", "events"));
 		require(ipc_send_message2(ctx, &request, &response));
-		require(response.num_kv == 2);
+		require(response.num_kv == 3);
 		require(strcmp(response.kv[0].key, "EVENT") == 0);
 		require(strcmp(response.kv[0].val, "button") == 0);
 		require(strcmp(response.kv[1].key, "NODE") == 0);
 		require(strcmp(response.kv[1].val, "2") == 0);
+		require(strcmp(response.kv[2].key, "NODE_ID") == 0);
+		require(strcmp(response.kv[2].val, "test") == 0);
 		ipc_pair_free(&request);
 		ipc_pair_free(&response);
 	}

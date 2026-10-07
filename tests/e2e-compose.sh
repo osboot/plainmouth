@@ -59,8 +59,8 @@ testcase_view()
 	"$topdir"/plainmouth action=delete id=connection
 	"$topdir"/plainmouth action=create plugin=compose id=probe width=36 height=7 border=true \
 		node=vbox \
-		  node=label text="Waiting for connection..." node=end \
-		  node=button text="Test connection" close=false node=end \
+		  node=label node-id=status text="Waiting for connection..." node=end \
+		  node=button node-id=test text="Test connection" close=false node=end \
 		  node=hbox \
 		    node=button text=OK node=end \
 		    node=button text=Cancel node=end \
@@ -69,9 +69,9 @@ testcase_view()
 	local event count=0
 
 	while event=$("$topdir"/plainmouth action=wait-event id=probe); do
-		test "$event" = "$(printf 'EVENT=button\nNODE=3')"
+		test "$event" = "$(printf 'EVENT=button\nNODE=3\nNODE_ID=test')"
 		count=$((count + 1))
-		"$topdir"/plainmouth action=set-value id=probe node=2 text="Connected ($count)"
+		"$topdir"/plainmouth action=set-value id=probe node-id=status text="Connected ($count)"
 	done
 
 	test "$event" = 'ERR=instance finished'
@@ -155,6 +155,7 @@ testcase_dump()
 	"$topdir"/plainmouth "${prefix[@]}" node=vbox node=button text=OK node=end node=end
 	"$topdir"/plainmouth action=delete id=bad
 	testcase_events
+	testcase_named_nodes
 	"$topdir"/plainmouth --quit
 }
 
@@ -232,6 +233,55 @@ testcase_events()
 	test "$actual" = 'ERR=event queue overflow'
 	"$client" action=delete id=events
 	rm -f -- "$eventfile"
+}
+
+testcase_named_nodes()
+{
+	local client="$topdir/plainmouth" inserted number actual i
+	local prefix=(action=create plugin=compose id=named width=32 height=6)
+	expect_error "${prefix[@]}" node=vbox node-id=dup \
+		node=button node-id=dup text=OK node=end node=end
+	expect_error "${prefix[@]}" node=vbox node=button node-id= text=OK node=end node=end
+	expect_error "${prefix[@]}" node=vbox node=button node-id="bad name" text=OK node=end node=end
+	expect_error "${prefix[@]}" node=vbox node=button node-id="$(printf '%065d' 0)" text=OK node=end node=end
+	expect_error "${prefix[@]}" node=vbox node=button node-id=one node-id=two text=OK node=end node=end
+
+	for inserted in false true; do
+		local nodes=(node=vbox node-id=body)
+		number=3
+
+		if [ "$inserted" = true ]; then
+			nodes+=(node=label text=Inserted node=end)
+			number=4
+		fi
+
+		nodes+=(node=label node-id=status text="Waiting for connection..." node=end
+			node=button node-id=test text=Test close=false node=end
+			node=button node-id=ok text=OK node=end node=end)
+		"$client" "${prefix[@]}" "${nodes[@]}"
+		expect_error action=set-value id=named node="$number" node-id=test clicked=true
+		expect_error action=update id=named node="$number" node-id=test disabled=true
+		expect_error action=set-value id=named node-id=missing text=Missing
+		expect_error action=update id=named node-id= disabled=true
+		expect_error action=update id=named node-id=test node-id=ok disabled=true
+		"$client" action=set-value id=named node-id=status text=Connected
+		"$client" action=update id=named node-id=body disabled=true
+		"$client" action=update id=named node-id=body disabled=false
+
+		for i in 1 2; do
+			"$client" action=set-value id=named node-id=test clicked=true
+		done
+
+		for i in 1 2; do
+			actual=$("$client" action=wait-event id=named)
+			test "$actual" = "$(printf 'EVENT=button\nNODE=%s\nNODE_ID=test' "$number")"
+		done
+
+		"$client" action=set-value id=named node=$((number + 1)) clicked=true
+		actual=$("$client" action=wait-result id=named)
+		test "$actual" = "$(printf 'BUTTON_%s=0\nBUTTON_%s=1' "$number" "$((number + 1))")"
+		"$client" action=delete id=named
+	done
 }
 
 testcase()

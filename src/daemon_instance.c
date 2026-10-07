@@ -130,7 +130,13 @@ void daemon_instance_check_finished(struct instance *instance)
 			} else {
 				size_t pos = (instance->event_head + instance->event_count++) %
 					     INSTANCE_MAX_EVENTS;
-				instance->button_events[pos] = node;
+				struct button_event *event = &instance->button_events[pos];
+				event->node = node;
+				event->node_id[0] = '\0';
+				struct widget *w = find_widget_by_id(instance->root, node);
+
+				if (w && w->node_id)
+					snprintf(event->node_id, sizeof(event->node_id), "%s", w->node_id);
 			}
 
 			pthread_cond_broadcast(&instance_cond);
@@ -451,7 +457,7 @@ bool daemon_instance_wait_event(struct request *req)
 {
 	const char *id = req_get_val(req, "id");
 	const char *error = NULL;
-	int node = 0;
+	struct button_event event = { 0 };
 	pthread_mutex_lock(&instances_mutex);
 	struct instance *initial = daemon_instance_find(id);
 	size_t generation = initial ? initial->generation : 0;
@@ -472,7 +478,7 @@ bool daemon_instance_wait_event(struct request *req)
 			break;
 
 		if (instance->event_count) {
-			node = instance->button_events[instance->event_head];
+			event = instance->button_events[instance->event_head];
 			instance->event_head = (instance->event_head + 1) %
 					       INSTANCE_MAX_EVENTS;
 			instance->event_count--;
@@ -493,7 +499,9 @@ bool daemon_instance_wait_event(struct request *req)
 		return req_error(req, "%s", error);
 
 	return ipc_send_string(req_fd(req), "RESPDATA %s EVENT=button", req_id(req)) > 0 &&
-	       ipc_send_string(req_fd(req), "RESPDATA %s NODE=%d", req_id(req), node) > 0;
+	       ipc_send_string(req_fd(req), "RESPDATA %s NODE=%d", req_id(req), event.node) > 0 &&
+	       (!event.node_id[0] ||
+		ipc_send_string(req_fd(req), "RESPDATA %s NODE_ID=%s", req_id(req), event.node_id) > 0);
 }
 
 void daemon_instances_stop(void)

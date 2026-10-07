@@ -769,6 +769,7 @@ void widget_free(struct widget *w)
 			widget_color_pair_free(w->styles->roles[role].pair);
 		free(w->styles);
 	}
+	free(w->node_id);
 	free(w);
 }
 

@@ -230,6 +230,11 @@ children. Exactly one root, a `vbox` or `hbox`, is required. IDs start at 1
 and count every opened node, including containers and labels. Tab order
 matches declaration order.
 
+Any node may have an optional `node-id=ID`, unique within the dialog. IDs
+are case-sensitive, 1..64 ASCII characters from `A-Z`, `a-z`, `0-9`, `_`,
+`-`, and `.`. Empty, invalid, or duplicate IDs reject creation. Node names
+do not affect declaration-order numbering or result keys.
+
 ```sh
 plainmouth action=create plugin=compose id=connection width=40 height=7 border=true \
   node=vbox \
@@ -299,6 +304,18 @@ plainmouth action=set-value id=connection node=6 checked=true
 plainmouth action=set-value id=connection node=9 clicked=true
 ```
 
+Both `set-value` and `update` also accept `node-id=ID` instead of `node=N`.
+Exactly one selector is required. Unknown names and duplicate selectors
+reject the request before changing values or states. Names cannot be changed
+after creation and can be reused in other dialogs.
+
+```sh
+# Declare nodes with: node=label node-id=status ...
+# and: node=button node-id=test ...
+plainmouth action=set-value id=probe node-id=status text=Connected
+plainmouth action=update id=probe node-id=test disabled=true
+```
+
 Inputs/passwords accept `value`, checkboxes require `checked`, selects require
 `value` (a 1-based option number), and buttons accept `clicked` (default true).
 Labels accept `text` up to 4096 characters; replacement text must fit the
@@ -324,8 +341,10 @@ still calculate result IDs from declaration order. Dynamic structural
 updates are not supported.
 
 `action=wait-event id=ID` waits for a non-closing button activation and returns
-`EVENT=button` and `NODE=N` (the declaration-order ID). Keyboard activation
-and `set-value node=N clicked=true` both enqueue events and reset the button
+`EVENT=button` and `NODE=N` (the declaration-order ID). An event from
+a named button also returns `NODE_ID=ID`; unnamed buttons omit this pair.
+The name is captured when the event is queued.
+Keyboard activation and `set-value clicked=true` both enqueue events and reset the button
 state, allowing repeated clicks. Events are consumed once, in FIFO order;
 multiple waiting clients compete for events rather than receiving broadcasts.
 Clicks before a waiter connects are retained. Each dialog queues at most 256
@@ -336,13 +355,13 @@ wakes waiters with an error. Closing buttons continue to use `wait-result`.
 ```sh
 plainmouth action=create plugin=compose id=probe width=32 height=6 \
   node=vbox \
-    node=label text="Waiting for connection..." node=end \
-    node=button text=Test close=false node=end \
+    node=label node-id=status text="Waiting for connection..." node=end \
+    node=button node-id=test text=Test close=false node=end \
     node=button text=OK node=end \
   node=end
 plainmouth action=wait-event id=probe
 # The client performs its operation, then updates the status label.
-plainmouth action=set-value id=probe node=2 text=Connected
+plainmouth action=set-value id=probe node-id=status text=Connected
 ```
 
 Try `MODE=view tests/e2e-compose.sh` for an interactive connection dialog.

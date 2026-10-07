@@ -195,12 +195,15 @@ struct widget_scrollbar_state {
  *   - measure(): compute minimum required size
  *   - layout(): assign final position and size
  */
+#define WIDGET_NODE_ID_MAX 64
+
 struct widget {
 	TAILQ_ENTRY(widget) siblings;
 	TAILQ_ENTRY(widget) focuses;
 
 	/* Plugin block */
 	const char *instance_id;
+	char *node_id; /* Owned optional client name. */
 	struct widget_styles *styles; /* Owned overrides, normally on the dialog root. */
 	const struct widget *style_owner; /* Style inheritance for detached popups. */
 

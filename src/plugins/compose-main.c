@@ -44,7 +44,7 @@ static const struct {
 static bool property_allowed(enum compose_type type, const char *key)
 {
 	if (streq(key, "flex-w") || streq(key, "flex-h") ||
-	    streq(key, "disabled") || streq(key, "readonly"))
+	    streq(key, "disabled") || streq(key, "readonly") || streq(key, "node-id"))
 		return true;
 
 	for (size_t i = 0; types[type].properties[i]; i++) {
@@ -67,6 +67,79 @@ static bool read_number(struct request *req, const char *key, int def,
 		return req_error(req, "invalid value: %s", key);
 
 	return true;
+}
+
+struct node_lookup {
+	const char *name;
+	struct widget *found;
+};
+
+static bool match_node_id(struct widget *w, void *data)
+{
+	struct node_lookup *lookup = data;
+
+	if (w->node_id && streq(w->node_id, lookup->name)) {
+		lookup->found = w;
+		return false;
+	}
+
+	return true;
+}
+
+static struct widget *find_node_id(struct widget *root, const char *name)
+{
+	struct node_lookup lookup = { .name = name };
+	walk_widget_tree(root, match_node_id, &lookup);
+	return lookup.found;
+}
+
+static bool valid_node_id(const char *name)
+{
+	if (!*name || strlen(name) > WIDGET_NODE_ID_MAX)
+		return false;
+
+	for (const char *p = name; *p; p++) {
+		if (!(*p >= 'a' && *p <= 'z') && !(*p >= 'A' && *p <= 'Z') &&
+		    !(*p >= '0' && *p <= '9') && *p != '_' && *p != '-' && *p != '.')
+			return false;
+	}
+
+	return true;
+}
+
+static struct widget *resolve_node(struct request *req, struct widget *root)
+{
+	const char *name = req_get_val(req, "node-id");
+	const char *number = req_get_val(req, "node");
+
+	if ((!name && !number) || (name && number)) {
+		req_error(req, "provide exactly one of node or node-id");
+		return NULL;
+	}
+
+	struct widget *w = NULL;
+
+	if (name) {
+		if (!valid_node_id(name)) {
+			req_error(req, "invalid node-id");
+			return NULL;
+		}
+
+		w = find_node_id(root, name);
+	} else {
+		int id;
+
+		if (!req_read_int(req, "node", &id))
+			return NULL;
+
+		if (id > 0)
+			w = find_widget_by_id(root, id);
+	}
+
+	if (!w)
+		req_error(req, "node not found");
+
+	return w;
 }
 
 static struct widget *create_node(struct request *req, enum compose_type type)
@@ -354,10 +427,27 @@ static struct widget *compose_create(struct request *req)
 			goto fail;
 		}
 
+		const char *node_id = req_get_val(&node, "node-id");
+
+		if (node_id && (!valid_node_id(node_id) || find_node_id(root, node_id))) {
+			req_error(req, "invalid or duplicate node-id: %s", node_id);
+			goto fail;
+		}
+
 		struct widget *w = create_node(&node, type);
 
 		if (!w)
 			goto fail;
+
+		if (node_id) {
+			w->node_id = strdup(node_id);
+
+			if (!w->node_id) {
+				widget_free(w);
+				req_error(req, "no memory");
+				goto fail;
+			}
+		}
 
 		w->w_id = ++count;
 		w->flex_w = flex_w;
@@ -419,7 +509,7 @@ static enum p_retcode compose_update(struct request *req, struct widget *root)
 	for (size_t i = 0; i < pairs->num_kv; i++) {
 		const char *key = pairs->kv[i].key;
 
-		if (!streq(key, "action") && !streq(key, "id") && !streq(key, "node") &&
+		if (!streq(key, "action") && !streq(key, "id") && !streq(key, "node") && !streq(key, "node-id") &&
 		    !streq(key, "disabled") && !streq(key, "readonly")) {
 			req_error(req, "unknown update parameter: %s", key);
 			return P_RET_ERR;
@@ -433,20 +523,16 @@ static enum p_retcode compose_update(struct request *req, struct widget *root)
 		}
 	}
 
-	int id;
 	bool disabled, readonly;
 
-	if (!req_read_int(req, "node", &id) ||
-	    !req_read_bool(req, "disabled", false, &disabled) ||
+	if (!req_read_bool(req, "disabled", false, &disabled) ||
 	    !req_read_bool(req, "readonly", false, &readonly))
 		return P_RET_ERR;
 
-	struct widget *w = find_widget_by_id(root, id);
+	struct widget *w = resolve_node(req, root);
 
-	if (id <= 0 || !w) {
-		req_error(req, "node not found: node=%d", id);
+	if (!w)
 		return P_RET_ERR;
-	}
 
 	if (!req_get_val(req, "disabled") && !req_get_val(req, "readonly")) {
 		req_error(req, "update requires disabled or readonly");
@@ -472,17 +558,10 @@ static enum p_retcode compose_update(struct request *req, struct widget *root)
 
 static enum p_retcode compose_set_value(struct request *req, struct widget *root)
 {
-	int id;
+	struct widget *w = resolve_node(req, root);
 
-	if (!req_read_int(req, "node", &id))
+	if (!w)
 		return P_RET_ERR;
-
-	struct widget *w = find_widget_by_id(root, id);
-
-	if (id <= 0 || !w) {
-		req_error(req, "node not found: node=%d", id);
-		return P_RET_ERR;
-	}
 
 	const char *field = "value";
 
@@ -499,7 +578,7 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 		const char *key = pairs->kv[i].key;
 
 		if (!streq(key, "action") && !streq(key, "id") &&
-		    !streq(key, "node") && !streq(key, field)) {
+		    !streq(key, "node") && !streq(key, "node-id") && !streq(key, field)) {
 			req_error(req, "unknown set-value parameter: %s", key);
 			return P_RET_ERR;
 		}
@@ -587,7 +666,7 @@ static enum p_retcode compose_set_value(struct request *req, struct widget *root
 	}
 
 	if (!ok) {
-		req_error(req, "unable to set node value: node=%d", id);
+		req_error(req, "unable to set node value: node=%d", w->w_id);
 		return P_RET_ERR;
 	}
 
