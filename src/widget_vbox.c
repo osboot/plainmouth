@@ -22,8 +22,8 @@ void vbox_measure(struct widget *w)
 			sum_min_h += w->gap;
 	}
 
-	w->min_h = sum_min_h;
-	w->min_w = max_w;
+	w->min_h = sum_min_h + 2 * w->padding_y;
+	w->min_w = max_w + 2 * w->padding_x;
 }
 
 void vbox_layout(struct widget *w)
@@ -60,17 +60,17 @@ void vbox_layout(struct widget *w)
 		i++;
 	}
 
-	int available = MAX(0, w->h - (count - 1) * w->gap);
+	int available = MAX(0, w->h - 2 * w->padding_y - (count - 1) * w->gap);
 	distribute_flex_axis(count, pref, min, max, grow, shrink, available, out);
 
 	/* apply */
-	y = 0;
+	y = w->padding_y;
 	i = 0;
 
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		int ch = out[i];
-		int cw = c->stretch_w ? w->w : c->min_w;
-		widget_layout_tree(c, 0, y, cw, ch);
+		int cw = c->stretch_w ? MAX(0, w->w - 2 * w->padding_x) : c->min_w;
+		widget_layout_tree(c, w->padding_x, y, cw, ch);
 		y += ch + w->gap;
 		i++;
 	}

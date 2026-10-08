@@ -308,6 +308,11 @@ Supported node types and their properties:
   Optional `gap` (0..4096, default 0) reserves rows or columns between each
   pair of consecutive children, including zero-sized spacers. Empty and
   single-child containers have no gap; there is no extra outer padding.
+  Optional `padding` (0..4096, default 0) reserves inner spacing on all
+  sides. `padding-x` and `padding-y` override the horizontal and vertical
+  values independently, regardless of parameter order. Padding applies to
+  empty containers too, participates in minimum size, and is inside a border.
+  Try `MODE=view tests/e2e-compose-padding.sh` for padded, scrollable groups.
   Optional `border=true` frames the group and reserves one cell on every
   side. With a border, optional `label` displays a single-line caption on
   the upper edge, clipped by terminal column width between the corners.

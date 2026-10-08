@@ -157,6 +157,51 @@ static void test_node_ids(void)
 	widget_free(other);
 }
 
+static void test_padding(void)
+{
+	for (int vertical = 0; vertical < 2; vertical++) {
+		struct widget *box;
+
+		if (vertical)
+			box = make_vbox();
+		else
+			box = make_hbox();
+
+		assert(box);
+		int x = 2, y = 1, gap = 1;
+		assert(widget_set(box, PROP_BOX_PADDING_X, &x));
+		assert(widget_set(box, PROP_BOX_PADDING_Y, &y));
+		assert(widget_set(box, PROP_BOX_GAP, &gap));
+		widget_measure_tree(box);
+		assert(box->min_w == 4 && box->min_h == 2);
+		struct widget *first = make_spacer(3, 2);
+		struct widget *second = make_spacer(4, 3);
+		assert(first && second);
+		widget_add(box, first);
+		widget_add(box, second);
+		widget_measure_tree(box);
+		assert(box->min_w == (vertical ? 8 : 12));
+		assert(box->min_h == (vertical ? 8 : 5));
+		widget_layout_tree(box, 0, 0, box->min_w, box->min_h);
+		assert(first->lx == 2 && first->ly == 1);
+		assert(second->lx == (vertical ? 2 : 6));
+		assert(second->ly == (vertical ? 4 : 1));
+		assert(first->w == (vertical ? 4 : 3));
+		assert(first->h == (vertical ? 2 : 3));
+		int invalid = -1;
+		assert(!widget_set(box, PROP_BOX_PADDING_X, &invalid));
+		invalid = 4097;
+		assert(!widget_set(box, PROP_BOX_PADDING_Y, &invalid));
+		assert(widget_get(box, PROP_BOX_PADDING_X, &invalid) && invalid == 2);
+		assert(widget_get(box, PROP_BOX_PADDING_Y, &invalid) && invalid == 1);
+		first->flex_w = first->flex_h = 1;
+		widget_layout_tree(box, 0, 0, box->min_w + 6, box->min_h + 4);
+		assert(first->w == (vertical ? 10 : 9));
+		assert(first->h == (vertical ? 6 : 7));
+		widget_free(box);
+	}
+}
+
 static void test_border_label(void)
 {
 	assert(setlocale(LC_CTYPE, "C.UTF-8"));
@@ -215,6 +260,7 @@ int main(void)
 	test_empty_and_single();
 	test_scroll_content();
 	test_node_ids();
+	test_padding();
 	test_border_label();
 	return 0;
 }

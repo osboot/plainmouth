@@ -140,6 +140,8 @@ enum widget_property {
 	PROP_INPUT_REVISION,
 	PROP_TEXT_PREFIX_LENGTH,
 	PROP_BOX_GAP,
+	PROP_BOX_PADDING_X,
+	PROP_BOX_PADDING_Y,
 	PROP_SPINNER_ACTIVE,
 	PROP_SPINNER_FRAME,
 	PROP_SPINNER_FRAMES,
@@ -235,6 +237,7 @@ struct widget {
 	/* Measured minimum size computed by measure() */
 	int min_w, min_h;
 	int gap; /* Main-axis spacing for hbox and vbox. */
+	int padding_x, padding_y; /* Symmetric inner spacing for hbox and vbox. */
 
 	/* Flexbox-like behaviour: per-axis */
 	int flex_h;   // participates in distributing free height inside VBOX

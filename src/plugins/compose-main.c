@@ -44,22 +44,89 @@ enum compose_type {
 
 static const struct {
 	const char *name;
-	struct req_parameter properties[11];
+	struct req_parameter properties[12];
 } types[COMPOSE_COUNT] = {
-	[COMPOSE_VBOX]     = { "vbox",     { COMPOSE_COMMON_PARAMETERS, { "gap", false }, { "border", false }, { "label", false } }                                      },
-	[COMPOSE_HBOX]     = { "hbox",     { COMPOSE_COMMON_PARAMETERS, { "gap", false }, { "border", false }, { "label", false } }                                      },
-	[COMPOSE_SCROLL]   = { "scroll",   { COMPOSE_COMMON_PARAMETERS, }                                                                                                },
-	[COMPOSE_LABEL]    = { "label",    { COMPOSE_COMMON_PARAMETERS, { "text", false } }                                                                              },
-	[COMPOSE_INPUT]    = { "input",    { COMPOSE_COMMON_PARAMETERS, { "value", false }, { "max-length", false }, { "notify", false } }                               },
-	[COMPOSE_PASSWORD] = { "password", { COMPOSE_COMMON_PARAMETERS, { "value", false }, { "max-length", false }, { "notify", false } }                               },
-	[COMPOSE_CHECKBOX] = { "checkbox", { COMPOSE_COMMON_PARAMETERS, { "checked", false }, { "notify", false } }                                                      },
-	[COMPOSE_SELECT]   = { "select",   { COMPOSE_COMMON_PARAMETERS, { "option", true }, { "visible", false }, { "value", false }, { "notify", false } }              },
-	[COMPOSE_BUTTON]   = { "button",   { COMPOSE_COMMON_PARAMETERS, { "text", false }, { "close", false } }                                                          },
-	[COMPOSE_SPACER]   = { "spacer",   { COMPOSE_COMMON_PARAMETERS, { "width", false }, { "height", false } }                                                        },
-	[COMPOSE_METER]    = { "meter",    { COMPOSE_COMMON_PARAMETERS, { "total", false }, { "value", false } }                                                         },
-	[COMPOSE_SPINNER]  = { "spinner",  { COMPOSE_COMMON_PARAMETERS, { "active", false }, { "frames", false } }                                                       },
-	[COMPOSE_SPINBOX]  = { "spinbox",  { COMPOSE_COMMON_PARAMETERS, { "min", false }, { "max", false }, { "step", false }, { "value", false }, { "notify", false } } },
-	[COMPOSE_TEXTVIEW] = { "textview", { COMPOSE_COMMON_PARAMETERS, { "text", false } }                                                                              },
+	[COMPOSE_VBOX] = { "vbox", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "gap", false },
+						{ "border", false },
+						{ "label", false },
+						{ "padding", false },
+						{ "padding-x", false },
+						{ "padding-y", false },
+					}},
+	[COMPOSE_HBOX] = { "hbox", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "gap", false },
+						{ "border", false },
+						{ "label", false },
+						{ "padding", false },
+						{ "padding-x", false },
+						{ "padding-y", false },
+					}},
+	[COMPOSE_SCROLL] = { "scroll", {
+						COMPOSE_COMMON_PARAMETERS,
+					}},
+	[COMPOSE_LABEL] = { "label", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "text", false },
+					}},
+	[COMPOSE_INPUT] = { "input", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "value", false },
+						{ "max-length", false },
+						{ "notify", false },
+					}},
+	[COMPOSE_PASSWORD] = { "password", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "value", false },
+						{ "max-length", false },
+						{ "notify", false },
+					}},
+	[COMPOSE_CHECKBOX] = { "checkbox", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "checked", false },
+						{ "notify", false },
+					}},
+	[COMPOSE_SELECT] = { "select", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "option", true },
+						{ "visible", false },
+						{ "value", false },
+						{ "notify", false },
+				       }},
+	[COMPOSE_BUTTON] = { "button", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "text", false },
+						{ "close", false },
+					}},
+	[COMPOSE_SPACER] = { "spacer", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "width", false },
+						{ "height", false },
+					}},
+	[COMPOSE_METER] = { "meter", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "total", false },
+						{ "value", false },
+					}},
+	[COMPOSE_SPINNER] = { "spinner", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "active", false },
+						{ "frames", false },
+					}},
+	[COMPOSE_SPINBOX] = { "spinbox", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "min", false },
+						{ "max", false },
+						{ "step", false },
+						{ "value", false },
+						{ "notify", false },
+					}},
+	[COMPOSE_TEXTVIEW] = { "textview", {
+						COMPOSE_COMMON_PARAMETERS,
+						{ "text", false },
+					}},
 };
 
 #undef COMPOSE_COMMON_PARAMETERS
@@ -357,11 +424,14 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 	switch (type) {
 		case COMPOSE_VBOX:
 		case COMPOSE_HBOX: {
-			int gap;
+			int gap, padding, padding_x, padding_y;
 			bool border;
 			wchar_t *label __free(ptr) = NULL;
 
 			if (!read_number(req, "gap", 0, 0, COMPOSE_MAX_SIZE, &gap) ||
+			    !read_number(req, "padding", 0, 0, COMPOSE_MAX_SIZE, &padding) ||
+			    !read_number(req, "padding-x", padding, 0, COMPOSE_MAX_SIZE, &padding_x) ||
+			    !read_number(req, "padding-y", padding, 0, COMPOSE_MAX_SIZE, &padding_y) ||
 			    !req_read_bool(req, "border", false, &border))
 				return NULL;
 
@@ -379,7 +449,9 @@ static struct widget *create_node(struct request *req, enum compose_type type)
 			else
 				w = make_hbox();
 
-			if (!w || !widget_set(w, PROP_BOX_GAP, &gap))
+			if (!w || !widget_set(w, PROP_BOX_GAP, &gap) ||
+			    !widget_set(w, PROP_BOX_PADDING_X, &padding_x) ||
+			    !widget_set(w, PROP_BOX_PADDING_Y, &padding_y))
 				break;
 
 			if (!border)

@@ -668,7 +668,7 @@ void widget_scrollbar_state_free(struct widget *w)
 
 bool widget_box_setter(struct widget *w, enum widget_property prop, const void *value)
 {
-	if (prop != PROP_BOX_GAP)
+	if (prop != PROP_BOX_GAP && prop != PROP_BOX_PADDING_X && prop != PROP_BOX_PADDING_Y)
 		return false;
 
 	int gap = *(const int *) value;
@@ -676,16 +676,28 @@ bool widget_box_setter(struct widget *w, enum widget_property prop, const void *
 	if (gap < 0 || gap > 4096)
 		return false;
 
-	w->gap = gap;
+	if (prop == PROP_BOX_PADDING_X)
+		w->padding_x = gap;
+	else if (prop == PROP_BOX_PADDING_Y)
+		w->padding_y = gap;
+	else
+		w->gap = gap;
+
 	return true;
 }
 
 bool widget_box_getter(struct widget *w, enum widget_property prop, void *value)
 {
-	if (prop != PROP_BOX_GAP)
+	if (prop != PROP_BOX_GAP && prop != PROP_BOX_PADDING_X && prop != PROP_BOX_PADDING_Y)
 		return false;
 
-	*(int *) value = w->gap;
+	if (prop == PROP_BOX_PADDING_X)
+		*(int *) value = w->padding_x;
+	else if (prop == PROP_BOX_PADDING_Y)
+		*(int *) value = w->padding_y;
+	else
+		*(int *) value = w->gap;
+
 	return true;
 }
 

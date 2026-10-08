@@ -31,8 +31,8 @@ void hbox_measure(struct widget *w)
 			sum_min_w += w->gap;
 	}
 
-	w->min_w = sum_min_w;
-	w->min_h = max_h;
+	w->min_w = sum_min_w + 2 * w->padding_x;
+	w->min_h = max_h + 2 * w->padding_y;
 }
 
 void hbox_layout(struct widget *w)
@@ -69,17 +69,17 @@ void hbox_layout(struct widget *w)
 		i++;
 	}
 
-	int available = MAX(0, w->w - (count - 1) * w->gap);
+	int available = MAX(0, w->w - 2 * w->padding_x - (count - 1) * w->gap);
 	distribute_flex_axis(count, pref, min, max, grow, shrink, available, out);
 
 	/* apply results */
-	x = 0;
+	x = w->padding_x;
 	i = 0;
 
 	TAILQ_FOREACH(c, &w->children, siblings) {
 		int cw = out[i];
-		int ch = c->stretch_h ? w->h : c->min_h;
-		widget_layout_tree(c, x, 0, cw, ch);
+		int ch = c->stretch_h ? MAX(0, w->h - 2 * w->padding_y) : c->min_h;
+		widget_layout_tree(c, x, w->padding_y, cw, ch);
 		x += cw + w->gap;
 		i++;
 	}
